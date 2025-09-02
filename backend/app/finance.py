@@ -26,9 +26,15 @@ def convert_interest_rate(
     if annual_rate is None and monthly_rate is None:
         raise ValueError("Either annual_rate or monthly_rate must be provided")
 
-    # Both provided, validate they are not None and return as-is
+    # Both provided: validate consistency within small tolerance
     if annual_rate is None or monthly_rate is None:
         raise ValueError("Both rates cannot be None when both are provided")
+    derived_annual = ((1 + monthly_rate / 100) ** 12 - 1) * 100
+    # Allow minor rounding tolerance
+    if abs(derived_annual - annual_rate) > 0.05:
+        raise ValueError(
+            f"Provided annual ({annual_rate:.4f}%) and monthly ({monthly_rate:.4f}%) rates are inconsistent (expected ~{derived_annual:.4f}%)."
+        )
     return annual_rate, monthly_rate
 
 
@@ -385,11 +391,21 @@ def simulate_buy_scenario(
         + total_monthly_additional_costs  # Monthly costs (HOA, property tax)
     )
 
+    total_outflows = (
+        loan_result.total_paid
+        + down_payment
+        + total_upfront_costs
+        + total_monthly_additional_costs
+    )
+    net_cost = total_outflows - final_equity
+
     return ComparisonScenario(
         name="Comprar com financiamento",
-        total_cost=total_cost,
+        total_cost=net_cost,  # Preserve original field meaning as net cost
         final_equity=final_equity,
         monthly_data=monthly_data,
+        total_outflows=total_outflows,
+        net_cost=net_cost,
     )
 
 
@@ -469,11 +485,17 @@ def simulate_rent_and_invest_scenario(
             }
         )
 
+    # Gross outflows: rent payments
+    total_outflows = total_rent_paid
+    net_cost = total_outflows - investment_balance  # rent minus final wealth
+
     return ComparisonScenario(
         name="Alugar e investir",
-        total_cost=total_rent_paid - (investment_balance - down_payment),
+        total_cost=net_cost,
         final_equity=investment_balance,
         monthly_data=monthly_data,
+        total_outflows=total_outflows,
+        net_cost=net_cost,
     )
 
 
@@ -632,29 +654,10 @@ def simulate_invest_then_buy_scenario(
             status = "Investindo"
             equity = 0
 
-        # Calculate cash flow (negative = outgoing, positive = saved compared to loan scenario)
-        base_cash_flow = -total_rent_cost - additional_investment
-        if invest_loan_difference and month <= len(loan_installments):
-            # Show the savings compared to loan scenario
-            loan_installment = loan_installments[month - 1]
-            loan_monthly_hoa = apply_inflation(
-                costs["monthly_hoa"], month, 1, inflation_rate
-            )
-            loan_monthly_property_tax = apply_inflation(
-                costs["monthly_property_tax"], month, 1, inflation_rate
-            )
-            total_loan_payment = (
-                loan_installment.installment
-                + loan_monthly_hoa
-                + loan_monthly_property_tax
-            )
-            cash_flow = -(
-                total_rent_cost + (fixed_monthly_investment or 0)
-            )  # Only count rent and fixed investment as cost
-        else:
-            cash_flow = base_cash_flow
+    # Cash flow: negative outflow of rent + all additional investments (including loan diff if any)
+    cash_flow = -(total_rent_cost + additional_investment)
 
-        monthly_data.append(
+    monthly_data.append(
             {
                 "month": month,
                 "cash_flow": cash_flow,
@@ -714,49 +717,36 @@ def simulate_invest_then_buy_scenario(
 
     # Calculate total cost
     if purchase_month:
-        # If property was purchased, calculate total net cost:
-        # Total spent: rent + property purchase + additional costs + extra investments
-        # Total assets: property value + remaining investment balance
-        purchase_cost = (
-            apply_property_appreciation(
-                property_value,
-                purchase_month,
-                1,
-                property_appreciation_rate,
-                inflation_rate,
-            )
-            + calculate_additional_costs(
-                apply_property_appreciation(
-                    property_value,
-                    purchase_month,
-                    1,
-                    property_appreciation_rate,
-                    inflation_rate,
-                ),
-                additional_costs,
-            )["total_upfront"]
+        purchase_property_value = apply_property_appreciation(
+            property_value,
+            purchase_month,
+            1,
+            property_appreciation_rate,
+            inflation_rate,
         )
+        purchase_upfront = calculate_additional_costs(
+            purchase_property_value, additional_costs
+        )["total_upfront"]
+        purchase_cost = purchase_property_value + purchase_upfront
 
-        total_spent = (
-            total_rent_paid  # Rent until purchase
-            + purchase_cost  # Property + upfront costs at purchase
-            + total_monthly_additional_costs  # Costs after purchase
-            + total_additional_investments  # All extra investments
+        total_outflows = (
+            total_rent_paid
+            + purchase_cost
+            + total_monthly_additional_costs
+            + total_additional_investments
         )
-
-        total_assets = final_property_value + investment_balance
-        total_cost = total_spent - total_assets
     else:
-        # If property was never purchased:
-        # Net cost = rent paid + all investments made - current investment balance
-        # This represents the opportunity cost of renting vs final wealth achieved
-        total_cost = total_rent_paid + total_additional_investments - investment_balance
+        total_outflows = total_rent_paid + total_additional_investments
+
+    net_cost = total_outflows - final_equity
 
     return ComparisonScenario(
         name="Investir e comprar à vista",
-        total_cost=total_cost,
+        total_cost=net_cost,
         final_equity=final_equity,
         monthly_data=monthly_data,
+        total_outflows=total_outflows,
+        net_cost=net_cost,
     )
 
 
@@ -880,46 +870,41 @@ def enhanced_compare_scenarios(
 
     def calculate_metrics(scenario: ComparisonScenario) -> ComparisonMetrics:
         total_cost_diff = scenario.total_cost - best_cost
-        total_cost_pct_diff = (
-            (total_cost_diff / best_cost) * 100 if best_cost != 0 else 0
-        )
+        total_cost_pct_diff = (total_cost_diff / best_cost * 100) if best_cost else 0
 
-        # Calculate average monthly cost
-        monthly_costs = [
-            abs(data.get("cash_flow", 0)) for data in scenario.monthly_data
-        ]
-        avg_monthly_cost = (
-            sum(monthly_costs) / len(monthly_costs) if monthly_costs else 0
-        )
+        monthly_costs_signed = [data.get("cash_flow", 0) for data in scenario.monthly_data]
+        avg_monthly_cost = sum(monthly_costs_signed) / len(monthly_costs_signed) if monthly_costs_signed else 0
 
-        # Calculate ROI
+        # ROI denominator: down payment + upfront costs (if any) for purchase; else down payment (capital deployed)
         initial_investment = down_payment
+        if scenario.name == "Comprar com financiamento" and scenario.monthly_data:
+            upfront = scenario.monthly_data[0].get("upfront_additional_costs") or 0
+            initial_investment += upfront
         final_value = scenario.final_equity
-        roi_pct = (
-            ((final_value - initial_investment) / initial_investment) * 100
-            if initial_investment != 0
-            else 0
-        )
+        roi_pct = ((final_value - initial_investment) / initial_investment * 100) if initial_investment else 0
 
-        # Calculate total interest/rent paid
         if scenario.name == "Comprar com financiamento":
-            total_interest_rent = sum(
-                data.get("interest_payment", 0) for data in scenario.monthly_data
-            )
+            total_interest_rent = sum(d.get("interest_payment", 0) for d in scenario.monthly_data)
         else:
-            total_interest_rent = sum(
-                data.get("rent_paid", 0) for data in scenario.monthly_data
-            )
+            total_interest_rent = sum(d.get("rent_paid", 0) for d in scenario.monthly_data)
 
-        # Wealth accumulation
-        wealth = scenario.final_equity + sum(
-            data.get("investment_balance", 0) for data in scenario.monthly_data[-1:]
-        )
+        wealth = scenario.final_equity  # final_equity already encapsulates investments where relevant
+
+        # Break-even month (first month where cumulative cost difference vs best <= 0)
+        break_even_month = None
+        if scenario.total_cost != best_cost:
+            # Build cumulative net cost trajectory (approximate using cumulative cash flows)
+            cumulative = 0.0
+            for data in scenario.monthly_data:
+                cumulative += data.get("cash_flow", 0)
+                if cumulative >= 0:  # cash_flow negative -> cost, reaching >=0 indicates parity
+                    break_even_month = data.get("month")
+                    break
 
         return ComparisonMetrics(
             total_cost_difference=total_cost_diff,
             total_cost_percentage_difference=total_cost_pct_diff,
-            break_even_month=None,  # Could be calculated with more complex logic
+            break_even_month=break_even_month,
             roi_percentage=roi_pct,
             average_monthly_cost=avg_monthly_cost,
             total_interest_or_rent_paid=total_interest_rent,
@@ -956,34 +941,34 @@ def enhanced_compare_scenarios(
             (d for d in invest_buy_scenario.monthly_data if d["month"] == month), {}
         )
 
-        # Calculate explicit differences
-        buy_cost = abs(buy_data.get("cash_flow", 0))
-        rent_cost = abs(rent_data.get("cash_flow", 0))
+    # Calculate explicit differences
+    buy_cost = buy_data.get("cash_flow", 0)
+    rent_cost = rent_data.get("cash_flow", 0)
+    invest_cost = invest_data.get("cash_flow", 0)
 
-        month_comparison.update(
+    month_comparison.update(
             {
                 "buy_vs_rent_difference": buy_cost - rent_cost,
                 "buy_vs_rent_percentage": (
                     ((buy_cost - rent_cost) / rent_cost * 100) if rent_cost > 0 else 0
                 ),
-                "buy_monthly_cost": buy_cost,
-                "rent_monthly_cost": rent_cost,
-                "invest_monthly_cost": abs(invest_data.get("cash_flow", 0)),
+                "buy_monthly_cash_flow": buy_cost,
+                "rent_monthly_cash_flow": rent_cost,
+                "invest_monthly_cash_flow": invest_cost,
                 "buy_equity": buy_data.get("equity", 0),
                 "rent_investment_balance": rent_data.get("investment_balance", 0),
                 "invest_equity": invest_data.get("equity", 0),
                 "invest_investment_balance": invest_data.get("investment_balance", 0),
-                "property_value": buy_data.get(
-                    "property_value", rent_data.get("property_value", 0)
-                ),
+                "property_value_buy": buy_data.get("property_value", 0),
+                "property_value_rent": rent_data.get("property_value", 0),
+                "property_value_invest": invest_data.get("property_value", 0),
                 "buy_total_wealth": buy_data.get("equity", 0),
                 "rent_total_wealth": rent_data.get("investment_balance", 0),
                 "invest_total_wealth": invest_data.get("equity", 0)
                 + invest_data.get("investment_balance", 0),
             }
-        )
-
-        comparative_summary[f"month_{month}"] = month_comparison
+    )
+    comparative_summary[f"month_{month}"] = month_comparison
 
     return EnhancedComparisonResult(
         best_scenario=basic_comparison.best_scenario,

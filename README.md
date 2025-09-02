@@ -54,6 +54,33 @@ backend/app/
 frontend/       # React + Vite + Mantine
 ```
 
+## Novos Campos e Métricas (Comparação de Cenários)
+Para cada cenário retornado pela API de comparação (`/api/compare-scenarios` e `/api/compare-scenarios-enhanced`):
+
+- `total_outflows`: Soma bruta de todos os desembolsos (entrada, parcelas, aluguel, custos mensais, investimentos adicionais, compra à vista se ocorrer).
+- `final_equity`: Patrimônio ao final (valor do imóvel possuído + saldo investido). Em cenários sem compra é apenas o saldo investido.
+- `net_cost` (alias de `total_cost`): Custo líquido = `total_outflows - final_equity`. Mantido `total_cost` por retrocompatibilidade.
+- `cash_flow` (mensal, assinado): Valores negativos representam saída de caixa; positivos (se surgirem no futuro) seriam economias / entradas.
+
+### Métricas Avançadas (`/api/compare-scenarios-enhanced`)
+- `total_cost_difference` / `total_cost_percentage_difference`: Diferença do custo líquido em relação ao melhor cenário.
+- `break_even_month`: Mês em que a trajetória acumulada de fluxo de caixa atinge ou cruza zero (paridade aproximada). Pode ser `null` se não ocorre dentro do horizonte.
+- `roi_percentage`: (final_equity - investimento_inicial) / investimento_inicial. O investimento inicial inclui entrada + custos iniciais (quando compra financiada).
+- `average_monthly_cost`: Média aritmética dos fluxos de caixa mensais assinados (útil para ver ritmo de queima de caixa). Pode ser negativo (desembolso médio).
+- `total_interest_or_rent_paid`: Soma dos juros pagos (compra) ou aluguel pago (alugar/investir).
+- `wealth_accumulation`: Igual a `final_equity` (evita dupla contagem de investimentos).
+
+### Mudanças de Comportamento Importantes
+- Removido uso de `abs()` nos fluxos de caixa comparativos para não perder o sinal econômico.
+- Ajustado cálculo de ROI para considerar custos iniciais de compra.
+- Introduzida validação quando taxas anual e mensal são fornecidas e inconsistentes (> 0.05 p.p. de diferença).
+- Cenário "Investir e comprar à vista" agora separa explicitamente `total_outflows` e `net_cost`, evitando confusões quando patrimônio cresce mais que gastos.
+
+### Retrocompatibilidade
+- `total_cost` continua presente; agora é semanticamente o custo líquido (igual a `net_cost`). Clientes existentes não precisam mudar imediatamente.
+- Novos campos podem ser adotados gradualmente no frontend.
+
+
 ## Variáveis de Ambiente
 Ver `.env.example` para chaves como `APP_NAME`, `API_TITLE`, `API_DESCRIPTION`.
 

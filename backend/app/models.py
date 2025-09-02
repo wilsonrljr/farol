@@ -131,6 +131,14 @@ class ComparisonScenario(BaseModel):
     total_cost: float
     final_equity: float
     monthly_data: List[dict]
+    # New fields for clearer cost semantics. total_outflows = sum of all cash out (gross).
+    # net_cost = total_outflows - final_equity (net of assets). Kept optional for backward compatibility.
+    total_outflows: Optional[float] = Field(
+        None, description="Gross outflows (down payment + payments + rent + costs + investments)"
+    )
+    net_cost: Optional[float] = Field(
+        None, description="Net cost after subtracting remaining equity/assets (alias of total_cost if provided)"
+    )
 
 
 class ComparisonMetrics(BaseModel):
