@@ -1,4 +1,5 @@
 from typing import List, Dict, Optional, Tuple
+import math
 from .models import (
     AmortizationInput,
     InvestmentReturnInput,
@@ -518,10 +519,12 @@ def simulate_invest_then_buy_scenario(
 ) -> ComparisonScenario:
     """Simulate investing until having enough to buy the property outright."""
     # Initialize variables
-    monthly_data = []
+    monthly_data: List[dict] = []
     investment_balance = down_payment
     total_rent_paid = 0.0
-    purchase_month = None
+    purchase_month: Optional[int] = None
+    milestone_thresholds = {25, 50, 75, 90, 100}
+    last_progress_bucket = 0
 
     # Calculate loan simulation for comparison if invest_loan_difference is True
     loan_installments = []
@@ -544,12 +547,10 @@ def simulate_invest_then_buy_scenario(
 
     # Calculate monthly data
     for month in range(1, term_months + 1):
-        # Apply property appreciation to property value and additional costs
+        # Current target purchase cost (property + upfront) with appreciation
         current_property_value = apply_property_appreciation(
             property_value, month, 1, property_appreciation_rate, inflation_rate
         )
-
-        # Calculate additional costs for this month
         costs = calculate_additional_costs(current_property_value, additional_costs)
         total_purchase_cost = current_property_value + costs["total_upfront"]
 
@@ -588,6 +589,11 @@ def simulate_invest_then_buy_scenario(
                     "property_value": current_property_value,
                     "investment_return": investment_return,
                     "additional_investment": additional_investment,
+                    "scenario_type": "invest_buy",
+                    "progress_percent": 100.0,
+                    "shortfall": 0.0,
+                    "is_milestone": True,
+                    "phase": "post_purchase",
                 }
             )
             continue
@@ -640,24 +646,38 @@ def simulate_invest_then_buy_scenario(
             additional_investment += fixed_monthly_investment
             investment_balance += fixed_monthly_investment
 
-        # Check if we can buy the property (including additional upfront costs)
+        # Progress metrics
+        progress_percent = (
+            (investment_balance / total_purchase_cost) * 100 if total_purchase_cost > 0 else 0
+        )
+        shortfall = max(0.0, total_purchase_cost - investment_balance)
+        progress_bucket = 0
+        for t in sorted(milestone_thresholds):
+            if progress_percent >= t:
+                progress_bucket = t
+        crossed_bucket = progress_bucket > last_progress_bucket
+        if crossed_bucket:
+            last_progress_bucket = progress_bucket
+        is_milestone = (
+            month <= 12 or month % 12 == 0 or crossed_bucket
+        )
+
+        # Check if purchase occurs this month
         if investment_balance >= total_purchase_cost:
             investment_balance -= total_purchase_cost
             purchase_month = month
             status = "Imóvel comprado"
             equity = current_property_value
-
-            # After purchase, update fixed investment start month if it was set to start after purchase
-            if fixed_investment_start_month == "after_purchase":
-                fixed_investment_start_month = month + 1
+            progress_percent = 100.0
+            shortfall = 0.0
         else:
-            status = "Investindo"
+            status = "Aguardando compra"
             equity = 0
 
-    # Cash flow: negative outflow of rent + all additional investments (including loan diff if any)
-    cash_flow = -(total_rent_cost + additional_investment)
+        # Cash flow: negative outflow of rent + all additional investments (including loan diff if any)
+        cash_flow = -(total_rent_cost + additional_investment)
 
-    monthly_data.append(
+        monthly_data.append(
             {
                 "month": month,
                 "cash_flow": cash_flow,
@@ -672,6 +692,12 @@ def simulate_invest_then_buy_scenario(
                 "equity": equity,
                 "property_value": current_property_value,
                 "additional_investment": additional_investment,
+                "target_purchase_cost": total_purchase_cost,
+                "progress_percent": progress_percent,
+                "shortfall": shortfall,
+                "is_milestone": is_milestone or status == "Imóvel comprado",
+                "scenario_type": "invest_buy",
+                "phase": "post_purchase" if status == "Imóvel comprado" else "pre_purchase",
             }
         )
 
@@ -708,12 +734,13 @@ def simulate_invest_then_buy_scenario(
             if fixed_monthly_investment and month >= fixed_investment_start_month:
                 total_additional_investments += fixed_monthly_investment
 
-    # Add total additional investments made during investment phase
+    # Accumulate additional investments made during investment phase directly
     for data in monthly_data:
-        if data["status"] == "Investindo":
-            additional_inv = data.get("additional_investment", 0.0)
-            if isinstance(additional_inv, (int, float)):
-                total_additional_investments += additional_inv
+        # All rows prior to purchase contribute their recorded additional_investment
+        if data.get("additional_investment"):
+            val = data.get("additional_investment", 0.0)
+            if isinstance(val, (int, float)):
+                total_additional_investments += val
 
     # Calculate total cost
     if purchase_month:
@@ -739,6 +766,43 @@ def simulate_invest_then_buy_scenario(
         total_outflows = total_rent_paid + total_additional_investments
 
     net_cost = total_outflows - final_equity
+
+    # Scenario-level purchase or projection metadata inserted into first row for convenience
+    if monthly_data:
+        if purchase_month is not None:
+            purchase_price = next(
+                (d.get("property_value") for d in monthly_data if d.get("month") == purchase_month),
+                property_value,
+            )
+            monthly_data[0].update(
+                {
+                    "purchase_month": purchase_month,
+                    "purchase_price": purchase_price,
+                }
+            )
+        else:
+            # Projection: average growth of last milestone window
+            milestone_rows = [d for d in monthly_data if d.get("is_milestone")]
+            window = (milestone_rows or monthly_data)[-6:]
+            avg_growth = 0.0
+            if len(window) >= 2:
+                deltas = [window[i]["investment_balance"] - window[i - 1]["investment_balance"] for i in range(1, len(window))]
+                avg_growth = sum(deltas) / len(deltas)
+            latest = monthly_data[-1]
+            target_cost_latest = latest.get("target_purchase_cost", property_value)
+            balance_latest = latest.get("investment_balance", 0.0)
+            est_months_remaining = None
+            if avg_growth > 0 and balance_latest < target_cost_latest:
+                est_months_remaining = max(0, math.ceil((target_cost_latest - balance_latest) / avg_growth))
+            monthly_data[0].update(
+                {
+                    "projected_purchase_month": (latest["month"] + est_months_remaining) if est_months_remaining is not None else None,
+                    "estimated_months_remaining": est_months_remaining,
+                }
+            )
+
+    # Ensure chronological ordering (defensive in case of future insertions)
+    monthly_data.sort(key=lambda d: d.get("month", 0))
 
     return ComparisonScenario(
         name="Investir e comprar à vista",

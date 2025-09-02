@@ -70,6 +70,16 @@ Para cada cenário retornado pela API de comparação (`/api/compare-scenarios` 
 - `total_interest_or_rent_paid`: Soma dos juros pagos (compra) ou aluguel pago (alugar/investir).
 - `wealth_accumulation`: Igual a `final_equity` (evita dupla contagem de investimentos).
 
+### Campos de Progresso (Cenário "Investir e comprar à vista")
+- `target_purchase_cost`: Custo alvo no mês (imóvel ajustado + custos iniciais estimados naquele mês).
+- `progress_percent`: Percentual do alvo já acumulado (saldo investido / alvo).
+- `shortfall`: Valor ainda faltante para compra naquele mês.
+- `is_milestone`: Linha marcada como ponto relevante (primeiros 12 meses, múltiplos de 12, ou ao cruzar 25/50/75/90/100%).
+- `purchase_month` / `purchase_price`: Presentes quando a compra ocorreu.
+- `projected_purchase_month` / `estimated_months_remaining`: Projeção simples baseada na média de crescimento recente (janela de até 6 marcos) quando ainda não comprado.
+
+O frontend avançado usa estes campos para um modo condensado que mostra apenas marcos, badges de progresso e estimativa de compra.
+
 ### Mudanças de Comportamento Importantes
 - Removido uso de `abs()` nos fluxos de caixa comparativos para não perder o sinal econômico.
 - Ajustado cálculo de ROI para considerar custos iniciais de compra.

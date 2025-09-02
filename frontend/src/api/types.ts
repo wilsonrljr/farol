@@ -74,7 +74,26 @@ export interface ComparisonScenario {
   name: string;
   total_cost: number;
   final_equity: number;
-  monthly_data: any[]; // refine later
+  total_outflows?: number;
+  net_cost?: number;
+  monthly_data: Array<{
+    month: number;
+    cash_flow: number;
+    equity?: number;
+    investment_balance?: number;
+    property_value?: number;
+    status?: string;
+    additional_investment?: number;
+    target_purchase_cost?: number;
+    progress_percent?: number;
+    shortfall?: number;
+    is_milestone?: boolean;
+    scenario_type?: string;
+    purchase_month?: number;
+    purchase_price?: number;
+    projected_purchase_month?: number;
+    estimated_months_remaining?: number;
+  }>;
 }
 
 export interface ComparisonResult {

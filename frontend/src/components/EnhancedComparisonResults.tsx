@@ -1,4 +1,4 @@
-import { Title, Stack, Group, Paper, Text, Accordion, Table, SimpleGrid, ScrollArea, SegmentedControl, Tabs } from '@mantine/core';
+import { Title, Stack, Group, Paper, Text, Table, SimpleGrid, ScrollArea, SegmentedControl, Tabs, Badge, Switch, Alert } from '@mantine/core';
 import { EnhancedComparisonResult } from '../api/types';
 import { money, percent } from '../utils/format';
 import { AreaChart, BarChart, LineChart } from '@mantine/charts';
@@ -23,6 +23,17 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
     });
     return row;
   });
+
+  const moneySafe = (v: any) => money(v || 0);
+  // Show all months by default; user can switch to milestone-only view
+  const [milestonesOnly, setMilestonesOnly] = useState(false);
+  const colorForProgress = (p: number) => {
+    if (p >= 90) return 'green';
+    if (p >= 75) return 'teal';
+    if (p >= 50) return 'blue';
+    if (p >= 25) return 'yellow';
+    return 'red';
+  };
 
   return (
     <Stack>
@@ -105,32 +116,97 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
             )}
           </Paper>
         </Tabs.Panel>
-        {result.scenarios.map((s) => (
-          <Tabs.Panel key={s.name} value={s.name} pt="xs">
-            <Paper withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
-              <ScrollArea h={360} type="hover" scrollbarSize={6} offsetScrollbars>
-                <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={640}>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Mês</Table.Th><Table.Th>Fluxo</Table.Th><Table.Th>Equidade</Table.Th><Table.Th>Invest.</Table.Th><Table.Th>Valor Imóvel</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {s.monthly_data.slice(0, 360).map((m: any) => (
-                      <Table.Tr key={m.month}>
-                        <Table.Td>{m.month}</Table.Td>
-                        <Table.Td>{money(m.cash_flow)}</Table.Td>
-                        <Table.Td>{money(m.equity)}</Table.Td>
-                        <Table.Td>{money(m.investment_balance)}</Table.Td>
-                        <Table.Td>{money(m.property_value)}</Table.Td>
+        {result.scenarios.map((s) => {
+          const isInvestBuy = s.monthly_data.some((m: any) => m.scenario_type === 'invest_buy');
+          let rows = [...s.monthly_data].sort((a:any,b:any)=>a.month-b.month);
+          if (isInvestBuy && milestonesOnly) {
+            rows = rows.filter((m: any) => m.is_milestone || m.status === 'Imóvel comprado');
+          }
+          const latest = s.monthly_data[s.monthly_data.length - 1];
+          const first = s.monthly_data[0];
+            const progress = latest?.progress_percent ?? (latest?.equity ? 100 : 0);
+            const purchaseMonth = first?.purchase_month;
+            const projected = first?.projected_purchase_month;
+          return (
+            <Tabs.Panel key={s.name} value={s.name} pt="xs">
+              {isInvestBuy && (
+                <Stack gap="xs" mb="xs">
+                  <Group justify="space-between" wrap="wrap">
+                    <Group gap="sm">
+                      <Badge color={purchaseMonth ? 'green' : 'gray'} variant="filled">
+                        {purchaseMonth ? `Comprado (mês ${purchaseMonth})` : 'Ainda não comprado'}
+                      </Badge>
+                      {!purchaseMonth && projected && (
+                        <Badge color="blue" variant="light">Prev. compra: mês {projected}</Badge>
+                      )}
+                      <Badge color={colorForProgress(progress)} variant="light">
+                        Progresso {progress.toFixed(1)}%
+                      </Badge>
+                      {(typeof latest?.shortfall === 'number' && latest.shortfall > 0) && (
+                        <Badge color="red" variant="outline">Falta {moneySafe(latest.shortfall)}</Badge>
+                      )}
+                    </Group>
+                    <Group gap="md">
+                      <Switch size="xs" checked={milestonesOnly} onChange={(e)=>setMilestonesOnly(e.currentTarget.checked)} label="Apenas marcos" />
+                    </Group>
+                  </Group>
+                  {!purchaseMonth && first?.estimated_months_remaining != null && (
+                    <Alert color="blue" variant="light" radius="md" title="Projeção">
+                      Estimativa de meses restantes: {first.estimated_months_remaining ?? '—'}
+                    </Alert>
+                  )}
+                </Stack>
+              )}
+              <Paper withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
+                <ScrollArea h={360} type="hover" scrollbarSize={6} offsetScrollbars>
+                  <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={760}>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Mês</Table.Th>
+                        <Table.Th>Fluxo</Table.Th>
+                        <Table.Th>Equidade</Table.Th>
+                        <Table.Th>Invest.</Table.Th>
+                        <Table.Th>Valor Imóvel</Table.Th>
+                        {isInvestBuy && <Table.Th>Prog%</Table.Th>}
+                        {isInvestBuy && <Table.Th>Falta</Table.Th>}
+                        {isInvestBuy && <Table.Th>Status</Table.Th>}
                       </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </ScrollArea>
-            </Paper>
-          </Tabs.Panel>
-        ))}
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {rows.slice(0, 600).map((m: any) => {
+                        const purchase = m.status === 'Imóvel comprado';
+                        const phaseColor = m.phase === 'pre_purchase' ? 'var(--mantine-color-yellow-light)' : undefined;
+                        const style: React.CSSProperties = {
+                          background: purchase ? 'var(--mantine-color-green-light)' : phaseColor,
+                          fontWeight: m.is_milestone ? 500 : 400,
+                        };
+                        return (
+                          <Table.Tr key={m.month} style={style}>
+                            <Table.Td>{m.month}</Table.Td>
+                            <Table.Td>{moneySafe(m.cash_flow)}</Table.Td>
+                            <Table.Td>{moneySafe(m.equity)}</Table.Td>
+                            <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
+                            <Table.Td>{moneySafe(m.property_value)}</Table.Td>
+                            {isInvestBuy && <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>}
+                            {isInvestBuy && <Table.Td>{m.shortfall != null ? moneySafe(m.shortfall) : '—'}</Table.Td>}
+                            {isInvestBuy && <Table.Td>{m.status}</Table.Td>}
+                          </Table.Tr>
+                        );
+                      })}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollArea>
+              </Paper>
+              {isInvestBuy && (
+                <Group gap="xs" mt="xs" wrap="wrap" fz="xs">
+                  <Badge color="yellow" variant="light">Pré-compra</Badge>
+                  <Badge color="green" variant="light">Mês de compra / Pós-compra</Badge>
+                  <Badge color="blue" variant="outline">Linha em negrito = marco</Badge>
+                </Group>
+              )}
+            </Tabs.Panel>
+          );
+        })}
       </Tabs>
     </Stack>
   );
