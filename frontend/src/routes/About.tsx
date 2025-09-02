@@ -1,4 +1,4 @@
-import { Container, Title, Text, ThemeIcon, Group, Stack, SimpleGrid, Card, Anchor, Badge, Divider } from '@mantine/core';
+import { Container, Title, Text, ThemeIcon, Group, Stack, SimpleGrid, Card, Anchor, Badge, Divider, useMantineColorScheme } from '@mantine/core';
 import { IconBrandPython, IconBrandReact, IconServerBolt, IconLayersLinked, IconCode, IconUser, IconBrandGithub, IconLockOpen, IconInfoCircle } from '@tabler/icons-react';
 
 export default function About() {
@@ -73,15 +73,50 @@ interface InfoCardProps {
 interface ExtendedInfoCardProps extends InfoCardProps { emphasis?: boolean }
 
 function InfoCard({ icon, title, lines, color, emphasis }: ExtendedInfoCardProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === 'dark';
+  // Light mode keeps colorful gradient; dark mode uses neutral dark surfaces for better contrast
+  const background = emphasis
+    ? (isDark
+        ? 'linear-gradient(145deg,var(--mantine-color-dark-6),var(--mantine-color-dark-7))'
+        : `linear-gradient(145deg,var(--mantine-color-${color}-0),var(--mantine-color-${color}-1))`)
+    : 'var(--mantine-color-body)';
+  const overlayGradient = isDark
+    ? 'linear-gradient(145deg,var(--mantine-color-dark-5),var(--mantine-color-dark-6))'
+    : `linear-gradient(145deg,var(--mantine-color-${color}-1),var(--mantine-color-${color}-2))`;
   return (
-    <Card withBorder radius="md" padding="md" shadow={emphasis ? 'md' : 'sm'} style={{ position:'relative', overflow:'hidden', background: emphasis ? `linear-gradient(145deg,var(--mantine-color-${color}-0),var(--mantine-color-${color}-1))` : 'var(--mantine-color-body)' }}>
-      {emphasis && <div style={{ position:'absolute', inset:0, background:`linear-gradient(145deg,var(--mantine-color-${color}-1),var(--mantine-color-${color}-2))`, opacity:0.25 }} />}
-      <Group align="flex-start" gap="sm" style={{ position:'relative' }} wrap="nowrap">
-        <ThemeIcon size={34} radius="md" variant={emphasis ? 'filled' : 'light'} color={color}>{icon}</ThemeIcon>
-        <Stack gap={4} style={{ flex:1 }}>
-          <Text fw={600} size="sm" c={emphasis ? color : undefined}>{title}</Text>
+    <Card
+      withBorder
+      radius="md"
+      padding="md"
+      shadow={emphasis ? 'md' : 'sm'}
+      style={{ position: 'relative', overflow: 'hidden', background }}
+    >
+      {emphasis && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: overlayGradient,
+            opacity: isDark ? 0.4 : 0.25,
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+      <Group align="flex-start" gap="sm" style={{ position: 'relative' }} wrap="nowrap">
+        <ThemeIcon size={34} radius="md" variant={emphasis ? 'filled' : 'light'} color={color}>
+          {icon}
+        </ThemeIcon>
+        <Stack gap={4} style={{ flex: 1 }}>
+          <Text fw={600} size="sm" c={emphasis ? (isDark ? undefined : color) : undefined}>
+            {title}
+          </Text>
           <Stack gap={2}>
-            {lines.map(l => <Text key={l} size="xs" c={emphasis ? undefined : 'dimmed'} style={{ lineHeight:1.3 }}>{l}</Text>)}
+            {lines.map((l) => (
+              <Text key={l} size="xs" c={emphasis ? (isDark ? 'dimmed' : undefined) : 'dimmed'} style={{ lineHeight: 1.3 }}>
+                {l}
+              </Text>
+            ))}
           </Stack>
         </Stack>
       </Group>
