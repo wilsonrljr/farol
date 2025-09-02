@@ -1,0 +1,27 @@
+[project]
+name = "farol-finance"
+version = "0.1.0"
+description = "Farol: plataforma de simulação e planejamento financeiro (imóveis inicialmente)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "pydantic>=2.6.0",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "matplotlib>=3.8.0",
+    "python-multipart>=0.0.9",
+    "requests>=2.32.4",
+]
+
+[dependency-groups]
+dev = [
+    "fastapi>=0.116.1",
+    "matplotlib>=3.10.5",
+    "numpy>=2.3.2",
+    "pandas>=2.3.1",
+    "pydantic>=2.11.7",
+    "pytest>=8.4.1",
+    "python-multipart>=0.0.20",
+    "uvicorn>=0.35.0",
+]

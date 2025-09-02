@@ -1,0 +1,266 @@
+__pycache__/sys_identfy.cpython-36.pyc
+*.pyc
+.vscode/launch.json
+*.json
+*.coverage
+.coverage
+coverage/
+htmlcov/
+.ipynb_checkpoints/
+.ipynb_checkpoints
+__pycache__/
+# Python caches & tools
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pytype/
+
+# Sphinx
+docs/_build
+docs/build
+site/
+# Pycharm editor project files
+.idea
+logs.log
+# Logs
+*.log
+logs/
+
+# for virtual environment
+venv/
+env/
+.venv/
+.env
+.env.local
+.env.*.local
+.envrc
+.python-version
+
+# Packages/installer info
+*.egg
+*.egg-info
+dist/
+build
+eggs
+parts
+var
+sdist
+develop-eggs
+.installed.cfg
+distribute-*.tar.gz
+pip-wheel-metadata
+wheelhouse/
+
+# VS Code
+.vscode
+.pylintrc
+# default pytest cache directory
+*/.pytest_cache
+.pytest_cache/
+catboost_info/
+sysidentpy.code-workspace
+examples/data/
+raw.githubusercontent.com/
+/qodana.yaml
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# ------------ Python ------------
+*.pyc
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.pytype/
+.hypothesis/
+.tox/
+
+# Virtual environments
+venv/
+.env
+.env.local
+.env.*.local
+.envrc
+env/
+.venv/
+.python-version
+
+# Coverage
+*.coverage
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+
+# Build / packaging
+build/
+dist/
+wheelhouse/
+*.egg
+*.egg-info
+sdist
+.eggs/
+
+# Logs
+*.log
+logs/
+
+# Docs
+site/
+docs/_build/
+docs/build/
+
+# Tools / configs (generated)
+pip-wheel-metadata/
+.installed.cfg
+
+# IDE / Editor
+.vscode/
+.idea/
+.pylintrc
+*.code-workspace
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (optional: remove if you want to version sample data)
+examples/data/
+raw.githubusercontent.com/
+# Uncomment if you later add export folders
+# data/
+# exports/
+# scratch/
+
+# Dependency scanners
+/qodana.yaml
+report.json
+gl-dependency-scanning-report.json
+
+# ------------ Node / Frontend ------------
+node_modules/
+# Keep EXACTLY one lockfile tracked; do not ignore it. (package-lock.json|yarn.lock|pnpm-lock.yaml)
+# yarn.lock
+# pnpm-lock.yaml
+
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.cache/
+.parcel-cache/
+*.sass-cache
+
+# Production / build output
+frontend/dist/
+**/dist/**
+storybook-static/
+frontend/coverage/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Archives
+*.tgz
+
+# ------------ OS / Misc ------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+.AppleDouble
+.LSOverride
+._*
+*.swp
+*.swo
+*.orig
+*.rej
+*.bak
+*.tmp
+~$*
+*.retry
+
+# Local tooling caches
+.prettier-cache
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.yarn/patches/
+
+# Docker / runtime (future)
+*.pid
+*.seed
+/tmp/
+
+# Keep README, configs, lockfiles, and .env.example tracked.
+!.env.example
+lerna-debug.log*
+package-lock.json
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.cache/
+.parcel-cache/
+*.sass-cache
+frontend/dist/
+*.tgz
+
+# Vite / build outputs (root dist already covered above)
+**/dist/**
+
+# Coverage & test artifacts
+coverage-final.json
+coverage-summary.json
+junit*.xml
+pytestdebug.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+.AppleDouble
+.LSOverride
+._*
+*.swp
+*.swo
+*.orig
+
+# Misc
+*.bak
+*.tmp
+~$*
+*.retry
+.idea_modules/
+.sass-cache
+.tgz
+*.orig
+
+# Local tooling
+.husky/_
+.prettier-cache
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.yarn/patches/
+
+# Dependency scanners / security outputs
+report.json
+gl-dependency-scanning-report.json
+
+# Docker / container (if introduced later)
+*.pid
+*.seed
+tmp/
+
