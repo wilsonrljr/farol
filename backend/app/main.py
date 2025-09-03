@@ -74,11 +74,19 @@ async def simulate_loan(input_data: LoanSimulationInput):
         # Simulate loan
         if input_data.loan_type == "SAC":
             result = simulate_sac_loan(
-                loan_value, term_months, monthly_rate, input_data.amortizations
+                loan_value,
+                term_months,
+                monthly_rate,
+                input_data.amortizations,
+                input_data.inflation_rate,
             )
         else:  # PRICE
             result = simulate_price_loan(
-                loan_value, term_months, monthly_rate, input_data.amortizations
+                loan_value,
+                term_months,
+                monthly_rate,
+                input_data.amortizations,
+                input_data.inflation_rate,
             )
 
         return result

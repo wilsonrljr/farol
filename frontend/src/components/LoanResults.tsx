@@ -1,4 +1,4 @@
-import { Paper, Stack, Title, Table, Group, SimpleGrid, ScrollArea, SegmentedControl, Tabs } from '@mantine/core';
+import { Paper, Stack, Title, Table, Group, SimpleGrid, ScrollArea, SegmentedControl, Tabs, Badge } from '@mantine/core';
 import { LoanSimulationResult } from '../api/types';
 import { money } from '../utils/format';
 import { AreaChart, BarChart, LineChart } from '@mantine/charts';
@@ -50,6 +50,18 @@ export default function LoanResults({ result }: { result: LoanSimulationResult }
     { key:'menorParc', label:'Menor Parc', value: money(Math.min(...result.installments.map(i => i.installment))) }
   ];
 
+  const metaBadges: React.ReactNode[] = [];
+  if (result.months_saved) {
+    metaBadges.push(<Badge key="months_saved" color="teal" variant="light">-{result.months_saved} meses</Badge>);
+  }
+  if (result.total_extra_amortization) {
+    metaBadges.push(<Badge key="extra_total" color="indigo" variant="light">Extra {money(result.total_extra_amortization)}</Badge>);
+  }
+  if (result.actual_term_months && result.original_term_months && result.actual_term_months !== result.original_term_months) {
+    const pct = ((result.original_term_months - result.actual_term_months) / result.original_term_months) * 100;
+    metaBadges.push(<Badge key="pct_saved" color="grape" variant="light">Prazo -{pct.toFixed(1)}%</Badge>);
+  }
+
   return (
     <Stack>
       <Title order={3}>Resultados</Title>
@@ -60,6 +72,9 @@ export default function LoanResults({ result }: { result: LoanSimulationResult }
           <SegmentedControl size="xs" value={density} onChange={(v)=>setDensity(v as any)} data={[{label:'Conforto', value:'comfortable'},{label:'Compacto', value:'compact'}]} />
         </Group>
       </Group>
+      {metaBadges.length > 0 && (
+        <Group gap="xs" mb={-4} wrap="wrap">{metaBadges}</Group>
+      )}
       <SimpleGrid cols={{ base: 1, md: density==='compact'?2:1, lg: density==='compact'?2:2 }} spacing="md">
         <ScenarioSummaryCard
           title="Resumo"

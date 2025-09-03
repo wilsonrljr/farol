@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Literal
 from datetime import date
 
@@ -28,6 +28,20 @@ class AmortizationInput(BaseModel):
         False,
         description="If true, fixed values are inflation-adjusted from the first occurrence month",
     )
+
+    @model_validator(mode="after")
+    def validate_recurrence(self):  # type: ignore
+        if self.occurrences is not None and self.end_month is not None:
+            raise ValueError(
+                "Provide either occurrences or end_month for recurring amortization, not both"
+            )
+        if self.interval_months is None and (self.occurrences or self.end_month):
+            raise ValueError(
+                "interval_months must be set when occurrences or end_month are provided"
+            )
+        if self.interval_months is not None and self.interval_months <= 0:
+            raise ValueError("interval_months must be positive")
+        return self
 
 
 class InvestmentReturnInput(BaseModel):
@@ -146,6 +160,19 @@ class LoanSimulationResult(BaseModel):
     total_paid: float
     total_interest_paid: float
     installments: List[LoanInstallment]
+    # New optional metadata fields (populated when amortizações extras encurtam o prazo)
+    original_term_months: Optional[int] = Field(
+        None, description="Planned term in months before extra amortizations"
+    )
+    actual_term_months: Optional[int] = Field(
+        None, description="Actual term in months until balance reached zero"
+    )
+    months_saved: Optional[int] = Field(
+        None, description="original_term_months - actual_term_months when applicable"
+    )
+    total_extra_amortization: Optional[float] = Field(
+        None, description="Sum of all extra amortizations applied"
+    )
 
 
 class ComparisonScenario(BaseModel):

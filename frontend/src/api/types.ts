@@ -53,6 +53,10 @@ export interface LoanSimulationResult {
   total_paid: number;
   total_interest_paid: number;
   installments: LoanInstallment[];
+  original_term_months?: number | null;
+  actual_term_months?: number | null;
+  months_saved?: number | null;
+  total_extra_amortization?: number | null;
 }
 
 export interface ComparisonInput {

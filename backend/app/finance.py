@@ -105,6 +105,7 @@ def simulate_sac_loan(
     fixed_amortization = loan_value / term_months
     total_paid = 0.0
     total_interest_paid = 0.0
+    total_extra_amortization_applied = 0.0
 
     # Preprocess amortizations (supports recurrence & percentage)
     fixed_extra_by_month, percent_extra_by_month = preprocess_amortizations(
@@ -137,6 +138,10 @@ def simulate_sac_loan(
         # Update outstanding balance
         outstanding_balance -= amortization
 
+        # Track extra amortization actually applied
+        if extra_amortization > 0:
+            total_extra_amortization_applied += extra_amortization
+
         # Update totals
         total_paid += installment
         total_interest_paid += interest
@@ -157,11 +162,17 @@ def simulate_sac_loan(
         if outstanding_balance <= 0:
             break
 
+    actual_term = installments[-1].month if installments else term_months
+    months_saved = term_months - actual_term if actual_term < term_months else 0
     return LoanSimulationResult(
         loan_value=loan_value,
         total_paid=total_paid,
         total_interest_paid=total_interest_paid,
         installments=installments,
+        original_term_months=term_months,
+        actual_term_months=actual_term,
+        months_saved=months_saved if months_saved > 0 else None,
+        total_extra_amortization=total_extra_amortization_applied if total_extra_amortization_applied > 0 else None,
     )
 
 
@@ -191,6 +202,7 @@ def simulate_price_loan(
     outstanding_balance = loan_value
     total_paid = 0.0
     total_interest_paid = 0.0
+    total_extra_amortization_applied = 0.0
 
     # Preprocess amortizations (supports recurrence & percentage)
     fixed_extra_by_month, percent_extra_by_month = preprocess_amortizations(
@@ -224,6 +236,9 @@ def simulate_price_loan(
         # Update outstanding balance
         outstanding_balance -= amortization
 
+        if extra_amortization > 0:
+            total_extra_amortization_applied += extra_amortization
+
         # Update totals
         total_paid += installment
         total_interest_paid += interest
@@ -244,11 +259,17 @@ def simulate_price_loan(
         if outstanding_balance <= 0:
             break
 
+    actual_term = installments[-1].month if installments else term_months
+    months_saved = term_months - actual_term if actual_term < term_months else 0
     return LoanSimulationResult(
         loan_value=loan_value,
         total_paid=total_paid,
         total_interest_paid=total_interest_paid,
         installments=installments,
+        original_term_months=term_months,
+        actual_term_months=actual_term,
+        months_saved=months_saved if months_saved > 0 else None,
+        total_extra_amortization=total_extra_amortization_applied if total_extra_amortization_applied > 0 else None,
     )
 
 
