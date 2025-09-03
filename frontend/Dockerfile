@@ -11,6 +11,11 @@ RUN npm ci --no-audit --no-fund
 # Copy source
 COPY frontend/ ./
 
+# Copy markdown docs needed by frontend (imports like /docs/quickstart.md?raw)
+# They live at project root `docs/`; we place them both under /docs (absolute) and /app/docs for safety.
+COPY docs /docs
+COPY docs ./docs
+
 # Build argument for API base URL (can be overridden at build time)
 ARG VITE_API_BASE=http://localhost:8000
 ENV VITE_API_BASE=${VITE_API_BASE}
