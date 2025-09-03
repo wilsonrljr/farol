@@ -1,12 +1,28 @@
-import { Title, Stack, Group, Paper, Text, Table, Accordion, ScrollArea } from '@mantine/core';
+import { Title, Stack, Group, Paper, Text, Table, Accordion, ScrollArea, Menu, Button } from '@mantine/core';
 import { ComparisonResult } from '../api/types';
 import { money } from '../utils/format';
+import { IconDownload } from '@tabler/icons-react';
+import { downloadFile } from '../utils/download';
 
-export default function ComparisonResults({ result }: { result: ComparisonResult }) {
+export default function ComparisonResults({ result, inputPayload }: { result: ComparisonResult, inputPayload?: any }) {
   return (
     <Stack>
-      <Title order={3}>Resultados</Title>
-      <Text size="sm">Melhor cenário: <strong>{result.best_scenario}</strong></Text>
+      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+        <div>
+          <Title order={3}>Resultados</Title>
+          <Text size="sm">Melhor cenário: <strong>{result.best_scenario}</strong></Text>
+        </div>
+        <Menu withinPortal position="bottom-end">
+          <Menu.Target>
+            <Button size="xs" leftSection={<IconDownload size={14} />}>Exportar</Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Label>Básico</Menu.Label>
+            <Menu.Item onClick={()=>downloadFile('/api/compare-scenarios/export?format=csv','POST', inputPayload, 'scenarios_comparison.csv')}>CSV</Menu.Item>
+            <Menu.Item onClick={()=>downloadFile('/api/compare-scenarios/export?format=xlsx','POST', inputPayload, 'scenarios_comparison.xlsx')}>XLSX</Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
       <Group wrap="wrap" gap="sm">
         {result.scenarios.map((s) => (
           <Paper key={s.name} withBorder p="sm" radius="md" style={{ minWidth: 220 }}>

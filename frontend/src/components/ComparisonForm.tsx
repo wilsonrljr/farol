@@ -40,11 +40,13 @@ export default function ComparisonForm() {
   });
 
   const { data, loading, call } = useApi< [ComparisonInput, boolean], ComparisonResult | EnhancedComparisonResult>(async (input: ComparisonInput, enhanced: boolean) => compareScenarios(input, enhanced));
+  const [lastInput, setLastInput] = useState<ComparisonInput | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [enhanced, setEnhanced] = useState(true);
 
   async function onSubmit(values: ComparisonInput) {
     try {
+      setLastInput(values);
       const res = await call(values, enhanced);
       notifications.show({ title: 'Comparação pronta', message: 'Resultados disponíveis', color: 'green' });
       return res;
@@ -158,13 +160,13 @@ Ignorado se a renda externa for 0 ou não cobrir totalmente o aluguel (nesse cas
         <Grid gutter="lg">
           <Grid.Col span={{ base: 12, md: 5 }}>{formEl}</Grid.Col>
           <Grid.Col span={{ base: 12, md: 7 }}>
-            {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} /> : <ComparisonResults result={data as ComparisonResult} />) : emptyState}
+            {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} inputPayload={lastInput || undefined} /> : <ComparisonResults result={data as ComparisonResult} inputPayload={lastInput || undefined} />) : emptyState}
           </Grid.Col>
         </Grid>
       ) : (
         <Stack gap="xl">
           {formEl}
-          {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} /> : <ComparisonResults result={data as ComparisonResult} />) : emptyState}
+          {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} inputPayload={lastInput || undefined} /> : <ComparisonResults result={data as ComparisonResult} inputPayload={lastInput || undefined} />) : emptyState}
         </Stack>
       )}
     </Stack>

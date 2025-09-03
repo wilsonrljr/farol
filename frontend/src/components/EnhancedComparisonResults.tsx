@@ -1,13 +1,14 @@
-import { Title, Stack, Group, Paper, Text, Table, SimpleGrid, ScrollArea, SegmentedControl, Tabs, Badge, Switch, Alert } from '@mantine/core';
+import { Title, Stack, Group, Paper, Text, Table, SimpleGrid, ScrollArea, SegmentedControl, Tabs, Badge, Switch, Alert, Menu, Button } from '@mantine/core';
 import { EnhancedComparisonResult } from '../api/types';
 import { money, percent } from '../utils/format';
 import { AreaChart, BarChart, LineChart } from '@mantine/charts';
 import { CardWithStats } from './cards/CardWithStats';
 import { ScenarioSummaryCard } from './cards/ScenarioSummaryCard';
-import { IconTrendingUp, IconArrowDownRight, IconArrowUpRight, IconMedal, IconCash, IconChartLine, IconBuildingBank } from '@tabler/icons-react';
+import { IconTrendingUp, IconArrowDownRight, IconArrowUpRight, IconMedal, IconCash, IconChartLine, IconBuildingBank, IconDownload } from '@tabler/icons-react';
+import { downloadFile } from '../utils/download';
 import { useState } from 'react';
 
-export default function EnhancedComparisonResults({ result }: { result: EnhancedComparisonResult }) {
+export default function EnhancedComparisonResults({ result, inputPayload }: { result: EnhancedComparisonResult, inputPayload?: any }) {
   const [chartType, setChartType] = useState<'area' | 'bar' | 'line'>('area');
   const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -37,8 +38,22 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
 
   return (
     <Stack>
-      <Title order={3}>Resultados Avançados</Title>
-      <Text size="sm">Melhor cenário: <strong>{result.best_scenario}</strong></Text>
+      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+        <div>
+          <Title order={3}>Resultados Avançados</Title>
+          <Text size="sm">Melhor cenário: <strong>{result.best_scenario}</strong></Text>
+        </div>
+        <Menu withinPortal position="bottom-end">
+          <Menu.Target>
+            <Button size="xs" leftSection={<IconDownload size={14} />}>Exportar</Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Label>Avançado</Menu.Label>
+            <Menu.Item onClick={()=>downloadFile('/api/compare-scenarios-enhanced/export?format=csv','POST', inputPayload, 'scenarios_comparison_enhanced.csv')}>CSV</Menu.Item>
+            <Menu.Item onClick={()=>downloadFile('/api/compare-scenarios-enhanced/export?format=xlsx','POST', inputPayload, 'scenarios_comparison_enhanced.xlsx')}>XLSX</Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
         <Group gap="sm">
           <Title order={4}>Visão Geral</Title>

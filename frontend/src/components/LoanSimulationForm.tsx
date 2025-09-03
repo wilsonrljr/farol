@@ -31,10 +31,12 @@ export default function LoanSimulationForm() {
   });
 
   const { data, loading, call } = useApi(simulateLoan);
+  const [lastInput, setLastInput] = useState<LoanSimulationInput | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   async function onSubmit(values: LoanSimulationInput) {
     try {
+      setLastInput(values);
       const res = await call(values);
       notifications.show({ title: 'Simulação concluída', message: 'Resultados disponíveis', color: 'green' });
       return res;
@@ -114,13 +116,13 @@ export default function LoanSimulationForm() {
         <Grid gutter="lg">
           <Grid.Col span={{ base: 12, md: 5 }}>{formEl}</Grid.Col>
           <Grid.Col span={{ base: 12, md: 7 }}>
-            {data ? <LoanResults result={data as LoanSimulationResult} /> : emptyState}
+            {data ? <LoanResults result={data as LoanSimulationResult} inputPayload={lastInput || undefined} /> : emptyState}
           </Grid.Col>
         </Grid>
       ) : (
         <Stack gap="xl">
           {formEl}
-          {data ? <LoanResults result={data as LoanSimulationResult} /> : emptyState}
+          {data ? <LoanResults result={data as LoanSimulationResult} inputPayload={lastInput || undefined} /> : emptyState}
         </Stack>
       )}
     </Stack>

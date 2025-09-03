@@ -24,9 +24,25 @@ Frontend: React + Vite + TypeScript + Mantine UI
 ## Instalação (Dev)
 
 ### Backend
-Instale dependências:
+Você pode usar `uv` (recomendado pela performance e lockfile) ou `pip` tradicional.
+
+Com `uv` (se já possuir instalado):
 ```bash
-pip install -e .
+uv sync --extra dev
+uv run pytest   # opcional: rodar testes
+uv run uvicorn backend.app.main:app --reload
+```
+
+Sem `uv` (fallback pip):
+```bash
+pip install -e .[dev]
+pytest -q  # opcional
+uvicorn backend.app.main:app --reload
+```
+
+Gerar/atualizar lock (cria `uv.lock`):
+```bash
+uv lock
 ```
 
 ### Frontend
@@ -106,8 +122,12 @@ docker compose build --no-cache
 ```
 
 ### Estrutura de Imagens
-- Backend: Python 3.13 slim, dependências instaladas via `pyproject.toml`.
+- Backend: agora usa `uv` para sincronizar dependências (aproveita `uv.lock` se presente). Stage de testes instala extras dev; runtime apenas produção.
 - Frontend: build multi-stage (Node 20 -> Nginx 1.27) servindo arquivos estáticos.
+
+Notas:
+- Adicionar nova dependência: editar `pyproject.toml` e rodar `uv lock` (opcional), depois rebuild.
+- Se `uv.lock` não existir, o build resolverá versões conforme constraints atuais.
 
 ### Ajustes Fututos Possíveis
 - Adicionar scan de segurança (Trivy / Grype).
@@ -193,6 +213,51 @@ backend/app/
 frontend/       # React + Vite + Mantine
 docs/           # quickstart.md, calculations.md, glossary.md
 ```
+
+## Exportação de Resultados
+Agora é possível exportar dados das simulações e comparações em CSV ou XLSX.
+
+### Financiamento (SAC/PRICE)
+Endpoint: `POST /api/simulate-loan/export?format=csv|xlsx`
+
+Payload: mesmo JSON usado em `/api/simulate-loan`.
+
+Saída:
+- CSV: cabeçalho com metadados (como comentários iniciados por `#`), seguido da tabela de parcelas.
+- XLSX: abas `data` (parcelas) e `summary` (totais, prazo efetivo, juros, etc.).
+
+### Comparação de Cenários
+Endpoints:
+- Básico: `POST /api/compare-scenarios/export?format=csv|xlsx&shape=long|wide`
+- Avançado: `POST /api/compare-scenarios-enhanced/export?format=csv|xlsx&shape=long|wide`
+
+Sheets XLSX (básico):
+- `summary`: agregados por cenário
+- `monthly_long`: dados no formato longo (uma linha por cenário/mês)
+- `monthly_wide` (incluída se houver dados): colunas combinadas pivotadas por cenário (`equity__<scenario>`, etc.)
+- Uma sheet por cenário com dados individuais
+
+Observação: nomes das sheets de cenário são sanitizados (caracteres especiais substituídos) e truncados a 31 caracteres para compatibilidade Excel; se houver colisão é adicionado sufixo `_1`, `_2`, etc.
+
+Sheets XLSX (avançado): mesmas acima +
+- `metrics`: métricas avançadas por cenário
+- `comp_*`: breakdown do comparative_summary se estrutura em dict; fallback `comparative_summary` com JSON.
+
+Atual: o summary comparativo mensal agora é consolidado em uma única aba `comparative_summary` (linhas contendo key=month_<n>) para reduzir poluição de múltiplas abas. A forma antiga com muitas abas `comp_month_*` foi descontinuada.
+
+CSV (básico): blocos sequenciais comentados: `# --- summary ---`, `# --- monthly_long ---` e opcional `# --- monthly_wide ---`.
+CSV (avançado): `# --- metrics ---`, `# --- monthly_long ---`, opcional `# --- monthly_wide ---`, e `# --- comparative_summary(json) ---` JSON final.
+
+Parâmetro `shape` controla apenas a inclusão do bloco/aba wide (default `long`).
+
+### Frontend
+Botão "Exportar" na visão de resultados de financiamento. (Comparação pode seguir o mesmo padrão em evolução futura.)
+
+### Observações
+- Mesmo payload de entrada dos endpoints originais.
+- Formato padrão se omitido: `csv`.
+- Para grandes horizontes considere XLSX (separação em abas). 
+
 
 ## Novos Campos e Métricas (Comparação de Cenários)
 Para cada cenário retornado pela API de comparação (`/api/compare-scenarios` e `/api/compare-scenarios-enhanced`):
