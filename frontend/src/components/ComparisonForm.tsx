@@ -88,7 +88,12 @@ export default function ComparisonForm() {
                 <NumberInput label="Aporte Mensal Fixo" {...form.getInputProps('fixed_monthly_investment')} thousandSeparator />
                 <NumberInput label="Início Aporte (mês)" {...form.getInputProps('fixed_investment_start_month')} />
               </Group>
-              <AmortizationsFieldArray value={form.values.amortizations || []} onChange={(v)=>form.setFieldValue('amortizations', v)} />
+              <AmortizationsFieldArray
+                value={form.values.amortizations || []}
+                onChange={(v)=>form.setFieldValue('amortizations', v)}
+                inflationRate={form.values.inflation_rate || undefined}
+                termMonths={form.values.loan_term_years * 12}
+              />
             </Stack>
           )}
           <Button type="submit" loading={loading}>Comparar Cenários</Button>

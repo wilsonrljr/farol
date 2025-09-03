@@ -24,10 +24,10 @@ export default function ComparisonResults({ result }: { result: ComparisonResult
             <Accordion.Control>{s.name}</Accordion.Control>
             <Accordion.Panel>
               <ScrollArea h={300} scrollbarSize={6} type="hover" offsetScrollbars>
-                <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={720}>
+        <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={880}>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Mês</Table.Th><Table.Th>Fluxo</Table.Th><Table.Th>Equidade</Table.Th><Table.Th>Invest.</Table.Th><Table.Th>Valor Imóvel</Table.Th><Table.Th>Status</Table.Th><Table.Th>Prog%</Table.Th><Table.Th>Falta</Table.Th>
+          <Table.Th>Mês</Table.Th><Table.Th>Fluxo</Table.Th><Table.Th>Equidade</Table.Th><Table.Th>Invest.</Table.Th><Table.Th>Valor Imóvel</Table.Th><Table.Th>Status</Table.Th><Table.Th>Prog%</Table.Th><Table.Th>Falta</Table.Th><Table.Th>Aporte Fixo</Table.Th><Table.Th>Aporte %</Table.Th><Table.Th>Aporte Total</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -48,6 +48,9 @@ export default function ComparisonResults({ result }: { result: ComparisonResult
                           <Table.Td>{m.status || ''}</Table.Td>
                           <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : ''}</Table.Td>
                           <Table.Td>{m.shortfall != null ? money(m.shortfall) : ''}</Table.Td>
+                          <Table.Td>{m.extra_contribution_fixed ? money(m.extra_contribution_fixed) : ''}</Table.Td>
+                          <Table.Td>{m.extra_contribution_percentage ? money(m.extra_contribution_percentage) : ''}</Table.Td>
+                          <Table.Td>{m.extra_contribution_total ? money(m.extra_contribution_total) : ''}</Table.Td>
                         </Table.Tr>
                       );
                     })}

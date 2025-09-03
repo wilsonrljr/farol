@@ -159,7 +159,7 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
               )}
               <Paper withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
                 <ScrollArea h={360} type="hover" scrollbarSize={6} offsetScrollbars>
-                  <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={760}>
+      <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={960}>
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Mês</Table.Th>
@@ -170,6 +170,9 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
                         {isInvestBuy && <Table.Th>Prog%</Table.Th>}
                         {isInvestBuy && <Table.Th>Falta</Table.Th>}
                         {isInvestBuy && <Table.Th>Status</Table.Th>}
+        {isInvestBuy && <Table.Th>Aporte Fixo</Table.Th>}
+        {isInvestBuy && <Table.Th>Aporte %</Table.Th>}
+        {isInvestBuy && <Table.Th>Aporte Total</Table.Th>}
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
@@ -190,6 +193,9 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
                             {isInvestBuy && <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>}
                             {isInvestBuy && <Table.Td>{m.shortfall != null ? moneySafe(m.shortfall) : '—'}</Table.Td>}
                             {isInvestBuy && <Table.Td>{m.status}</Table.Td>}
+                            {isInvestBuy && <Table.Td>{m.extra_contribution_fixed ? moneySafe(m.extra_contribution_fixed) : '—'}</Table.Td>}
+                            {isInvestBuy && <Table.Td>{m.extra_contribution_percentage ? moneySafe(m.extra_contribution_percentage) : '—'}</Table.Td>}
+                            {isInvestBuy && <Table.Td>{m.extra_contribution_total ? moneySafe(m.extra_contribution_total) : '—'}</Table.Td>}
                           </Table.Tr>
                         );
                       })}
