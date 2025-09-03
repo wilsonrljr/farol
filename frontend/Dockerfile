@@ -3,6 +3,7 @@
 # --- Build Stage ---
 FROM node:20-bullseye-slim AS build
 WORKDIR /app
+ENV ROLLUP_SKIP_NODE_NATIVE=1
 
 # Install deps separately for better caching
 COPY frontend/package*.json ./
