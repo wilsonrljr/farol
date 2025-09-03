@@ -45,6 +45,7 @@ O aplicativo frontend estará disponível em `http://localhost:5173`.
   - Simulação de Financiamento.
   - Comparação de Cenários.
   - Sobre: conceitos e metodologia.
+    - Docs: documentação detalhada (Quickstart, Cálculos, Glossário).
 
 ## Estrutura Simplificada
 ```
@@ -53,6 +54,7 @@ backend/app/
   models.py     # Pydantic models
   finance.py    # Lógica de simulação
 frontend/       # React + Vite + Mantine
+docs/           # quickstart.md, calculations.md, glossary.md
 ```
 
 ## Novos Campos e Métricas (Comparação de Cenários)
@@ -88,6 +90,17 @@ O frontend avançado usa estes campos para um modo condensado que mostra apenas 
 - Cenário "Investir e comprar à vista" agora separa explicitamente `total_outflows` e `net_cost`, evitando confusões quando patrimônio cresce mais que gastos.
 
 ### Retrocompatibilidade
+## Documentação Detalhada
+Rotas no frontend em `/docs/*`:
+
+| Página | URL | Conteúdo |
+|--------|-----|----------|
+| Quickstart | `/docs/quickstart` | Passo a passo mínimo de uso e leitura rápida das métricas. |
+| Cálculos | `/docs/calculos` | Fórmulas e decisões de modelagem (PRICE/SAC, inflação, ROI, sustentabilidade). |
+| Glossário | `/docs/glossario` | Definições de campos de entrada, saídas mensais e métricas agregadas. |
+
+Arquivos fonte correspondentes em `docs/quickstart.md`, `docs/calculations.md`, `docs/glossary.md`.
+
 - `total_cost` continua presente; agora é semanticamente o custo líquido (igual a `net_cost`). Clientes existentes não precisam mudar imediatamente.
 - Novos campos podem ser adotados gradualmente no frontend.
 
