@@ -639,6 +639,18 @@ def simulate_invest_then_buy_scenario(
 
         loan_installments = loan_result.installments
 
+    # Preprocess amortizations as scheduled additional contributions (aportes)
+    fixed_contrib_by_month: Dict[int, float] = {}
+    percent_contrib_by_month: Dict[int, List[float]] = {}
+    if amortizations:
+        fixed_contrib_by_month, percent_contrib_by_month = preprocess_amortizations(
+            amortizations=amortizations,
+            term_months=term_months,
+            annual_inflation_rate=inflation_rate,
+        )
+
+    total_scheduled_contributions = 0.0  # track for total_outflows
+
     # Calculate monthly data
     for month in range(1, term_months + 1):
         # Current target purchase cost (property + upfront) with appreciation
@@ -692,7 +704,24 @@ def simulate_invest_then_buy_scenario(
             )
             continue
 
-        # Before purchase: calculate investment growth
+        # Before purchase: apply scheduled contributions BEFORE return so they also earn this month's yield
+        extra_contribution_fixed = 0.0
+        extra_contribution_pct = 0.0
+        if month in fixed_contrib_by_month:
+            val = fixed_contrib_by_month[month]
+            extra_contribution_fixed += val
+            investment_balance += val
+        if month in percent_contrib_by_month:
+            pct_total = sum(percent_contrib_by_month[month])
+            if pct_total > 0 and investment_balance > 0:
+                pct_amount = investment_balance * (pct_total / 100.0)
+                extra_contribution_pct += pct_amount
+                investment_balance += pct_amount
+        extra_contribution_total = extra_contribution_fixed + extra_contribution_pct
+        if extra_contribution_total > 0:
+            total_scheduled_contributions += extra_contribution_total
+
+        # Apply investment growth AFTER contributions
         monthly_rate = get_monthly_investment_rate(investment_returns, month)
         investment_return = investment_balance * monthly_rate
         investment_balance += investment_return
@@ -735,7 +764,7 @@ def simulate_invest_then_buy_scenario(
                 additional_investment += loan_difference
                 investment_balance += loan_difference
 
-        # Add fixed monthly investment if applicable
+        # Add fixed monthly investment if applicable (treated as part of "additional_investment" not scheduled amortization)
         if fixed_monthly_investment and month >= fixed_investment_start_month:
             additional_investment += fixed_monthly_investment
             investment_balance += fixed_monthly_investment
@@ -786,6 +815,9 @@ def simulate_invest_then_buy_scenario(
                 "equity": equity,
                 "property_value": current_property_value,
                 "additional_investment": additional_investment,
+                "extra_contribution_fixed": extra_contribution_fixed,
+                "extra_contribution_percentage": extra_contribution_pct,
+                "extra_contribution_total": extra_contribution_total,
                 "target_purchase_cost": total_purchase_cost,
                 "progress_percent": progress_percent,
                 "shortfall": shortfall,
@@ -855,9 +887,10 @@ def simulate_invest_then_buy_scenario(
             + purchase_cost
             + total_monthly_additional_costs
             + total_additional_investments
+            + total_scheduled_contributions
         )
     else:
-        total_outflows = total_rent_paid + total_additional_investments
+        total_outflows = total_rent_paid + total_additional_investments + total_scheduled_contributions
 
     net_cost = total_outflows - final_equity
 
