@@ -38,6 +38,87 @@ npm run dev
 
 O aplicativo frontend estará disponível em `http://localhost:5173`.
 
+## Docker
+
+### Ambiente de Desenvolvimento (hot reload)
+
+Requisitos: Docker >= 24, Docker Compose Plugin.
+
+Subir serviços (backend com reload + frontend Vite):
+
+```bash
+docker compose up --build
+```
+
+Endpoints:
+- Backend API: http://localhost:8000/docs
+- Frontend: http://localhost:5173
+
+Parar:
+```bash
+docker compose down
+```
+
+### Ambiente de Produção (build otimizado)
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Endpoints:
+- App (frontend + assets): http://localhost:8080
+- Backend (rede interna): http://backend:8000 (acessível via frontend e outros containers)
+
+Logs:
+```bash
+docker compose logs -f
+```
+
+Derrubar produção:
+```bash
+docker compose -f docker-compose.prod.yml down
+```
+
+### Variáveis de Ambiente do Frontend
+Use `VITE_API_BASE` para apontar para a API.
+
+Exemplos:
+```bash
+# Build produção apontando para backend remoto
+docker build -t farol-frontend --build-arg VITE_API_BASE=https://api.exemplo.com -f frontend/Dockerfile .
+```
+
+### Makefile (atalhos)
+Se disponível:
+```bash
+make dev      # compose up (build) interativo
+make prod     # produção detach
+make down     # parar dev
+make prod-down
+make logs
+```
+
+### Limpeza / Rebuild
+```bash
+docker compose down -v
+docker system prune -f
+docker compose build --no-cache
+```
+
+### Estrutura de Imagens
+- Backend: Python 3.13 slim, dependências instaladas via `pyproject.toml`.
+- Frontend: build multi-stage (Node 20 -> Nginx 1.27) servindo arquivos estáticos.
+
+### Ajustes Fututos Possíveis
+- Adicionar scan de segurança (Trivy / Grype).
+- Adicionar etapa de testes automatizados no build (multi-stage `test`).
+- Usar um lockfile (ex: `uv` ou `pip-tools`) para reprodutibilidade estrita do backend.
+- Ativar cache de dependências Node com `npm ci` + mount de cache de build se necessário.
+
+---
+
+Se encontrar problemas com porta em uso, verifique processos locais ou ajuste mapeamentos em `docker-compose.yml`.
+
 ## Uso
 1. Acesse `http://localhost:5173`.
 2. Explore:
