@@ -60,7 +60,7 @@ jobs:
       - name: Install deps
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci || (echo "npm ci failed, retrying with clean slate" && rm -rf node_modules && npm install)
           else
             npm install
           fi
@@ -68,7 +68,14 @@ jobs:
       - name: Build
         env:
           VITE_API_BASE: http://localhost:8000
-        run: npm run build
+        run: |
+          # Workaround para bug de optional deps do npm com rollup native
+          if ! npm run build; then
+            echo "Primeira tentativa falhou possivelmente por optional deps de rollup. Limpando e reinstalando sem cache...";
+            rm -rf node_modules package-lock.json;
+            npm install --no-audit --no-fund;
+            npm run build;
+          fi
 
   docker-build:
     runs-on: ubuntu-latest
