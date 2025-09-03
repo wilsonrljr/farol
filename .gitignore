@@ -4,6 +4,7 @@ __pycache__/sys_identfy.cpython-36.pyc
 *.json
 !package.json
 !package-lock.json
+!tsconfig.json
 *.coverage
 .coverage
 coverage/
