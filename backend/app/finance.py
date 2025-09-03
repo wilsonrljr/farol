@@ -1,4 +1,5 @@
 from typing import List, Dict, Optional, Tuple
+from collections import defaultdict
 import math
 from .models import (
     AmortizationInput,
@@ -39,11 +40,60 @@ def convert_interest_rate(
     return annual_rate, monthly_rate
 
 
+def preprocess_amortizations(
+    amortizations: Optional[List[AmortizationInput]],
+    term_months: int,
+    annual_inflation_rate: Optional[float] = None,
+) -> Tuple[Dict[int, float], Dict[int, List[float]]]:
+    """Expand and separate fixed and percentage amortizations.
+
+    Returns:
+        fixed_by_month: month -> total fixed extra amortization
+        percent_by_month: month -> list of percentage values to apply on outstanding balance
+    """
+    if not amortizations:
+        return {}, {}
+
+    fixed_by_month: Dict[int, float] = defaultdict(float)
+    percent_by_month: Dict[int, List[float]] = defaultdict(list)
+
+    for a in amortizations:
+        # Determine recurrence months
+        if a.interval_months and a.interval_months > 0:
+            start = a.month or 1
+            if a.occurrences:
+                months = [start + i * a.interval_months for i in range(a.occurrences)]
+            else:
+                end = a.end_month or term_months
+                months = list(range(start, min(end, term_months) + 1, a.interval_months))
+        else:
+            # Single event
+            if a.month is None:
+                continue
+            months = [a.month]
+
+        base_month = months[0] if months else 1
+        for m in months:
+            if m < 1 or m > term_months:
+                continue
+            if a.value_type == "percentage":
+                percent_by_month[m].append(a.value)
+            else:
+                val = a.value
+                if a.inflation_adjust:
+                    # Apply inflation relative to first occurrence (base_month)
+                    val = apply_inflation(val, m, base_month, annual_inflation_rate)
+                fixed_by_month[m] += val
+
+    return dict(fixed_by_month), dict(percent_by_month)
+
+
 def simulate_sac_loan(
     loan_value: float,
     term_months: int,
     monthly_interest_rate: float,
     amortizations: Optional[List[AmortizationInput]] = None,
+    annual_inflation_rate: Optional[float] = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the SAC (Sistema de Amortização Constante) method."""
     # Convert interest rate to decimal
@@ -56,16 +106,19 @@ def simulate_sac_loan(
     total_paid = 0.0
     total_interest_paid = 0.0
 
-    # Create amortization dictionary for quick lookup
-    extra_amortizations = {}
-    if amortizations:
-        for amort in amortizations:
-            extra_amortizations[amort.month] = amort.value
+    # Preprocess amortizations (supports recurrence & percentage)
+    fixed_extra_by_month, percent_extra_by_month = preprocess_amortizations(
+        amortizations, term_months, annual_inflation_rate
+    )
 
     # Calculate each installment
     for month in range(1, term_months + 1):
-        # Check for extra amortization
-        extra_amortization = extra_amortizations.get(month, 0)
+        # Sum fixed extra amortization for this month
+        extra_amortization = fixed_extra_by_month.get(month, 0.0)
+        # Apply percentage based amortizations dynamically
+        if month in percent_extra_by_month and outstanding_balance > 0:
+            for pct in percent_extra_by_month[month]:
+                extra_amortization += outstanding_balance * (pct / 100.0)
 
         # Calculate interest for this month
         interest = outstanding_balance * monthly_rate_decimal
@@ -117,6 +170,7 @@ def simulate_price_loan(
     term_months: int,
     monthly_interest_rate: float,
     amortizations: Optional[List[AmortizationInput]] = None,
+    annual_inflation_rate: Optional[float] = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the PRICE (French) method."""
     # Convert interest rate to decimal
@@ -138,16 +192,19 @@ def simulate_price_loan(
     total_paid = 0.0
     total_interest_paid = 0.0
 
-    # Create amortization dictionary for quick lookup
-    extra_amortizations = {}
-    if amortizations:
-        for amort in amortizations:
-            extra_amortizations[amort.month] = amort.value
+    # Preprocess amortizations (supports recurrence & percentage)
+    fixed_extra_by_month, percent_extra_by_month = preprocess_amortizations(
+        amortizations, term_months, annual_inflation_rate
+    )
 
     # Calculate each installment
     for month in range(1, term_months + 1):
-        # Check for extra amortization
-        extra_amortization = extra_amortizations.get(month, 0)
+        # Sum fixed extra amortization
+        extra_amortization = fixed_extra_by_month.get(month, 0.0)
+        # Add percentage extras
+        if month in percent_extra_by_month and outstanding_balance > 0:
+            for pct in percent_extra_by_month[month]:
+                extra_amortization += outstanding_balance * (pct / 100.0)
 
         # Calculate interest for this month
         interest = outstanding_balance * monthly_rate_decimal
@@ -314,11 +371,19 @@ def simulate_buy_scenario(
     # Simulate loan
     if loan_type == "SAC":
         loan_result = simulate_sac_loan(
-            loan_value, term_months, monthly_interest_rate, amortizations
+            loan_value,
+            term_months,
+            monthly_interest_rate,
+            amortizations,
+            inflation_rate,
         )
     else:  # PRICE
         loan_result = simulate_price_loan(
-            loan_value, term_months, monthly_interest_rate, amortizations
+            loan_value,
+            term_months,
+            monthly_interest_rate,
+            amortizations,
+            inflation_rate,
         )
 
     # Calculate monthly data
@@ -536,11 +601,19 @@ def simulate_invest_then_buy_scenario(
         # Simulate loan to get installment amounts
         if loan_type == "SAC":
             loan_result = simulate_sac_loan(
-                loan_value, term_months, monthly_interest_rate, amortizations
+                loan_value,
+                term_months,
+                monthly_interest_rate,
+                amortizations,
+                inflation_rate,
             )
         else:  # PRICE
             loan_result = simulate_price_loan(
-                loan_value, term_months, monthly_interest_rate, amortizations
+                loan_value,
+                term_months,
+                monthly_interest_rate,
+                amortizations,
+                inflation_rate,
             )
 
         loan_installments = loan_result.installments

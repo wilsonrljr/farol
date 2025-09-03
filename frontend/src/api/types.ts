@@ -3,8 +3,13 @@
 export type LoanType = 'SAC' | 'PRICE';
 
 export interface AmortizationInput {
-  month: number;
-  value: number;
+  month?: number; // single event month
+  value: number; // amount or percentage
+  end_month?: number | null;
+  interval_months?: number | null; // recurrence interval
+  occurrences?: number | null; // alternative to end_month
+  value_type?: 'fixed' | 'percentage';
+  inflation_adjust?: boolean; // adjust fixed values by inflation
 }
 
 export interface InvestmentReturnInput {

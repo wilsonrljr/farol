@@ -9,6 +9,7 @@ Farol é uma plataforma de simulação e planejamento financeiro focada inicialm
   - Alugar e investir o valor da entrada.
   - Investir até comprar à vista.
 - Amortizações extraordinárias configuráveis ao longo do tempo.
+ - Amortizações extraordinárias avançadas: eventos únicos, recorrentes, valores fixos ou % do saldo, ajuste opcional por inflação.
 - Múltiplas faixas de retorno de investimento (variação temporal).
 - Considera inflação, valorização do imóvel, custos adicionais (ITBI, escritura, condomínio, IPTU).
 - Resultados detalhados: fluxo de caixa mensal, patrimônio, saldo investido, equity, valor do imóvel.
@@ -89,6 +90,50 @@ O frontend avançado usa estes campos para um modo condensado que mostra apenas 
 ### Retrocompatibilidade
 - `total_cost` continua presente; agora é semanticamente o custo líquido (igual a `net_cost`). Clientes existentes não precisam mudar imediatamente.
 - Novos campos podem ser adotados gradualmente no frontend.
+
+## Amortizações Extra Avançadas
+
+Agora é possível modelar aportes de redução de saldo de forma muito mais flexível:
+
+### Formato (Backend `AmortizationInput`)
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `month` | int? | Mês do primeiro evento (ou único). Default 1 se recorrente sem especificação. |
+| `value` | float | Valor fixo em moeda ou percentual (quando `value_type=percentage`). |
+| `value_type` | `"fixed" | "percentage"` | Interpretação do `value`. Default `fixed`. |
+| `interval_months` | int? | Intervalo entre ocorrências (ex: 12 para anual). Ausente => evento único. |
+| `occurrences` | int? | Número de repetições. Alternativa a `end_month`. |
+| `end_month` | int? | Último mês (inclusivo) da recorrência. Ignorado se `occurrences` informado. |
+| `inflation_adjust` | bool | Se `true`, valores fixos são corrigidos pela inflação a partir do mês inicial da série. |
+
+### Regras de Expansão
+1. Se apenas `month` e `value` forem informados, comportamento antigo (evento único) permanece.
+2. Se `interval_months` > 0, gera-se a sequência: `month`, `month + interval`, ... até atingir `occurrences` ou `end_month` (ou o prazo do financiamento).
+3. Para `value_type=percentage`, o valor aplicado em cada ocorrência é: `saldo_outstanding_do_mês * (value/100)` no momento da parcela.
+4. Para `inflation_adjust=True` com `value_type=fixed`, cada ocorrência é ajustada por inflação acumulada desde o mês base (primeiro da série) usando a mesma taxa anual de inflação da simulação.
+5. Múltiplas amortizações (fixas e/ou percentuais) no mesmo mês são somadas antes de limitar pelo saldo restante.
+
+### Exemplo JSON
+```json
+[
+  { "month": 12, "value": 10000, "interval_months": 12, "occurrences": 5, "value_type": "fixed", "inflation_adjust": true },
+  { "month": 6, "value": 2.0, "interval_months": 6, "end_month": 36, "value_type": "percentage" },
+  { "month": 18, "value": 5000 }
+]
+```
+
+### Estratégias Possíveis
+- Bônus anual de fim de ano: `interval_months=12`.
+- Aporte semestral variável ao saldo: `%` a cada 6 meses.
+- Combinação de aporte fixo + percentual no mesmo mês.
+- Série limitada por número de ocorrências (ex: 3 bônus) ou até um mês limite (ex: até mês 60).
+
+### Efeito na Simulação
+Os aportes extras reduzem o saldo devedor, encurtando prazo (SAC/PRICE) e diminuindo juros totais. Percentuais se adaptam ao saldo residual, mantendo estratégia proporcional ao tempo. Valores inflacionados preservam poder real do aporte.
+
+### Limitações Atuais / Próximos Passos
+- Percentuais aplicam-se antes do cap do saldo (proporcional exato). Não há hoje teto combinado configurável (poderá ser adicionado se necessário).
+- Visualização de estimativa de redução de prazo está apenas no frontend (preview simples). Poderá ser exposta via API futuramente.
 
 
 ## Variáveis de Ambiente

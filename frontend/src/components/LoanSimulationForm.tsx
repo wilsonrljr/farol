@@ -75,7 +75,7 @@ export default function LoanSimulationForm() {
                     <NumberInput label="Inflação Aluguel % a.a." {...form.getInputProps('rent_inflation_rate')} />
                     <NumberInput label="Valorização % a.a." {...form.getInputProps('property_appreciation_rate')} />
                   </Group>
-                  <AmortizationsFieldArray value={form.values.amortizations || []} onChange={(v)=>form.setFieldValue('amortizations', v)} />
+                  <AmortizationsFieldArray termMonths={(form.values.loan_term_years||0)*12} value={form.values.amortizations || []} onChange={(v)=>form.setFieldValue('amortizations', v)} />
                 </Stack>
               )}
               <Button type="submit" loading={loading}>Simular</Button>

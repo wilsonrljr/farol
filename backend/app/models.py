@@ -4,8 +4,30 @@ from datetime import date
 
 
 class AmortizationInput(BaseModel):
-    month: int = Field(..., description="Month when the amortization occurs")
-    value: float = Field(..., description="Amortization value")
+    # Original fields (backward compatibility): single event when only month + value provided
+    month: Optional[int] = Field(
+        None, description="Month when the amortization occurs (for single events)"
+    )
+    value: float = Field(
+        ..., description="Amortization value or percentage depending on value_type"
+    )
+    # Extended recurrence / behavior fields
+    end_month: Optional[int] = Field(
+        None, description="Last month (inclusive) for recurring amortizations"
+    )
+    interval_months: Optional[int] = Field(
+        None, description="Interval in months for recurrence (e.g. 12 for annual)"
+    )
+    occurrences: Optional[int] = Field(
+        None, description="Number of occurrences (alternative to end_month)"
+    )
+    value_type: Optional[Literal["fixed", "percentage"]] = Field(
+        "fixed", description="Whether value is fixed currency or percentage of outstanding balance"
+    )
+    inflation_adjust: Optional[bool] = Field(
+        False,
+        description="If true, fixed values are inflation-adjusted from the first occurrence month",
+    )
 
 
 class InvestmentReturnInput(BaseModel):

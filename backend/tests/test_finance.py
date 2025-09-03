@@ -99,6 +99,37 @@ class TestFinanceCalculations(unittest.TestCase):
         
         # The loan should be paid off earlier
         self.assertLess(len(price_result.installments), term_months)
+
+    def test_recurring_amortizations_percentage_and_fixed(self):
+        loan_value = 200000
+        term_months = 240
+        monthly_interest_rate = 1.0
+        amortizations = [
+            # Annual fixed 10000 for 5 years
+            AmortizationInput(month=12, value=10000, interval_months=12, occurrences=5, value_type="fixed"),
+            # Every 6 months 2% of outstanding for first 3 years
+            AmortizationInput(month=6, value=2.0, interval_months=6, end_month=36, value_type="percentage"),
+        ]
+        sac_result = simulate_sac_loan(loan_value, term_months, monthly_interest_rate, amortizations)
+        # Should reduce term significantly (arbitrary expectation: < original term)
+        self.assertLess(len(sac_result.installments), term_months)
+        # Validate percentage amortization applied (some installments will have extra_amortization > fixed schedule)
+        extras = [i.extra_amortization for i in sac_result.installments if i.month % 6 == 0 and i.month <= 36]
+        self.assertTrue(any(e > 0 for e in extras))
+
+    def test_multiple_amortizations_same_month(self):
+        loan_value = 100000
+        term_months = 120
+        monthly_interest_rate = 1.0
+        # Two events same month should sum
+        amortizations = [
+            AmortizationInput(month=12, value=5000),
+            AmortizationInput(month=12, value=3000),
+        ]
+        price_result = simulate_price_loan(loan_value, term_months, monthly_interest_rate, amortizations)
+        # Find month 12 installment extra amortization ~ 8000 (allow tiny rounding)
+        inst12 = next(i for i in price_result.installments if i.month == 12)
+        self.assertAlmostEqual(inst12.extra_amortization, 8000, delta=1)
     
     def test_get_monthly_investment_rate(self):
         # Test getting monthly investment rate
