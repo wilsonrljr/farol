@@ -99,6 +99,73 @@ class TestFinanceCalculations(unittest.TestCase):
         
         # The loan should be paid off earlier
         self.assertLess(len(price_result.installments), term_months)
+
+    def test_recurring_amortizations_percentage_and_fixed(self):
+        loan_value = 200000
+        term_months = 240
+        monthly_interest_rate = 1.0
+        amortizations = [
+            # Annual fixed 10000 for 5 years
+            AmortizationInput(month=12, value=10000, interval_months=12, occurrences=5, value_type="fixed"),
+            # Every 6 months 2% of outstanding for first 3 years
+            AmortizationInput(month=6, value=2.0, interval_months=6, end_month=36, value_type="percentage"),
+        ]
+        sac_result = simulate_sac_loan(loan_value, term_months, monthly_interest_rate, amortizations)
+        # Should reduce term significantly (arbitrary expectation: < original term)
+        self.assertLess(len(sac_result.installments), term_months)
+        # Validate percentage amortization applied (some installments will have extra_amortization > fixed schedule)
+        extras = [i.extra_amortization for i in sac_result.installments if i.month % 6 == 0 and i.month <= 36]
+        self.assertTrue(any(e > 0 for e in extras))
+
+    def test_multiple_amortizations_same_month(self):
+        loan_value = 100000
+        term_months = 120
+        monthly_interest_rate = 1.0
+        # Two events same month should sum
+        amortizations = [
+            AmortizationInput(month=12, value=5000),
+            AmortizationInput(month=12, value=3000),
+        ]
+        price_result = simulate_price_loan(loan_value, term_months, monthly_interest_rate, amortizations)
+        # Find month 12 installment extra amortization ~ 8000 (allow tiny rounding)
+        inst12 = next(i for i in price_result.installments if i.month == 12)
+        self.assertAlmostEqual(inst12.extra_amortization, 8000, delta=1)
+
+    def test_amortization_validator_conflict(self):
+        # Both occurrences and end_month should raise
+        with self.assertRaises(ValueError):
+            AmortizationInput(month=6, value=1000, interval_months=12, occurrences=3, end_month=60)
+
+    def test_inflation_adjusted_recurring_amortization(self):
+        loan_value = 50000
+        term_months = 240
+        monthly_interest_rate = 0.8
+        # Annual recurring 1000 adjusted by 6% inflation
+        amortizations = [
+            AmortizationInput(month=12, value=1000, interval_months=12, occurrences=3, value_type="fixed", inflation_adjust=True)
+        ]
+        result = simulate_price_loan(loan_value, term_months, monthly_interest_rate, amortizations, annual_inflation_rate=6.0)
+        # Extract extra amortizations around occurrences
+        extras = {inst.month: inst.extra_amortization for inst in result.installments if inst.extra_amortization > 0}
+        self.assertIn(12, extras)
+        self.assertIn(24, extras)
+        self.assertIn(36, extras)
+        # Later occurrences should be > first due to inflation
+        self.assertGreater(extras[24], extras[12])
+        self.assertGreater(extras[36], extras[24])
+
+    def test_months_saved_and_total_extra_amortization_fields(self):
+        loan_value = 100000
+        term_months = 240
+        monthly_interest_rate = 0.8
+        amortizations = [AmortizationInput(month=12, value=20000), AmortizationInput(month=24, value=15000)]
+        result = simulate_sac_loan(loan_value, term_months, monthly_interest_rate, amortizations)
+        # Metadata fields should be populated
+        self.assertEqual(result.original_term_months, term_months)
+        self.assertTrue(result.actual_term_months <= term_months)
+        if result.months_saved:
+            self.assertGreater(result.months_saved, 0)
+        self.assertIsNotNone(result.total_extra_amortization)
     
     def test_get_monthly_investment_rate(self):
         # Test getting monthly investment rate

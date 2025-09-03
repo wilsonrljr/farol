@@ -1,12 +1,13 @@
-import { Paper, Stack, Title, Table, Group, SimpleGrid, ScrollArea, SegmentedControl, Tabs } from '@mantine/core';
+import { Paper, Stack, Title, Table, Group, SimpleGrid, ScrollArea, SegmentedControl, Tabs, Badge, Button, Menu } from '@mantine/core';
 import { LoanSimulationResult } from '../api/types';
 import { money } from '../utils/format';
 import { AreaChart, BarChart, LineChart } from '@mantine/charts';
 import { ScenarioSummaryCard } from './cards/ScenarioSummaryCard';
 import { useState } from 'react';
-import { IconCash, IconTrendingUp, IconChartBar, IconArrowDownRight, IconArrowUpRight, IconChartLine } from '@tabler/icons-react';
+import { IconCash, IconTrendingUp, IconChartBar, IconArrowDownRight, IconArrowUpRight, IconChartLine, IconDownload } from '@tabler/icons-react';
+import { downloadFile } from '../utils/download';
 
-export default function LoanResults({ result }: { result: LoanSimulationResult }) {
+export default function LoanResults({ result, inputPayload }: { result: LoanSimulationResult, inputPayload?: any }) {
   const [chartType, setChartType] = useState<'area' | 'bar' | 'line'>('area');
   const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -50,6 +51,18 @@ export default function LoanResults({ result }: { result: LoanSimulationResult }
     { key:'menorParc', label:'Menor Parc', value: money(Math.min(...result.installments.map(i => i.installment))) }
   ];
 
+  const metaBadges: React.ReactNode[] = [];
+  if (result.months_saved) {
+    metaBadges.push(<Badge key="months_saved" color="teal" variant="light">-{result.months_saved} meses</Badge>);
+  }
+  if (result.total_extra_amortization) {
+    metaBadges.push(<Badge key="extra_total" color="indigo" variant="light">Extra {money(result.total_extra_amortization)}</Badge>);
+  }
+  if (result.actual_term_months && result.original_term_months && result.actual_term_months !== result.original_term_months) {
+    const pct = ((result.original_term_months - result.actual_term_months) / result.original_term_months) * 100;
+    metaBadges.push(<Badge key="pct_saved" color="grape" variant="light">Prazo -{pct.toFixed(1)}%</Badge>);
+  }
+
   return (
     <Stack>
       <Title order={3}>Resultados</Title>
@@ -58,8 +71,21 @@ export default function LoanResults({ result }: { result: LoanSimulationResult }
         <Group gap="xs">
           <SegmentedControl size="xs" value={chartType} onChange={(v)=>setChartType(v as any)} data={[{label:'Área', value:'area'},{label:'Barras', value:'bar'},{label:'Linha', value:'line'}]} />
           <SegmentedControl size="xs" value={density} onChange={(v)=>setDensity(v as any)} data={[{label:'Conforto', value:'comfortable'},{label:'Compacto', value:'compact'}]} />
+          <Menu withinPortal position="bottom-end">
+            <Menu.Target>
+              <Button size="xs" leftSection={<IconDownload size={14} />}>Exportar</Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Baixar</Menu.Label>
+              <Menu.Item onClick={()=>downloadFile('/api/simulate-loan/export?format=csv','POST', inputPayload, 'loan_simulation.csv')}>CSV</Menu.Item>
+              <Menu.Item onClick={()=>downloadFile('/api/simulate-loan/export?format=xlsx','POST', inputPayload, 'loan_simulation.xlsx')}>XLSX</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
       </Group>
+      {metaBadges.length > 0 && (
+        <Group gap="xs" mb={-4} wrap="wrap">{metaBadges}</Group>
+      )}
       <SimpleGrid cols={{ base: 1, md: density==='compact'?2:1, lg: density==='compact'?2:2 }} spacing="md">
         <ScenarioSummaryCard
           title="Resumo"

@@ -1,11 +1,47 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Literal
 from datetime import date
 
 
 class AmortizationInput(BaseModel):
-    month: int = Field(..., description="Month when the amortization occurs")
-    value: float = Field(..., description="Amortization value")
+    # Original fields (backward compatibility): single event when only month + value provided
+    month: Optional[int] = Field(
+        None, description="Month when the amortization occurs (for single events)"
+    )
+    value: float = Field(
+        ..., description="Amortization value or percentage depending on value_type"
+    )
+    # Extended recurrence / behavior fields
+    end_month: Optional[int] = Field(
+        None, description="Last month (inclusive) for recurring amortizations"
+    )
+    interval_months: Optional[int] = Field(
+        None, description="Interval in months for recurrence (e.g. 12 for annual)"
+    )
+    occurrences: Optional[int] = Field(
+        None, description="Number of occurrences (alternative to end_month)"
+    )
+    value_type: Optional[Literal["fixed", "percentage"]] = Field(
+        "fixed", description="Whether value is fixed currency or percentage of outstanding balance"
+    )
+    inflation_adjust: Optional[bool] = Field(
+        False,
+        description="If true, fixed values are inflation-adjusted from the first occurrence month",
+    )
+
+    @model_validator(mode="after")
+    def validate_recurrence(self):  # type: ignore
+        if self.occurrences is not None and self.end_month is not None:
+            raise ValueError(
+                "Provide either occurrences or end_month for recurring amortization, not both"
+            )
+        if self.interval_months is None and (self.occurrences or self.end_month):
+            raise ValueError(
+                "interval_months must be set when occurrences or end_month are provided"
+            )
+        if self.interval_months is not None and self.interval_months <= 0:
+            raise ValueError("interval_months must be positive")
+        return self
 
 
 class InvestmentReturnInput(BaseModel):
@@ -108,6 +144,18 @@ class ComparisonInput(BaseModel):
         1,
         description="Month to start fixed investment (1 for immediate, or after purchase month)",
     )
+    rent_reduces_investment: bool = Field(
+        False,
+        description="If true, rent (and related costs) is paid from investment balance before returns; otherwise assumed paid from external income.",
+    )
+    monthly_external_savings: Optional[float] = Field(
+        None,
+        description="External monthly savings/income earmarked to cover rent/costs before touching investment (optional).",
+    )
+    invest_external_surplus: bool = Field(
+        False,
+        description="If true, any unused portion of monthly_external_savings (after rent/costs) is invested that month.",
+    )
 
 
 class LoanInstallment(BaseModel):
@@ -124,6 +172,19 @@ class LoanSimulationResult(BaseModel):
     total_paid: float
     total_interest_paid: float
     installments: List[LoanInstallment]
+    # New optional metadata fields (populated when amortizações extras encurtam o prazo)
+    original_term_months: Optional[int] = Field(
+        None, description="Planned term in months before extra amortizations"
+    )
+    actual_term_months: Optional[int] = Field(
+        None, description="Actual term in months until balance reached zero"
+    )
+    months_saved: Optional[int] = Field(
+        None, description="original_term_months - actual_term_months when applicable"
+    )
+    total_extra_amortization: Optional[float] = Field(
+        None, description="Sum of all extra amortizations applied"
+    )
 
 
 class ComparisonScenario(BaseModel):
@@ -131,6 +192,14 @@ class ComparisonScenario(BaseModel):
     total_cost: float
     final_equity: float
     monthly_data: List[dict]
+    # New fields for clearer cost semantics. total_outflows = sum of all cash out (gross).
+    # net_cost = total_outflows - final_equity (net of assets). Kept optional for backward compatibility.
+    total_outflows: Optional[float] = Field(
+        None, description="Gross outflows (down payment + payments + rent + costs + investments)"
+    )
+    net_cost: Optional[float] = Field(
+        None, description="Net cost after subtracting remaining equity/assets (alias of total_cost if provided)"
+    )
 
 
 class ComparisonMetrics(BaseModel):
@@ -145,13 +214,29 @@ class ComparisonMetrics(BaseModel):
     break_even_month: Optional[int] = Field(
         None, description="Month when this scenario becomes profitable"
     )
-    roi_percentage: float = Field(..., description="Return on investment percentage")
+    roi_percentage: float = Field(
+        ..., description="Return on investment percentage"
+    )
+    roi_adjusted_percentage: Optional[float] = Field(
+        None, description="Adjusted ROI adding back withdrawals used to pay rent/costs"
+    )
     average_monthly_cost: float = Field(..., description="Average monthly cost")
     total_interest_or_rent_paid: float = Field(
         ..., description="Total interest paid (loan) or rent paid"
     )
     wealth_accumulation: float = Field(
         ..., description="Total wealth accumulated (equity + investments)"
+    )
+    # Optional sustainability-related aggregate metrics (may be absent for buy scenario)
+    total_rent_withdrawn_from_investment: Optional[float] = Field(
+        None, description="Sum of rent+costs amount withdrawn from investment principal"
+    )
+    months_with_burn: Optional[int] = Field(
+        None, description="Number of months where withdrawals exceeded investment returns"
+    )
+    average_sustainable_withdrawal_ratio: Optional[float] = Field(
+        None,
+        description="Average of (investment_return / withdrawal) in months with withdrawal >0 (values >1 mean fully covered by returns)",
     )
 
 
@@ -174,3 +259,18 @@ class EnhancedComparisonResult(BaseModel):
     comparative_summary: dict = Field(
         ..., description="Month-by-month comparison between scenarios"
     )
+class ScenarioMetricsSummary(BaseModel):
+    name: str
+    net_cost: float
+    final_equity: float
+    total_outflows: Optional[float] = None
+    roi_percentage: float
+    roi_adjusted_percentage: Optional[float] = None
+    total_rent_withdrawn_from_investment: Optional[float] = None
+    months_with_burn: Optional[int] = None
+    average_sustainable_withdrawal_ratio: Optional[float] = None
+
+
+class ScenariosMetricsResult(BaseModel):
+    best_scenario: str
+    metrics: List[ScenarioMetricsSummary]

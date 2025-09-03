@@ -1,0 +1,14 @@
+[run]
+source = backend
+branch = True
+omit =
+    backend/app/tests/*
+
+[report]
+show_missing = True
+skip_covered = True
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.
+    ^\s*assert False
+    ^\s*raise NotImplementedError

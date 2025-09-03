@@ -7,6 +7,7 @@ const links = [
   { to: '/', label: 'Início', icon: <IconHome size={16} /> },
   { to: '/simulacao', label: 'Simulação', icon: <IconCalculator size={16} /> },
   { to: '/comparacao', label: 'Comparação', icon: <IconArrowsShuffle size={16} /> },
+  { to: '/docs/quickstart', label: 'Docs', icon: <IconInfoCircle size={16} /> },
   { to: '/sobre', label: 'Sobre', icon: <IconInfoCircle size={16} /> }
 ];
 

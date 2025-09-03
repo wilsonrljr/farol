@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, NumberInput, Select, Switch, Paper, Stack, Group, Divider, Checkbox, SimpleGrid, Text, SegmentedControl, Grid } from '@mantine/core';
+import { Button, NumberInput, Select, Switch, Paper, Stack, Group, Divider, Checkbox, SimpleGrid, Text, SegmentedControl, Grid, Tooltip } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { compareScenarios } from '../api/financeApi';
 import { ComparisonInput, ComparisonResult, EnhancedComparisonResult } from '../api/types';
@@ -32,16 +32,21 @@ export default function ComparisonForm() {
       property_appreciation_rate: 4,
       invest_loan_difference: false,
       fixed_monthly_investment: 0,
-      fixed_investment_start_month: 1
+  fixed_investment_start_month: 1,
+  rent_reduces_investment: false,
+  monthly_external_savings: 0,
+  invest_external_surplus: false,
     }
   });
 
   const { data, loading, call } = useApi< [ComparisonInput, boolean], ComparisonResult | EnhancedComparisonResult>(async (input: ComparisonInput, enhanced: boolean) => compareScenarios(input, enhanced));
+  const [lastInput, setLastInput] = useState<ComparisonInput | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [enhanced, setEnhanced] = useState(true);
 
   async function onSubmit(values: ComparisonInput) {
     try {
+      setLastInput(values);
       const res = await call(values, enhanced);
       notifications.show({ title: 'Comparação pronta', message: 'Resultados disponíveis', color: 'green' });
       return res;
@@ -84,11 +89,46 @@ export default function ComparisonForm() {
                 <NumberInput label="Valorização % a.a." {...form.getInputProps('property_appreciation_rate')} />
               </Group>
               <Checkbox label="Investir diferença de parcela vs aluguel" {...form.getInputProps('invest_loan_difference', { type: 'checkbox' })} />
+              <Tooltip label="Se marcado, o aluguel e custos mensais são pagos retirando do saldo investido antes do rendimento. Caso contrário assumimos que o aluguel vem de renda externa e o capital fica intacto." multiline w={260} position="top-start" withArrow>
+                <Checkbox mt={4} label="Aluguel consome investimento" {...form.getInputProps('rent_reduces_investment', { type: 'checkbox' })} />
+              </Tooltip>
+              <Group grow>
+                <Tooltip
+                  label={
+                    `Renda / aporte externo mensal usado primeiro para pagar aluguel e custos (condomínio/IPTU se informados).
+Se ficar em branco ou = 0:
+  - Se 'Aluguel consome investimento' estiver DESMARCADO: assumimos que o aluguel é pago externamente (saldo investido não é reduzido).
+  - Se estiver MARCADO: todo o aluguel/custos é retirado do investimento.
+Se este valor for maior que o custo mensal, a sobra pode ser automaticamente investida se você marcar 'Investir sobra externa'.`
+                  }
+                  multiline
+                  w={340}
+                  withArrow
+                >
+                  <NumberInput label="Renda Externa p/ Custos" {...form.getInputProps('monthly_external_savings')} thousandSeparator min={0} />
+                </Tooltip>
+                <Tooltip
+                  label={
+                    `Quando marcado, qualquer sobra de 'Renda Externa p/ Custos' após pagar aluguel/custos é adicionada ao investimento nesse mês.
+Ignorado se a renda externa for 0 ou não cobrir totalmente o aluguel (nesse caso não há sobra).`
+                  }
+                  w={300}
+                  multiline
+                  withArrow
+                >
+                  <Checkbox mt={22} label="Investir sobra externa" {...form.getInputProps('invest_external_surplus', { type: 'checkbox' })} />
+                </Tooltip>
+              </Group>
               <Group grow>
                 <NumberInput label="Aporte Mensal Fixo" {...form.getInputProps('fixed_monthly_investment')} thousandSeparator />
                 <NumberInput label="Início Aporte (mês)" {...form.getInputProps('fixed_investment_start_month')} />
               </Group>
-              <AmortizationsFieldArray value={form.values.amortizations || []} onChange={(v)=>form.setFieldValue('amortizations', v)} />
+              <AmortizationsFieldArray
+                value={form.values.amortizations || []}
+                onChange={(v)=>form.setFieldValue('amortizations', v)}
+                inflationRate={form.values.inflation_rate || undefined}
+                termMonths={form.values.loan_term_years * 12}
+              />
             </Stack>
           )}
           <Button type="submit" loading={loading}>Comparar Cenários</Button>
@@ -120,13 +160,13 @@ export default function ComparisonForm() {
         <Grid gutter="lg">
           <Grid.Col span={{ base: 12, md: 5 }}>{formEl}</Grid.Col>
           <Grid.Col span={{ base: 12, md: 7 }}>
-            {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} /> : <ComparisonResults result={data as ComparisonResult} />) : emptyState}
+            {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} inputPayload={lastInput || undefined} /> : <ComparisonResults result={data as ComparisonResult} inputPayload={lastInput || undefined} />) : emptyState}
           </Grid.Col>
         </Grid>
       ) : (
         <Stack gap="xl">
           {formEl}
-          {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} /> : <ComparisonResults result={data as ComparisonResult} />) : emptyState}
+          {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} inputPayload={lastInput || undefined} /> : <ComparisonResults result={data as ComparisonResult} inputPayload={lastInput || undefined} />) : emptyState}
         </Stack>
       )}
     </Stack>

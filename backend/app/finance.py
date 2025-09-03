@@ -1,4 +1,6 @@
 from typing import List, Dict, Optional, Tuple
+from collections import defaultdict
+import math
 from .models import (
     AmortizationInput,
     InvestmentReturnInput,
@@ -26,10 +28,64 @@ def convert_interest_rate(
     if annual_rate is None and monthly_rate is None:
         raise ValueError("Either annual_rate or monthly_rate must be provided")
 
-    # Both provided, validate they are not None and return as-is
+    # Both provided: validate consistency within small tolerance
     if annual_rate is None or monthly_rate is None:
         raise ValueError("Both rates cannot be None when both are provided")
+    derived_annual = ((1 + monthly_rate / 100) ** 12 - 1) * 100
+    # Allow minor rounding tolerance
+    if abs(derived_annual - annual_rate) > 0.05:
+        raise ValueError(
+            f"Provided annual ({annual_rate:.4f}%) and monthly ({monthly_rate:.4f}%) rates are inconsistent (expected ~{derived_annual:.4f}%)."
+        )
     return annual_rate, monthly_rate
+
+
+def preprocess_amortizations(
+    amortizations: Optional[List[AmortizationInput]],
+    term_months: int,
+    annual_inflation_rate: Optional[float] = None,
+) -> Tuple[Dict[int, float], Dict[int, List[float]]]:
+    """Expand and separate fixed and percentage amortizations.
+
+    Returns:
+        fixed_by_month: month -> total fixed extra amortization
+        percent_by_month: month -> list of percentage values to apply on outstanding balance
+    """
+    if not amortizations:
+        return {}, {}
+
+    fixed_by_month: Dict[int, float] = defaultdict(float)
+    percent_by_month: Dict[int, List[float]] = defaultdict(list)
+
+    for a in amortizations:
+        # Determine recurrence months
+        if a.interval_months and a.interval_months > 0:
+            start = a.month or 1
+            if a.occurrences:
+                months = [start + i * a.interval_months for i in range(a.occurrences)]
+            else:
+                end = a.end_month or term_months
+                months = list(range(start, min(end, term_months) + 1, a.interval_months))
+        else:
+            # Single event
+            if a.month is None:
+                continue
+            months = [a.month]
+
+        base_month = months[0] if months else 1
+        for m in months:
+            if m < 1 or m > term_months:
+                continue
+            if a.value_type == "percentage":
+                percent_by_month[m].append(a.value)
+            else:
+                val = a.value
+                if a.inflation_adjust:
+                    # Apply inflation relative to first occurrence (base_month)
+                    val = apply_inflation(val, m, base_month, annual_inflation_rate)
+                fixed_by_month[m] += val
+
+    return dict(fixed_by_month), dict(percent_by_month)
 
 
 def simulate_sac_loan(
@@ -37,6 +93,7 @@ def simulate_sac_loan(
     term_months: int,
     monthly_interest_rate: float,
     amortizations: Optional[List[AmortizationInput]] = None,
+    annual_inflation_rate: Optional[float] = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the SAC (Sistema de Amortização Constante) method."""
     # Convert interest rate to decimal
@@ -48,17 +105,21 @@ def simulate_sac_loan(
     fixed_amortization = loan_value / term_months
     total_paid = 0.0
     total_interest_paid = 0.0
+    total_extra_amortization_applied = 0.0
 
-    # Create amortization dictionary for quick lookup
-    extra_amortizations = {}
-    if amortizations:
-        for amort in amortizations:
-            extra_amortizations[amort.month] = amort.value
+    # Preprocess amortizations (supports recurrence & percentage)
+    fixed_extra_by_month, percent_extra_by_month = preprocess_amortizations(
+        amortizations, term_months, annual_inflation_rate
+    )
 
     # Calculate each installment
     for month in range(1, term_months + 1):
-        # Check for extra amortization
-        extra_amortization = extra_amortizations.get(month, 0)
+        # Sum fixed extra amortization for this month
+        extra_amortization = fixed_extra_by_month.get(month, 0.0)
+        # Apply percentage based amortizations dynamically
+        if month in percent_extra_by_month and outstanding_balance > 0:
+            for pct in percent_extra_by_month[month]:
+                extra_amortization += outstanding_balance * (pct / 100.0)
 
         # Calculate interest for this month
         interest = outstanding_balance * monthly_rate_decimal
@@ -76,6 +137,10 @@ def simulate_sac_loan(
 
         # Update outstanding balance
         outstanding_balance -= amortization
+
+        # Track extra amortization actually applied
+        if extra_amortization > 0:
+            total_extra_amortization_applied += extra_amortization
 
         # Update totals
         total_paid += installment
@@ -97,11 +162,17 @@ def simulate_sac_loan(
         if outstanding_balance <= 0:
             break
 
+    actual_term = installments[-1].month if installments else term_months
+    months_saved = term_months - actual_term if actual_term < term_months else 0
     return LoanSimulationResult(
         loan_value=loan_value,
         total_paid=total_paid,
         total_interest_paid=total_interest_paid,
         installments=installments,
+        original_term_months=term_months,
+        actual_term_months=actual_term,
+        months_saved=months_saved if months_saved > 0 else None,
+        total_extra_amortization=total_extra_amortization_applied if total_extra_amortization_applied > 0 else None,
     )
 
 
@@ -110,6 +181,7 @@ def simulate_price_loan(
     term_months: int,
     monthly_interest_rate: float,
     amortizations: Optional[List[AmortizationInput]] = None,
+    annual_inflation_rate: Optional[float] = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the PRICE (French) method."""
     # Convert interest rate to decimal
@@ -130,17 +202,21 @@ def simulate_price_loan(
     outstanding_balance = loan_value
     total_paid = 0.0
     total_interest_paid = 0.0
+    total_extra_amortization_applied = 0.0
 
-    # Create amortization dictionary for quick lookup
-    extra_amortizations = {}
-    if amortizations:
-        for amort in amortizations:
-            extra_amortizations[amort.month] = amort.value
+    # Preprocess amortizations (supports recurrence & percentage)
+    fixed_extra_by_month, percent_extra_by_month = preprocess_amortizations(
+        amortizations, term_months, annual_inflation_rate
+    )
 
     # Calculate each installment
     for month in range(1, term_months + 1):
-        # Check for extra amortization
-        extra_amortization = extra_amortizations.get(month, 0)
+        # Sum fixed extra amortization
+        extra_amortization = fixed_extra_by_month.get(month, 0.0)
+        # Add percentage extras
+        if month in percent_extra_by_month and outstanding_balance > 0:
+            for pct in percent_extra_by_month[month]:
+                extra_amortization += outstanding_balance * (pct / 100.0)
 
         # Calculate interest for this month
         interest = outstanding_balance * monthly_rate_decimal
@@ -159,6 +235,9 @@ def simulate_price_loan(
 
         # Update outstanding balance
         outstanding_balance -= amortization
+
+        if extra_amortization > 0:
+            total_extra_amortization_applied += extra_amortization
 
         # Update totals
         total_paid += installment
@@ -180,11 +259,17 @@ def simulate_price_loan(
         if outstanding_balance <= 0:
             break
 
+    actual_term = installments[-1].month if installments else term_months
+    months_saved = term_months - actual_term if actual_term < term_months else 0
     return LoanSimulationResult(
         loan_value=loan_value,
         total_paid=total_paid,
         total_interest_paid=total_interest_paid,
         installments=installments,
+        original_term_months=term_months,
+        actual_term_months=actual_term,
+        months_saved=months_saved if months_saved > 0 else None,
+        total_extra_amortization=total_extra_amortization_applied if total_extra_amortization_applied > 0 else None,
     )
 
 
@@ -307,11 +392,19 @@ def simulate_buy_scenario(
     # Simulate loan
     if loan_type == "SAC":
         loan_result = simulate_sac_loan(
-            loan_value, term_months, monthly_interest_rate, amortizations
+            loan_value,
+            term_months,
+            monthly_interest_rate,
+            amortizations,
+            inflation_rate,
         )
     else:  # PRICE
         loan_result = simulate_price_loan(
-            loan_value, term_months, monthly_interest_rate, amortizations
+            loan_value,
+            term_months,
+            monthly_interest_rate,
+            amortizations,
+            inflation_rate,
         )
 
     # Calculate monthly data
@@ -385,11 +478,21 @@ def simulate_buy_scenario(
         + total_monthly_additional_costs  # Monthly costs (HOA, property tax)
     )
 
+    total_outflows = (
+        loan_result.total_paid
+        + down_payment
+        + total_upfront_costs
+        + total_monthly_additional_costs
+    )
+    net_cost = total_outflows - final_equity
+
     return ComparisonScenario(
         name="Comprar com financiamento",
-        total_cost=total_cost,
+        total_cost=net_cost,  # Preserve original field meaning as net cost
         final_equity=final_equity,
         monthly_data=monthly_data,
+        total_outflows=total_outflows,
+        net_cost=net_cost,
     )
 
 
@@ -403,6 +506,9 @@ def simulate_rent_and_invest_scenario(
     inflation_rate: Optional[float] = None,
     rent_inflation_rate: Optional[float] = None,
     property_appreciation_rate: Optional[float] = None,
+    rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> ComparisonScenario:
     """Simulate renting and investing the down payment."""
     # Initialize variables
@@ -415,14 +521,7 @@ def simulate_rent_and_invest_scenario(
 
     # Calculate monthly data
     for month in range(1, term_months + 1):
-        # Get investment rate for this month
-        monthly_rate = get_monthly_investment_rate(investment_returns, month)
-
-        # Calculate investment return
-        investment_return = investment_balance * monthly_rate
-        investment_balance += investment_return
-
-        # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
+    # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
         effective_rent_inflation = (
             rent_inflation_rate if rent_inflation_rate is not None else inflation_rate
         )
@@ -440,6 +539,44 @@ def simulate_rent_and_invest_scenario(
         # Total monthly cost is rent + additional costs
         total_monthly_cost = current_rent + current_additional_costs
         total_rent_paid += total_monthly_cost
+
+        rent_withdrawal = 0.0
+        remaining_before_return = investment_balance
+        investment_return = 0.0
+        external_cover = 0.0
+        external_surplus_invested = 0.0
+        if rent_reduces_investment:
+            cost_remaining = total_monthly_cost
+            if monthly_external_savings and monthly_external_savings > 0:
+                external_cover = min(cost_remaining, monthly_external_savings)
+                cost_remaining -= external_cover
+                # Optional surplus invest
+                surplus = monthly_external_savings - external_cover
+                if surplus > 0 and invest_external_surplus:
+                    investment_balance += surplus
+                    external_surplus_invested = surplus
+            # Withdraw remaining cost from investment
+            rent_withdrawal = min(cost_remaining, investment_balance)
+            investment_balance -= rent_withdrawal
+            remaining_before_return = investment_balance
+            monthly_rate = get_monthly_investment_rate(investment_returns, month)
+            investment_return = investment_balance * monthly_rate
+            investment_balance += investment_return
+        else:
+            # Optionally invest external savings fully (modeling deposit of external income)
+            if invest_external_surplus and monthly_external_savings:
+                investment_balance += monthly_external_savings
+                external_surplus_invested = monthly_external_savings
+            monthly_rate = get_monthly_investment_rate(investment_returns, month)
+            investment_return = investment_balance * monthly_rate
+            investment_balance += investment_return
+            remaining_before_return = investment_balance
+
+        withdrawal_for_ratio = rent_withdrawal if rent_reduces_investment else 0.0
+        sustainable_withdrawal_ratio = (
+            (investment_return / withdrawal_for_ratio) if withdrawal_for_ratio > 0 else None
+        )
+        burn_month = withdrawal_for_ratio > 0 and investment_return < withdrawal_for_ratio
 
         # For rent scenario, property value tracking is just for reference
         # since the person doesn't own the property and won't benefit from appreciation
@@ -466,14 +603,26 @@ def simulate_rent_and_invest_scenario(
                 "scenario_type": "rent_invest",
                 "equity": 0,  # No property equity in rent scenario
                 "liquid_wealth": investment_balance,  # All wealth is liquid
+                "rent_withdrawal_from_investment": rent_withdrawal if rent_reduces_investment else 0.0,
+                "remaining_investment_before_return": remaining_before_return if rent_reduces_investment else investment_balance,
+                "external_cover": external_cover,
+                "external_surplus_invested": external_surplus_invested,
+                "sustainable_withdrawal_ratio": sustainable_withdrawal_ratio,
+                "burn_month": burn_month,
             }
         )
 
+    # Gross outflows: rent payments
+    total_outflows = total_rent_paid
+    net_cost = total_outflows - investment_balance  # rent minus final wealth
+
     return ComparisonScenario(
         name="Alugar e investir",
-        total_cost=total_rent_paid - (investment_balance - down_payment),
+        total_cost=net_cost,
         final_equity=investment_balance,
         monthly_data=monthly_data,
+        total_outflows=total_outflows,
+        net_cost=net_cost,
     )
 
 
@@ -493,13 +642,18 @@ def simulate_invest_then_buy_scenario(
     loan_type: str = "SAC",
     monthly_interest_rate: float = 1.0,
     amortizations: Optional[List[AmortizationInput]] = None,
+    rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> ComparisonScenario:
     """Simulate investing until having enough to buy the property outright."""
     # Initialize variables
-    monthly_data = []
+    monthly_data: List[dict] = []
     investment_balance = down_payment
     total_rent_paid = 0.0
-    purchase_month = None
+    purchase_month: Optional[int] = None
+    milestone_thresholds = {25, 50, 75, 90, 100}
+    last_progress_bucket = 0
 
     # Calculate loan simulation for comparison if invest_loan_difference is True
     loan_installments = []
@@ -511,23 +665,41 @@ def simulate_invest_then_buy_scenario(
         # Simulate loan to get installment amounts
         if loan_type == "SAC":
             loan_result = simulate_sac_loan(
-                loan_value, term_months, monthly_interest_rate, amortizations
+                loan_value,
+                term_months,
+                monthly_interest_rate,
+                amortizations,
+                inflation_rate,
             )
         else:  # PRICE
             loan_result = simulate_price_loan(
-                loan_value, term_months, monthly_interest_rate, amortizations
+                loan_value,
+                term_months,
+                monthly_interest_rate,
+                amortizations,
+                inflation_rate,
             )
 
         loan_installments = loan_result.installments
 
+    # Preprocess amortizations as scheduled additional contributions (aportes)
+    fixed_contrib_by_month: Dict[int, float] = {}
+    percent_contrib_by_month: Dict[int, List[float]] = {}
+    if amortizations:
+        fixed_contrib_by_month, percent_contrib_by_month = preprocess_amortizations(
+            amortizations=amortizations,
+            term_months=term_months,
+            annual_inflation_rate=inflation_rate,
+        )
+
+    total_scheduled_contributions = 0.0  # track for total_outflows
+
     # Calculate monthly data
     for month in range(1, term_months + 1):
-        # Apply property appreciation to property value and additional costs
+        # Current target purchase cost (property + upfront) with appreciation
         current_property_value = apply_property_appreciation(
             property_value, month, 1, property_appreciation_rate, inflation_rate
         )
-
-        # Calculate additional costs for this month
         costs = calculate_additional_costs(current_property_value, additional_costs)
         total_purchase_cost = current_property_value + costs["total_upfront"]
 
@@ -566,16 +738,33 @@ def simulate_invest_then_buy_scenario(
                     "property_value": current_property_value,
                     "investment_return": investment_return,
                     "additional_investment": additional_investment,
+                    "scenario_type": "invest_buy",
+                    "progress_percent": 100.0,
+                    "shortfall": 0.0,
+                    "is_milestone": True,
+                    "phase": "post_purchase",
                 }
             )
             continue
 
-        # Before purchase: calculate investment growth
-        monthly_rate = get_monthly_investment_rate(investment_returns, month)
-        investment_return = investment_balance * monthly_rate
-        investment_balance += investment_return
+        # Before purchase: apply scheduled contributions BEFORE return so they also earn this month's yield
+        extra_contribution_fixed = 0.0
+        extra_contribution_pct = 0.0
+        if month in fixed_contrib_by_month:
+            val = fixed_contrib_by_month[month]
+            extra_contribution_fixed += val
+            investment_balance += val
+        if month in percent_contrib_by_month:
+            pct_total = sum(percent_contrib_by_month[month])
+            if pct_total > 0 and investment_balance > 0:
+                pct_amount = investment_balance * (pct_total / 100.0)
+                extra_contribution_pct += pct_amount
+                investment_balance += pct_amount
+        extra_contribution_total = extra_contribution_fixed + extra_contribution_pct
+        if extra_contribution_total > 0:
+            total_scheduled_contributions += extra_contribution_total
 
-        # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
+    # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
         effective_rent_inflation = (
             rent_inflation_rate if rent_inflation_rate is not None else inflation_rate
         )
@@ -588,6 +777,38 @@ def simulate_invest_then_buy_scenario(
         )
         total_rent_cost = current_rent + monthly_hoa + monthly_property_tax
         total_rent_paid += total_rent_cost
+
+        rent_withdrawal = 0.0
+        remaining_before_return = investment_balance
+        external_cover = 0.0
+        external_surplus_invested = 0.0
+        if rent_reduces_investment:
+            remaining_cost = total_rent_cost
+            if monthly_external_savings and monthly_external_savings > 0:
+                external_cover = min(remaining_cost, monthly_external_savings)
+                remaining_cost -= external_cover
+                surplus = monthly_external_savings - external_cover
+                if surplus > 0 and invest_external_surplus:
+                    investment_balance += surplus
+                    external_surplus_invested = surplus
+            rent_withdrawal = min(remaining_cost, investment_balance)
+            investment_balance -= rent_withdrawal
+            remaining_before_return = investment_balance
+        else:
+            if invest_external_surplus and monthly_external_savings:
+                investment_balance += monthly_external_savings
+                external_surplus_invested = monthly_external_savings
+
+        # Apply investment growth AFTER contributions (and potential rent withdrawal)
+        monthly_rate = get_monthly_investment_rate(investment_returns, month)
+        investment_return = investment_balance * monthly_rate
+        investment_balance += investment_return
+
+        withdrawal_for_ratio = rent_withdrawal if rent_reduces_investment else 0.0
+        sustainable_withdrawal_ratio = (
+            (investment_return / withdrawal_for_ratio) if withdrawal_for_ratio > 0 else None
+        )
+        burn_month = withdrawal_for_ratio > 0 and investment_return < withdrawal_for_ratio
 
         # Calculate additional investments
         additional_investment = 0.0
@@ -613,46 +834,41 @@ def simulate_invest_then_buy_scenario(
                 additional_investment += loan_difference
                 investment_balance += loan_difference
 
-        # Add fixed monthly investment if applicable
+        # Add fixed monthly investment if applicable (treated as part of "additional_investment" not scheduled amortization)
         if fixed_monthly_investment and month >= fixed_investment_start_month:
             additional_investment += fixed_monthly_investment
             investment_balance += fixed_monthly_investment
 
-        # Check if we can buy the property (including additional upfront costs)
+        # Progress metrics
+        progress_percent = (
+            (investment_balance / total_purchase_cost) * 100 if total_purchase_cost > 0 else 0
+        )
+        shortfall = max(0.0, total_purchase_cost - investment_balance)
+        progress_bucket = 0
+        for t in sorted(milestone_thresholds):
+            if progress_percent >= t:
+                progress_bucket = t
+        crossed_bucket = progress_bucket > last_progress_bucket
+        if crossed_bucket:
+            last_progress_bucket = progress_bucket
+        is_milestone = (
+            month <= 12 or month % 12 == 0 or crossed_bucket
+        )
+
+        # Check if purchase occurs this month
         if investment_balance >= total_purchase_cost:
             investment_balance -= total_purchase_cost
             purchase_month = month
             status = "Imóvel comprado"
             equity = current_property_value
-
-            # After purchase, update fixed investment start month if it was set to start after purchase
-            if fixed_investment_start_month == "after_purchase":
-                fixed_investment_start_month = month + 1
+            progress_percent = 100.0
+            shortfall = 0.0
         else:
-            status = "Investindo"
+            status = "Aguardando compra"
             equity = 0
 
-        # Calculate cash flow (negative = outgoing, positive = saved compared to loan scenario)
-        base_cash_flow = -total_rent_cost - additional_investment
-        if invest_loan_difference and month <= len(loan_installments):
-            # Show the savings compared to loan scenario
-            loan_installment = loan_installments[month - 1]
-            loan_monthly_hoa = apply_inflation(
-                costs["monthly_hoa"], month, 1, inflation_rate
-            )
-            loan_monthly_property_tax = apply_inflation(
-                costs["monthly_property_tax"], month, 1, inflation_rate
-            )
-            total_loan_payment = (
-                loan_installment.installment
-                + loan_monthly_hoa
-                + loan_monthly_property_tax
-            )
-            cash_flow = -(
-                total_rent_cost + (fixed_monthly_investment or 0)
-            )  # Only count rent and fixed investment as cost
-        else:
-            cash_flow = base_cash_flow
+        # Cash flow: negative outflow of rent + all additional investments (including loan diff if any)
+        cash_flow = -(total_rent_cost + additional_investment)
 
         monthly_data.append(
             {
@@ -669,6 +885,21 @@ def simulate_invest_then_buy_scenario(
                 "equity": equity,
                 "property_value": current_property_value,
                 "additional_investment": additional_investment,
+                "extra_contribution_fixed": extra_contribution_fixed,
+                "extra_contribution_percentage": extra_contribution_pct,
+                "extra_contribution_total": extra_contribution_total,
+                "target_purchase_cost": total_purchase_cost,
+                "progress_percent": progress_percent,
+                "shortfall": shortfall,
+                "is_milestone": is_milestone or status == "Imóvel comprado",
+                "scenario_type": "invest_buy",
+                "phase": "post_purchase" if status == "Imóvel comprado" else "pre_purchase",
+                "rent_withdrawal_from_investment": rent_withdrawal if rent_reduces_investment else 0.0,
+                "remaining_investment_before_return": remaining_before_return if rent_reduces_investment else investment_balance,
+                "external_cover": external_cover,
+                "external_surplus_invested": external_surplus_invested,
+                "sustainable_withdrawal_ratio": sustainable_withdrawal_ratio,
+                "burn_month": burn_month,
             }
         )
 
@@ -705,58 +936,84 @@ def simulate_invest_then_buy_scenario(
             if fixed_monthly_investment and month >= fixed_investment_start_month:
                 total_additional_investments += fixed_monthly_investment
 
-    # Add total additional investments made during investment phase
+    # Accumulate additional investments made during investment phase directly
     for data in monthly_data:
-        if data["status"] == "Investindo":
-            additional_inv = data.get("additional_investment", 0.0)
-            if isinstance(additional_inv, (int, float)):
-                total_additional_investments += additional_inv
+        # All rows prior to purchase contribute their recorded additional_investment
+        if data.get("additional_investment"):
+            val = data.get("additional_investment", 0.0)
+            if isinstance(val, (int, float)):
+                total_additional_investments += val
 
     # Calculate total cost
     if purchase_month:
-        # If property was purchased, calculate total net cost:
-        # Total spent: rent + property purchase + additional costs + extra investments
-        # Total assets: property value + remaining investment balance
-        purchase_cost = (
-            apply_property_appreciation(
-                property_value,
-                purchase_month,
-                1,
-                property_appreciation_rate,
-                inflation_rate,
-            )
-            + calculate_additional_costs(
-                apply_property_appreciation(
-                    property_value,
-                    purchase_month,
-                    1,
-                    property_appreciation_rate,
-                    inflation_rate,
-                ),
-                additional_costs,
-            )["total_upfront"]
+        purchase_property_value = apply_property_appreciation(
+            property_value,
+            purchase_month,
+            1,
+            property_appreciation_rate,
+            inflation_rate,
         )
+        purchase_upfront = calculate_additional_costs(
+            purchase_property_value, additional_costs
+        )["total_upfront"]
+        purchase_cost = purchase_property_value + purchase_upfront
 
-        total_spent = (
-            total_rent_paid  # Rent until purchase
-            + purchase_cost  # Property + upfront costs at purchase
-            + total_monthly_additional_costs  # Costs after purchase
-            + total_additional_investments  # All extra investments
+        total_outflows = (
+            total_rent_paid
+            + purchase_cost
+            + total_monthly_additional_costs
+            + total_additional_investments
+            + total_scheduled_contributions
         )
-
-        total_assets = final_property_value + investment_balance
-        total_cost = total_spent - total_assets
     else:
-        # If property was never purchased:
-        # Net cost = rent paid + all investments made - current investment balance
-        # This represents the opportunity cost of renting vs final wealth achieved
-        total_cost = total_rent_paid + total_additional_investments - investment_balance
+        total_outflows = total_rent_paid + total_additional_investments + total_scheduled_contributions
+
+    net_cost = total_outflows - final_equity
+
+    # Scenario-level purchase or projection metadata inserted into first row for convenience
+    if monthly_data:
+        if purchase_month is not None:
+            purchase_price = next(
+                (d.get("property_value") for d in monthly_data if d.get("month") == purchase_month),
+                property_value,
+            )
+            monthly_data[0].update(
+                {
+                    "purchase_month": purchase_month,
+                    "purchase_price": purchase_price,
+                }
+            )
+        else:
+            # Projection: average growth of last milestone window
+            milestone_rows = [d for d in monthly_data if d.get("is_milestone")]
+            window = (milestone_rows or monthly_data)[-6:]
+            avg_growth = 0.0
+            if len(window) >= 2:
+                deltas = [window[i]["investment_balance"] - window[i - 1]["investment_balance"] for i in range(1, len(window))]
+                avg_growth = sum(deltas) / len(deltas)
+            latest = monthly_data[-1]
+            target_cost_latest = latest.get("target_purchase_cost", property_value)
+            balance_latest = latest.get("investment_balance", 0.0)
+            est_months_remaining = None
+            if avg_growth > 0 and balance_latest < target_cost_latest:
+                est_months_remaining = max(0, math.ceil((target_cost_latest - balance_latest) / avg_growth))
+            monthly_data[0].update(
+                {
+                    "projected_purchase_month": (latest["month"] + est_months_remaining) if est_months_remaining is not None else None,
+                    "estimated_months_remaining": est_months_remaining,
+                }
+            )
+
+    # Ensure chronological ordering (defensive in case of future insertions)
+    monthly_data.sort(key=lambda d: d.get("month", 0))
 
     return ComparisonScenario(
         name="Investir e comprar à vista",
-        total_cost=total_cost,
+        total_cost=net_cost,
         final_equity=final_equity,
         monthly_data=monthly_data,
+        total_outflows=total_outflows,
+        net_cost=net_cost,
     )
 
 
@@ -776,6 +1033,9 @@ def compare_scenarios(
     invest_loan_difference: bool = False,
     fixed_monthly_investment: Optional[float] = None,
     fixed_investment_start_month: int = 1,
+    rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     term_months = loan_term_years * 12
@@ -805,6 +1065,9 @@ def compare_scenarios(
         inflation_rate,
         rent_inflation_rate,
         property_appreciation_rate,
+        rent_reduces_investment,
+        monthly_external_savings,
+        invest_external_surplus,
     )
 
     # Simulate investing then buying
@@ -824,6 +1087,9 @@ def compare_scenarios(
         loan_type,
         monthly_interest_rate,
         amortizations,
+        rent_reduces_investment,
+        monthly_external_savings,
+        invest_external_surplus,
     )
 
     # Determine best scenario based on total cost
@@ -849,6 +1115,9 @@ def enhanced_compare_scenarios(
     invest_loan_difference: bool = False,
     fixed_monthly_investment: Optional[float] = None,
     fixed_investment_start_month: int = 1,
+    rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
 
@@ -869,6 +1138,9 @@ def enhanced_compare_scenarios(
         invest_loan_difference,
         fixed_monthly_investment,
         fixed_investment_start_month,
+    rent_reduces_investment,
+    monthly_external_savings,
+    invest_external_surplus,
     )
 
     buy_scenario = basic_comparison.scenarios[0]
@@ -880,50 +1152,74 @@ def enhanced_compare_scenarios(
 
     def calculate_metrics(scenario: ComparisonScenario) -> ComparisonMetrics:
         total_cost_diff = scenario.total_cost - best_cost
-        total_cost_pct_diff = (
-            (total_cost_diff / best_cost) * 100 if best_cost != 0 else 0
-        )
+        total_cost_pct_diff = (total_cost_diff / best_cost * 100) if best_cost else 0
 
-        # Calculate average monthly cost
-        monthly_costs = [
-            abs(data.get("cash_flow", 0)) for data in scenario.monthly_data
-        ]
-        avg_monthly_cost = (
-            sum(monthly_costs) / len(monthly_costs) if monthly_costs else 0
-        )
+        monthly_costs_signed = [data.get("cash_flow", 0) for data in scenario.monthly_data]
+        avg_monthly_cost = sum(monthly_costs_signed) / len(monthly_costs_signed) if monthly_costs_signed else 0
 
-        # Calculate ROI
+        # ROI denominator: down payment + upfront costs (if any) for purchase; else down payment (capital deployed)
         initial_investment = down_payment
+        if scenario.name == "Comprar com financiamento" and scenario.monthly_data:
+            upfront = scenario.monthly_data[0].get("upfront_additional_costs") or 0
+            initial_investment += upfront
         final_value = scenario.final_equity
-        roi_pct = (
-            ((final_value - initial_investment) / initial_investment) * 100
-            if initial_investment != 0
-            else 0
-        )
+        roi_pct = ((final_value - initial_investment) / initial_investment * 100) if initial_investment else 0
 
-        # Calculate total interest/rent paid
         if scenario.name == "Comprar com financiamento":
-            total_interest_rent = sum(
-                data.get("interest_payment", 0) for data in scenario.monthly_data
-            )
+            total_interest_rent = sum(d.get("interest_payment", 0) for d in scenario.monthly_data)
         else:
-            total_interest_rent = sum(
-                data.get("rent_paid", 0) for data in scenario.monthly_data
-            )
+            total_interest_rent = sum(d.get("rent_paid", 0) for d in scenario.monthly_data)
 
-        # Wealth accumulation
-        wealth = scenario.final_equity + sum(
-            data.get("investment_balance", 0) for data in scenario.monthly_data[-1:]
-        )
+        wealth = scenario.final_equity  # final_equity already encapsulates investments where relevant
+
+        # Break-even month (first month where cumulative cost difference vs best <= 0)
+        break_even_month = None
+        if scenario.total_cost != best_cost:
+            # Build cumulative net cost trajectory (approximate using cumulative cash flows)
+            cumulative = 0.0
+            for data in scenario.monthly_data:
+                cumulative += data.get("cash_flow", 0)
+                if cumulative >= 0:  # cash_flow negative -> cost, reaching >=0 indicates parity
+                    break_even_month = data.get("month")
+                    break
+
+        # Sustainability aggregates (only meaningful for scenarios with withdrawal fields)
+        withdrawals = [
+            d.get("rent_withdrawal_from_investment", 0) for d in scenario.monthly_data
+        ]
+        raw_ratios = [
+            d.get("sustainable_withdrawal_ratio") for d in scenario.monthly_data
+        ]
+        ratios = [float(r) for r in raw_ratios if isinstance(r, (int, float))]
+        burns = [
+            d.get("burn_month") for d in scenario.monthly_data if d.get("burn_month")
+        ]
+        total_withdrawn = sum(w for w in withdrawals if w)
+        avg_ratio = sum(ratios) / len(ratios) if ratios else None
+        months_with_burn = len(burns) if burns else None
+
+        # Adjusted ROI: add back withdrawals (treated as distributions) when they exist
+        roi_adjusted = None
+        if total_withdrawn > 0 and initial_investment:
+            adjusted_final = final_value + total_withdrawn
+            roi_adjusted = (
+                (adjusted_final - initial_investment) / initial_investment * 100
+            )
 
         return ComparisonMetrics(
             total_cost_difference=total_cost_diff,
             total_cost_percentage_difference=total_cost_pct_diff,
-            break_even_month=None,  # Could be calculated with more complex logic
+            break_even_month=break_even_month,
             roi_percentage=roi_pct,
+            roi_adjusted_percentage=roi_adjusted,
             average_monthly_cost=avg_monthly_cost,
             total_interest_or_rent_paid=total_interest_rent,
             wealth_accumulation=wealth,
+            total_rent_withdrawn_from_investment=(
+                total_withdrawn if total_withdrawn > 0 else None
+            ),
+            months_with_burn=months_with_burn if months_with_burn else None,
+            average_sustainable_withdrawal_ratio=avg_ratio,
         )
 
     # Create enhanced scenarios
@@ -956,9 +1252,10 @@ def enhanced_compare_scenarios(
             (d for d in invest_buy_scenario.monthly_data if d["month"] == month), {}
         )
 
-        # Calculate explicit differences
-        buy_cost = abs(buy_data.get("cash_flow", 0))
-        rent_cost = abs(rent_data.get("cash_flow", 0))
+        # Calculate explicit differences (inside loop so each month processed)
+        buy_cost = buy_data.get("cash_flow", 0)
+        rent_cost = rent_data.get("cash_flow", 0)
+        invest_cost = invest_data.get("cash_flow", 0)
 
         month_comparison.update(
             {
@@ -966,23 +1263,22 @@ def enhanced_compare_scenarios(
                 "buy_vs_rent_percentage": (
                     ((buy_cost - rent_cost) / rent_cost * 100) if rent_cost > 0 else 0
                 ),
-                "buy_monthly_cost": buy_cost,
-                "rent_monthly_cost": rent_cost,
-                "invest_monthly_cost": abs(invest_data.get("cash_flow", 0)),
+                "buy_monthly_cash_flow": buy_cost,
+                "rent_monthly_cash_flow": rent_cost,
+                "invest_monthly_cash_flow": invest_cost,
                 "buy_equity": buy_data.get("equity", 0),
                 "rent_investment_balance": rent_data.get("investment_balance", 0),
                 "invest_equity": invest_data.get("equity", 0),
                 "invest_investment_balance": invest_data.get("investment_balance", 0),
-                "property_value": buy_data.get(
-                    "property_value", rent_data.get("property_value", 0)
-                ),
+                "property_value_buy": buy_data.get("property_value", 0),
+                "property_value_rent": rent_data.get("property_value", 0),
+                "property_value_invest": invest_data.get("property_value", 0),
                 "buy_total_wealth": buy_data.get("equity", 0),
                 "rent_total_wealth": rent_data.get("investment_balance", 0),
                 "invest_total_wealth": invest_data.get("equity", 0)
                 + invest_data.get("investment_balance", 0),
             }
         )
-
         comparative_summary[f"month_{month}"] = month_comparison
 
     return EnhancedComparisonResult(
