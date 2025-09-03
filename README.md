@@ -121,23 +121,15 @@ docker system prune -f
 docker compose build --no-cache
 ```
 
-### Estrutura de Imagens
-- Backend: agora usa `uv` para sincronizar dependências (aproveita `uv.lock` se presente). Stage de testes instala extras dev; runtime apenas produção.
-- Frontend: build multi-stage (Node 20 -> Nginx 1.27) servindo arquivos estáticos.
+## Uso
+1. Acesse `http://localhost:5173`.
+2. Explore:
+  - Início: visão geral.
+  - Simulação de Financiamento.
+  - Comparação de Cenários.
+  - Sobre: conceitos e metodologia.
+    - Docs: documentação detalhada (Quickstart, Cálculos, Glossário).
 
-Notas:
-- Adicionar nova dependência: editar `pyproject.toml` e rodar `uv lock` (opcional), depois rebuild.
-- Se `uv.lock` não existir, o build resolverá versões conforme constraints atuais.
-
-### Ajustes Fututos Possíveis
-- Adicionar scan de segurança (Trivy / Grype).
-- Adicionar etapa de testes automatizados no build (multi-stage `test`).
-- Usar um lockfile (ex: `uv` ou `pip-tools`) para reprodutibilidade estrita do backend.
-- Ativar cache de dependências Node com `npm ci` + mount de cache de build se necessário.
-
----
-
-Se encontrar problemas com porta em uso, verifique processos locais ou ajuste mapeamentos em `docker-compose.yml`.
 
 ## Testes
 
@@ -190,108 +182,9 @@ Cobertura (opcional se `pytest-cov` instalado):
 pytest --cov=backend/app --cov-report=term-missing
 ```
 
-Próximos passos sugeridos:
-- Separar futuramente em `backend/tests/unit` e `backend/tests/integration` se crescer.
-- Adicionar execução em pipeline CI antes do build de imagens.
-- Incluir badge de status e/ou cobertura no topo do README.
-
-## Uso
-1. Acesse `http://localhost:5173`.
-2. Explore:
-  - Início: visão geral.
-  - Simulação de Financiamento.
-  - Comparação de Cenários.
-  - Sobre: conceitos e metodologia.
-    - Docs: documentação detalhada (Quickstart, Cálculos, Glossário).
-
-## Estrutura Simplificada
-```
-backend/app/
-  main.py       # FastAPI app (Farol API)
-  models.py     # Pydantic models
-  finance.py    # Lógica de simulação
-frontend/       # React + Vite + Mantine
-docs/           # quickstart.md, calculations.md, glossary.md
-```
-
 ## Exportação de Resultados
-Agora é possível exportar dados das simulações e comparações em CSV ou XLSX.
+É possível exportar dados das simulações e comparações em CSV ou XLSX.
 
-### Financiamento (SAC/PRICE)
-Endpoint: `POST /api/simulate-loan/export?format=csv|xlsx`
-
-Payload: mesmo JSON usado em `/api/simulate-loan`.
-
-Saída:
-- CSV: cabeçalho com metadados (como comentários iniciados por `#`), seguido da tabela de parcelas.
-- XLSX: abas `data` (parcelas) e `summary` (totais, prazo efetivo, juros, etc.).
-
-### Comparação de Cenários
-Endpoints:
-- Básico: `POST /api/compare-scenarios/export?format=csv|xlsx&shape=long|wide`
-- Avançado: `POST /api/compare-scenarios-enhanced/export?format=csv|xlsx&shape=long|wide`
-
-Sheets XLSX (básico):
-- `summary`: agregados por cenário
-- `monthly_long`: dados no formato longo (uma linha por cenário/mês)
-- `monthly_wide` (incluída se houver dados): colunas combinadas pivotadas por cenário (`equity__<scenario>`, etc.)
-- Uma sheet por cenário com dados individuais
-
-Observação: nomes das sheets de cenário são sanitizados (caracteres especiais substituídos) e truncados a 31 caracteres para compatibilidade Excel; se houver colisão é adicionado sufixo `_1`, `_2`, etc.
-
-Sheets XLSX (avançado): mesmas acima +
-- `metrics`: métricas avançadas por cenário
-- `comp_*`: breakdown do comparative_summary se estrutura em dict; fallback `comparative_summary` com JSON.
-
-Atual: o summary comparativo mensal agora é consolidado em uma única aba `comparative_summary` (linhas contendo key=month_<n>) para reduzir poluição de múltiplas abas. A forma antiga com muitas abas `comp_month_*` foi descontinuada.
-
-CSV (básico): blocos sequenciais comentados: `# --- summary ---`, `# --- monthly_long ---` e opcional `# --- monthly_wide ---`.
-CSV (avançado): `# --- metrics ---`, `# --- monthly_long ---`, opcional `# --- monthly_wide ---`, e `# --- comparative_summary(json) ---` JSON final.
-
-Parâmetro `shape` controla apenas a inclusão do bloco/aba wide (default `long`).
-
-### Frontend
-Botão "Exportar" na visão de resultados de financiamento. (Comparação pode seguir o mesmo padrão em evolução futura.)
-
-### Observações
-- Mesmo payload de entrada dos endpoints originais.
-- Formato padrão se omitido: `csv`.
-- Para grandes horizontes considere XLSX (separação em abas). 
-
-
-## Novos Campos e Métricas (Comparação de Cenários)
-Para cada cenário retornado pela API de comparação (`/api/compare-scenarios` e `/api/compare-scenarios-enhanced`):
-
-- `total_outflows`: Soma bruta de todos os desembolsos (entrada, parcelas, aluguel, custos mensais, investimentos adicionais, compra à vista se ocorrer).
-- `final_equity`: Patrimônio ao final (valor do imóvel possuído + saldo investido). Em cenários sem compra é apenas o saldo investido.
-- `net_cost` (alias de `total_cost`): Custo líquido = `total_outflows - final_equity`. Mantido `total_cost` por retrocompatibilidade.
-- `cash_flow` (mensal, assinado): Valores negativos representam saída de caixa; positivos (se surgirem no futuro) seriam economias / entradas.
-
-### Métricas Avançadas (`/api/compare-scenarios-enhanced`)
-- `total_cost_difference` / `total_cost_percentage_difference`: Diferença do custo líquido em relação ao melhor cenário.
-- `break_even_month`: Mês em que a trajetória acumulada de fluxo de caixa atinge ou cruza zero (paridade aproximada). Pode ser `null` se não ocorre dentro do horizonte.
-- `roi_percentage`: (final_equity - investimento_inicial) / investimento_inicial. O investimento inicial inclui entrada + custos iniciais (quando compra financiada).
-- `average_monthly_cost`: Média aritmética dos fluxos de caixa mensais assinados (útil para ver ritmo de queima de caixa). Pode ser negativo (desembolso médio).
-- `total_interest_or_rent_paid`: Soma dos juros pagos (compra) ou aluguel pago (alugar/investir).
-- `wealth_accumulation`: Igual a `final_equity` (evita dupla contagem de investimentos).
-
-### Campos de Progresso (Cenário "Investir e comprar à vista")
-- `target_purchase_cost`: Custo alvo no mês (imóvel ajustado + custos iniciais estimados naquele mês).
-- `progress_percent`: Percentual do alvo já acumulado (saldo investido / alvo).
-- `shortfall`: Valor ainda faltante para compra naquele mês.
-- `is_milestone`: Linha marcada como ponto relevante (primeiros 12 meses, múltiplos de 12, ou ao cruzar 25/50/75/90/100%).
-- `purchase_month` / `purchase_price`: Presentes quando a compra ocorreu.
-- `projected_purchase_month` / `estimated_months_remaining`: Projeção simples baseada na média de crescimento recente (janela de até 6 marcos) quando ainda não comprado.
-
-O frontend avançado usa estes campos para um modo condensado que mostra apenas marcos, badges de progresso e estimativa de compra.
-
-### Mudanças de Comportamento Importantes
-- Removido uso de `abs()` nos fluxos de caixa comparativos para não perder o sinal econômico.
-- Ajustado cálculo de ROI para considerar custos iniciais de compra.
-- Introduzida validação quando taxas anual e mensal são fornecidas e inconsistentes (> 0.05 p.p. de diferença).
-- Cenário "Investir e comprar à vista" agora separa explicitamente `total_outflows` e `net_cost`, evitando confusões quando patrimônio cresce mais que gastos.
-
-### Retrocompatibilidade
 ## Documentação Detalhada
 Rotas no frontend em `/docs/*`:
 
@@ -303,12 +196,9 @@ Rotas no frontend em `/docs/*`:
 
 Arquivos fonte correspondentes em `docs/quickstart.md`, `docs/calculations.md`, `docs/glossary.md`.
 
-- `total_cost` continua presente; agora é semanticamente o custo líquido (igual a `net_cost`). Clientes existentes não precisam mudar imediatamente.
-- Novos campos podem ser adotados gradualmente no frontend.
-
 ## Amortizações Extra Avançadas
 
-Agora é possível modelar aportes de redução de saldo de forma muito mais flexível:
+É possível modelar aportes de redução de saldo de forma muito mais flexível:
 
 ### Formato (Backend `AmortizationInput`)
 | Campo | Tipo | Descrição |
@@ -346,20 +236,8 @@ Agora é possível modelar aportes de redução de saldo de forma muito mais fle
 ### Efeito na Simulação
 Os aportes extras reduzem o saldo devedor, encurtando prazo (SAC/PRICE) e diminuindo juros totais. Percentuais se adaptam ao saldo residual, mantendo estratégia proporcional ao tempo. Valores inflacionados preservam poder real do aporte.
 
-### Limitações Atuais / Próximos Passos
-- Percentuais aplicam-se antes do cap do saldo (proporcional exato). Não há hoje teto combinado configurável (poderá ser adicionado se necessário).
-- Visualização de estimativa de redução de prazo está apenas no frontend (preview simples). Poderá ser exposta via API futuramente.
-
-
 ## Variáveis de Ambiente
 Ver `.env.example` para chaves como `APP_NAME`, `API_TITLE`, `API_DESCRIPTION`.
-
-## Roadmap (ideias futuras)
-- Simulações para outros tipos de bens (ex: veículo).
-- Metas múltiplas em paralelo.
-- Perfis de risco e classes de ativos.
-- Exportação CSV/JSON interativa.
-- Autenticação e persistência de cenários.
 
 ## Licença
 Definir licença (MIT / Apache 2.0, etc.).
