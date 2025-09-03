@@ -64,6 +64,9 @@ jobs:
           else
             npm install
           fi
+          # Attempt to install platform-specific rollup native package to satisfy optional require
+          (npm install --no-audit --no-fund -D @rollup/rollup-linux-x64-gnu@latest || true)
+          node -e "try{console.log('Rollup native present?',!!require.resolve('@rollup/rollup-linux-x64-gnu'))}catch(e){console.log('Rollup native NOT present')}}"
 
       - name: Build
         env:
@@ -71,10 +74,13 @@ jobs:
           ROLLUP_SKIP_NODE_NATIVE: "1"
         run: |
           # Workaround para bug de optional deps do npm com rollup native
+          echo "Rollup version before build:"; node -e "console.log(require('rollup/package.json').version)" || true
+          ls -1 node_modules/@rollup || true
           if ! npm run build; then
             echo "Primeira tentativa falhou possivelmente por optional deps de rollup. Limpando e reinstalando sem cache...";
             rm -rf node_modules package-lock.json;
             npm install --no-audit --no-fund;
+            (npm install --no-audit --no-fund -D @rollup/rollup-linux-x64-gnu@latest || true)
             npm run build;
           fi
 
