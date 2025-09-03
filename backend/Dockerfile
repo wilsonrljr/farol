@@ -16,11 +16,22 @@ WORKDIR /app
 COPY pyproject.toml ./
 
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir fastapi uvicorn pydantic numpy pandas matplotlib python-multipart requests httpx
+    pip install --no-cache-dir fastapi uvicorn pydantic numpy pandas matplotlib python-multipart requests httpx pytest
 
-# Copy application code
-COPY backend/app ./app
+ENV PYTHONPATH=/app
+
+# Copy full backend directory to preserve package structure for tests (imports like backend.app.finance)
+COPY backend ./backend
+
+# Copy tests (both root tests and backend/app/tests if exist)
+# Copy test directories if they exist
+COPY backend/app/tests ./backend/app/tests
+COPY backend/tests ./backend/tests
+COPY test_*.py ./tests_root/
+
+# Run tests (pytest auto-discovers). If some copied dirs don't exist, that's fine.
+RUN pytest -q || (echo "Tests failed during image build" && exit 1)
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

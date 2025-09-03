@@ -20,6 +20,9 @@ COPY docs ./docs
 ARG VITE_API_BASE=http://localhost:8000
 ENV VITE_API_BASE=${VITE_API_BASE}
 
+# Run tests if a test script is defined (will succeed if none or tests pass)
+RUN if npm run | grep -q "test"; then npm test -- --watch=false || npm test || exit 1; else echo "No test script"; fi
+
 RUN npm run build
 
 # --- Runtime Stage ---
