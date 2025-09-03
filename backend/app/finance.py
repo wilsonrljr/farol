@@ -507,6 +507,8 @@ def simulate_rent_and_invest_scenario(
     rent_inflation_rate: Optional[float] = None,
     property_appreciation_rate: Optional[float] = None,
     rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> ComparisonScenario:
     """Simulate renting and investing the down payment."""
     # Initialize variables
@@ -541,20 +543,40 @@ def simulate_rent_and_invest_scenario(
         rent_withdrawal = 0.0
         remaining_before_return = investment_balance
         investment_return = 0.0
-
+        external_cover = 0.0
+        external_surplus_invested = 0.0
         if rent_reduces_investment:
-            # Withdraw rent from investment before returns (FI-style drawdown)
-            rent_withdrawal = min(total_monthly_cost, investment_balance)
+            cost_remaining = total_monthly_cost
+            if monthly_external_savings and monthly_external_savings > 0:
+                external_cover = min(cost_remaining, monthly_external_savings)
+                cost_remaining -= external_cover
+                # Optional surplus invest
+                surplus = monthly_external_savings - external_cover
+                if surplus > 0 and invest_external_surplus:
+                    investment_balance += surplus
+                    external_surplus_invested = surplus
+            # Withdraw remaining cost from investment
+            rent_withdrawal = min(cost_remaining, investment_balance)
             investment_balance -= rent_withdrawal
             remaining_before_return = investment_balance
             monthly_rate = get_monthly_investment_rate(investment_returns, month)
             investment_return = investment_balance * monthly_rate
             investment_balance += investment_return
         else:
-            # Original behavior: investment untouched by rent
+            # Optionally invest external savings fully (modeling deposit of external income)
+            if invest_external_surplus and monthly_external_savings:
+                investment_balance += monthly_external_savings
+                external_surplus_invested = monthly_external_savings
             monthly_rate = get_monthly_investment_rate(investment_returns, month)
             investment_return = investment_balance * monthly_rate
             investment_balance += investment_return
+            remaining_before_return = investment_balance
+
+        withdrawal_for_ratio = rent_withdrawal if rent_reduces_investment else 0.0
+        sustainable_withdrawal_ratio = (
+            (investment_return / withdrawal_for_ratio) if withdrawal_for_ratio > 0 else None
+        )
+        burn_month = withdrawal_for_ratio > 0 and investment_return < withdrawal_for_ratio
 
         # For rent scenario, property value tracking is just for reference
         # since the person doesn't own the property and won't benefit from appreciation
@@ -583,6 +605,10 @@ def simulate_rent_and_invest_scenario(
                 "liquid_wealth": investment_balance,  # All wealth is liquid
                 "rent_withdrawal_from_investment": rent_withdrawal if rent_reduces_investment else 0.0,
                 "remaining_investment_before_return": remaining_before_return if rent_reduces_investment else investment_balance,
+                "external_cover": external_cover,
+                "external_surplus_invested": external_surplus_invested,
+                "sustainable_withdrawal_ratio": sustainable_withdrawal_ratio,
+                "burn_month": burn_month,
             }
         )
 
@@ -617,6 +643,8 @@ def simulate_invest_then_buy_scenario(
     monthly_interest_rate: float = 1.0,
     amortizations: Optional[List[AmortizationInput]] = None,
     rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> ComparisonScenario:
     """Simulate investing until having enough to buy the property outright."""
     # Initialize variables
@@ -752,16 +780,35 @@ def simulate_invest_then_buy_scenario(
 
         rent_withdrawal = 0.0
         remaining_before_return = investment_balance
-        # If rent reduces investment, withdraw before growth
+        external_cover = 0.0
+        external_surplus_invested = 0.0
         if rent_reduces_investment:
-            rent_withdrawal = min(total_rent_cost, investment_balance)
+            remaining_cost = total_rent_cost
+            if monthly_external_savings and monthly_external_savings > 0:
+                external_cover = min(remaining_cost, monthly_external_savings)
+                remaining_cost -= external_cover
+                surplus = monthly_external_savings - external_cover
+                if surplus > 0 and invest_external_surplus:
+                    investment_balance += surplus
+                    external_surplus_invested = surplus
+            rent_withdrawal = min(remaining_cost, investment_balance)
             investment_balance -= rent_withdrawal
             remaining_before_return = investment_balance
+        else:
+            if invest_external_surplus and monthly_external_savings:
+                investment_balance += monthly_external_savings
+                external_surplus_invested = monthly_external_savings
 
         # Apply investment growth AFTER contributions (and potential rent withdrawal)
         monthly_rate = get_monthly_investment_rate(investment_returns, month)
         investment_return = investment_balance * monthly_rate
         investment_balance += investment_return
+
+        withdrawal_for_ratio = rent_withdrawal if rent_reduces_investment else 0.0
+        sustainable_withdrawal_ratio = (
+            (investment_return / withdrawal_for_ratio) if withdrawal_for_ratio > 0 else None
+        )
+        burn_month = withdrawal_for_ratio > 0 and investment_return < withdrawal_for_ratio
 
         # Calculate additional investments
         additional_investment = 0.0
@@ -849,6 +896,10 @@ def simulate_invest_then_buy_scenario(
                 "phase": "post_purchase" if status == "Imóvel comprado" else "pre_purchase",
                 "rent_withdrawal_from_investment": rent_withdrawal if rent_reduces_investment else 0.0,
                 "remaining_investment_before_return": remaining_before_return if rent_reduces_investment else investment_balance,
+                "external_cover": external_cover,
+                "external_surplus_invested": external_surplus_invested,
+                "sustainable_withdrawal_ratio": sustainable_withdrawal_ratio,
+                "burn_month": burn_month,
             }
         )
 
@@ -983,6 +1034,8 @@ def compare_scenarios(
     fixed_monthly_investment: Optional[float] = None,
     fixed_investment_start_month: int = 1,
     rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     term_months = loan_term_years * 12
@@ -1012,7 +1065,9 @@ def compare_scenarios(
         inflation_rate,
         rent_inflation_rate,
         property_appreciation_rate,
-    rent_reduces_investment,
+        rent_reduces_investment,
+        monthly_external_savings,
+        invest_external_surplus,
     )
 
     # Simulate investing then buying
@@ -1032,7 +1087,9 @@ def compare_scenarios(
         loan_type,
         monthly_interest_rate,
         amortizations,
-    rent_reduces_investment,
+        rent_reduces_investment,
+        monthly_external_savings,
+        invest_external_surplus,
     )
 
     # Determine best scenario based on total cost
@@ -1059,6 +1116,8 @@ def enhanced_compare_scenarios(
     fixed_monthly_investment: Optional[float] = None,
     fixed_investment_start_month: int = 1,
     rent_reduces_investment: bool = False,
+    monthly_external_savings: Optional[float] = None,
+    invest_external_surplus: bool = False,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
 
@@ -1080,6 +1139,8 @@ def enhanced_compare_scenarios(
         fixed_monthly_investment,
         fixed_investment_start_month,
     rent_reduces_investment,
+    monthly_external_savings,
+    invest_external_surplus,
     )
 
     buy_scenario = basic_comparison.scenarios[0]
@@ -1122,6 +1183,21 @@ def enhanced_compare_scenarios(
                     break_even_month = data.get("month")
                     break
 
+        # Sustainability aggregates (only meaningful for scenarios with withdrawal fields)
+        withdrawals = [
+            d.get("rent_withdrawal_from_investment", 0) for d in scenario.monthly_data
+        ]
+        raw_ratios = [
+            d.get("sustainable_withdrawal_ratio") for d in scenario.monthly_data
+        ]
+        ratios = [float(r) for r in raw_ratios if isinstance(r, (int, float))]
+        burns = [
+            d.get("burn_month") for d in scenario.monthly_data if d.get("burn_month")
+        ]
+        total_withdrawn = sum(w for w in withdrawals if w)
+        avg_ratio = sum(ratios) / len(ratios) if ratios else None
+        months_with_burn = len(burns) if burns else None
+
         return ComparisonMetrics(
             total_cost_difference=total_cost_diff,
             total_cost_percentage_difference=total_cost_pct_diff,
@@ -1130,6 +1206,11 @@ def enhanced_compare_scenarios(
             average_monthly_cost=avg_monthly_cost,
             total_interest_or_rent_paid=total_interest_rent,
             wealth_accumulation=wealth,
+            total_rent_withdrawn_from_investment=(
+                total_withdrawn if total_withdrawn > 0 else None
+            ),
+            months_with_burn=months_with_burn if months_with_burn else None,
+            average_sustainable_withdrawal_ratio=avg_ratio,
         )
 
     # Create enhanced scenarios

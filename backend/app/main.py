@@ -145,6 +145,8 @@ async def compare_housing_scenarios(input_data: ComparisonInput):
             fixed_monthly_investment=input_data.fixed_monthly_investment,
             fixed_investment_start_month=input_data.fixed_investment_start_month or 1,
             rent_reduces_investment=input_data.rent_reduces_investment,
+            monthly_external_savings=input_data.monthly_external_savings,
+            invest_external_surplus=input_data.invest_external_surplus,
         )
 
         return result
@@ -203,6 +205,8 @@ async def compare_housing_scenarios_enhanced(input_data: ComparisonInput):
             fixed_monthly_investment=input_data.fixed_monthly_investment,
             fixed_investment_start_month=input_data.fixed_investment_start_month or 1,
             rent_reduces_investment=input_data.rent_reduces_investment,
+            monthly_external_savings=input_data.monthly_external_savings,
+            invest_external_surplus=input_data.invest_external_surplus,
         )
 
         return result

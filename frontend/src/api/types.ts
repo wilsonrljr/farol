@@ -78,6 +78,8 @@ export interface ComparisonInput {
   fixed_monthly_investment?: number | null;
   fixed_investment_start_month?: number | null;
   rent_reduces_investment?: boolean;
+  monthly_external_savings?: number | null;
+  invest_external_surplus?: boolean;
 }
 
 export interface ComparisonScenario {
@@ -119,6 +121,9 @@ export interface ComparisonMetrics {
   average_monthly_cost: number;
   total_interest_or_rent_paid: number;
   wealth_accumulation: number;
+  total_rent_withdrawn_from_investment?: number | null;
+  months_with_burn?: number | null;
+  average_sustainable_withdrawal_ratio?: number | null;
 }
 
 export interface EnhancedComparisonScenario extends ComparisonScenario {

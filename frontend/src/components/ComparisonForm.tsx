@@ -34,6 +34,8 @@ export default function ComparisonForm() {
       fixed_monthly_investment: 0,
   fixed_investment_start_month: 1,
   rent_reduces_investment: false,
+  monthly_external_savings: 0,
+  invest_external_surplus: false,
     }
   });
 
@@ -88,6 +90,33 @@ export default function ComparisonForm() {
               <Tooltip label="Se marcado, o aluguel e custos mensais são pagos retirando do saldo investido antes do rendimento. Caso contrário assumimos que o aluguel vem de renda externa e o capital fica intacto." multiline w={260} position="top-start" withArrow>
                 <Checkbox mt={4} label="Aluguel consome investimento" {...form.getInputProps('rent_reduces_investment', { type: 'checkbox' })} />
               </Tooltip>
+              <Group grow>
+                <Tooltip
+                  label={
+                    `Renda / aporte externo mensal usado primeiro para pagar aluguel e custos (condomínio/IPTU se informados).
+Se ficar em branco ou = 0:
+  - Se 'Aluguel consome investimento' estiver DESMARCADO: assumimos que o aluguel é pago externamente (saldo investido não é reduzido).
+  - Se estiver MARCADO: todo o aluguel/custos é retirado do investimento.
+Se este valor for maior que o custo mensal, a sobra pode ser automaticamente investida se você marcar 'Investir sobra externa'.`
+                  }
+                  multiline
+                  w={340}
+                  withArrow
+                >
+                  <NumberInput label="Renda Externa p/ Custos" {...form.getInputProps('monthly_external_savings')} thousandSeparator min={0} />
+                </Tooltip>
+                <Tooltip
+                  label={
+                    `Quando marcado, qualquer sobra de 'Renda Externa p/ Custos' após pagar aluguel/custos é adicionada ao investimento nesse mês.
+Ignorado se a renda externa for 0 ou não cobrir totalmente o aluguel (nesse caso não há sobra).`
+                  }
+                  w={300}
+                  multiline
+                  withArrow
+                >
+                  <Checkbox mt={22} label="Investir sobra externa" {...form.getInputProps('invest_external_surplus', { type: 'checkbox' })} />
+                </Tooltip>
+              </Group>
               <Group grow>
                 <NumberInput label="Aporte Mensal Fixo" {...form.getInputProps('fixed_monthly_investment')} thousandSeparator />
                 <NumberInput label="Início Aporte (mês)" {...form.getInputProps('fixed_investment_start_month')} />

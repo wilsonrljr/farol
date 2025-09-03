@@ -74,6 +74,15 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
             ];
             if (anyWithdrawal) {
               coreMetrics.push({ key:'withdraw', label:'Ret. Aluguel', value: money(totalWithdrawals), icon:<IconCash size={14} />, accentColor:'red' });
+              if (s.metrics.total_rent_withdrawn_from_investment) {
+                coreMetrics.push({ key:'withdAgg', label:'Ret. Invest.', value: money(s.metrics.total_rent_withdrawn_from_investment), icon:<IconCash size={14} />, accentColor:'red' });
+              }
+              if (s.metrics.months_with_burn != null) {
+                coreMetrics.push({ key:'burns', label:'Meses Burn', value: String(s.metrics.months_with_burn), icon:<IconArrowDownRight size={14} />, accentColor:'orange' });
+              }
+              if (s.metrics.average_sustainable_withdrawal_ratio != null) {
+                coreMetrics.push({ key:'sust', label:'Rend/Ret', value: (s.metrics.average_sustainable_withdrawal_ratio).toFixed(2)+'x', icon:<IconTrendingUp size={14} />, accentColor:'teal' });
+              }
             }
             const deltaMetrics = [
               { key:'deltaW', label:'Δ Patrimônio', value: wealthDeltaLabel, icon: wealthDelta > 0 ? <IconArrowUpRight size={14} /> : wealthDelta < 0 ? <IconArrowDownRight size={14} /> : <IconMedal size={14} />, accentColor: wealthDelta > 0 ? 'teal' : wealthDelta < 0 ? 'red' : accent },

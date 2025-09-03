@@ -148,6 +148,14 @@ class ComparisonInput(BaseModel):
         False,
         description="If true, rent (and related costs) is paid from investment balance before returns; otherwise assumed paid from external income.",
     )
+    monthly_external_savings: Optional[float] = Field(
+        None,
+        description="External monthly savings/income earmarked to cover rent/costs before touching investment (optional).",
+    )
+    invest_external_surplus: bool = Field(
+        False,
+        description="If true, any unused portion of monthly_external_savings (after rent/costs) is invested that month.",
+    )
 
 
 class LoanInstallment(BaseModel):
@@ -213,6 +221,17 @@ class ComparisonMetrics(BaseModel):
     )
     wealth_accumulation: float = Field(
         ..., description="Total wealth accumulated (equity + investments)"
+    )
+    # Optional sustainability-related aggregate metrics (may be absent for buy scenario)
+    total_rent_withdrawn_from_investment: Optional[float] = Field(
+        None, description="Sum of rent+costs amount withdrawn from investment principal"
+    )
+    months_with_burn: Optional[int] = Field(
+        None, description="Number of months where withdrawals exceeded investment returns"
+    )
+    average_sustainable_withdrawal_ratio: Optional[float] = Field(
+        None,
+        description="Average of (investment_return / withdrawal) in months with withdrawal >0 (values >1 mean fully covered by returns)",
     )
 
 
