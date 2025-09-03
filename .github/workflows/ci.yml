@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master, code/check ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main, master, code/check ]
+    branches: [ main, master ]
 
 jobs:
   backend-tests:
@@ -88,7 +88,9 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image
-        run: docker build -f backend/Dockerfile -t farol-backend:ci .
+        run: |
+          docker build -f backend/Dockerfile -t farol-backend:ci .
 
       - name: Build frontend image
-  run: docker build -f frontend/Dockerfile -t farol-frontend:ci .
+        run: |
+          docker build -f frontend/Dockerfile -t farol-frontend:ci .
