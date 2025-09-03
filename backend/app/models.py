@@ -214,7 +214,12 @@ class ComparisonMetrics(BaseModel):
     break_even_month: Optional[int] = Field(
         None, description="Month when this scenario becomes profitable"
     )
-    roi_percentage: float = Field(..., description="Return on investment percentage")
+    roi_percentage: float = Field(
+        ..., description="Return on investment percentage"
+    )
+    roi_adjusted_percentage: Optional[float] = Field(
+        None, description="Adjusted ROI adding back withdrawals used to pay rent/costs"
+    )
     average_monthly_cost: float = Field(..., description="Average monthly cost")
     total_interest_or_rent_paid: float = Field(
         ..., description="Total interest paid (loan) or rent paid"
@@ -254,3 +259,18 @@ class EnhancedComparisonResult(BaseModel):
     comparative_summary: dict = Field(
         ..., description="Month-by-month comparison between scenarios"
     )
+class ScenarioMetricsSummary(BaseModel):
+    name: str
+    net_cost: float
+    final_equity: float
+    total_outflows: Optional[float] = None
+    roi_percentage: float
+    roi_adjusted_percentage: Optional[float] = None
+    total_rent_withdrawn_from_investment: Optional[float] = None
+    months_with_burn: Optional[int] = None
+    average_sustainable_withdrawal_ratio: Optional[float] = None
+
+
+class ScenariosMetricsResult(BaseModel):
+    best_scenario: str
+    metrics: List[ScenarioMetricsSummary]

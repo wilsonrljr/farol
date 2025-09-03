@@ -1198,11 +1198,20 @@ def enhanced_compare_scenarios(
         avg_ratio = sum(ratios) / len(ratios) if ratios else None
         months_with_burn = len(burns) if burns else None
 
+        # Adjusted ROI: add back withdrawals (treated as distributions) when they exist
+        roi_adjusted = None
+        if total_withdrawn > 0 and initial_investment:
+            adjusted_final = final_value + total_withdrawn
+            roi_adjusted = (
+                (adjusted_final - initial_investment) / initial_investment * 100
+            )
+
         return ComparisonMetrics(
             total_cost_difference=total_cost_diff,
             total_cost_percentage_difference=total_cost_pct_diff,
             break_even_month=break_even_month,
             roi_percentage=roi_pct,
+            roi_adjusted_percentage=roi_adjusted,
             average_monthly_cost=avg_monthly_cost,
             total_interest_or_rent_paid=total_interest_rent,
             wealth_accumulation=wealth,

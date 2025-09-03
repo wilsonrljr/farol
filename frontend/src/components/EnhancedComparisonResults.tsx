@@ -69,7 +69,8 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
             const coreMetrics = [
               { key:'wealth', label:'Patrimônio', value: money(s.metrics.wealth_accumulation), icon:<IconTrendingUp size={14} />, accentColor:accent },
               { key:'equity', label:'Equidade', value: money(s.final_equity), icon:<IconBuildingBank size={14} />, accentColor:accent },
-              { key:'roi', label:'ROI', value: percent(s.metrics.roi_percentage), icon:<IconChartLine size={14} /> },
+              { key:'roi', label:'ROI Bruto', value: percent(s.metrics.roi_percentage), icon:<IconChartLine size={14} /> },
+              ...(s.metrics.roi_adjusted_percentage != null ? [{ key:'roiAdj', label:'ROI Ajust.', value: percent(s.metrics.roi_adjusted_percentage), icon:<IconChartLine size={14} />, accentColor:'teal' }] : []),
               { key:'custo', label:'Custo', value: money(s.total_cost), icon:<IconCash size={14} /> }
             ];
             if (anyWithdrawal) {
