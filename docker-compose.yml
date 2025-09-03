@@ -5,7 +5,7 @@ services:
       dockerfile: backend/Dockerfile
     container_name: farol_backend
     working_dir: /app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./backend/app:/app/app
     ports:
@@ -20,6 +20,7 @@ services:
     working_dir: /app
     volumes:
       - ./frontend:/app
+      - ./docs:/app/docs:ro
     command: sh -c "npm install --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
     environment:
       VITE_API_BASE: http://localhost:8000
