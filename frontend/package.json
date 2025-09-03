@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "dev": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite",
+    "build": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 tsc -b && cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite build",
+    "preview": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite preview",
     "lint": "eslint src --ext .ts,.tsx || true"
   },
   "dependencies": {
@@ -24,8 +24,8 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-  "rollup": "^4.21.0",
-  "@rollup/rollup-linux-x64-gnu": "^4.21.0",
+    "rollup": "^4.21.0",
+    "cross-env": "^7.0.3",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

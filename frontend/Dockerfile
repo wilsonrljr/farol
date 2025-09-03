@@ -12,12 +12,7 @@ RUN corepack enable || true && npm set fund false && npm set audit false
 COPY frontend/package*.json ./
 ENV CI=1
 RUN npm ci --no-audit --no-fund || (echo "npm ci falhou, tentando npm install" && npm install --no-audit --no-fund)
-RUN node -e "console.log('Rollup version:', require('rollup/package.json').version)" && \
-	node -e "try{require.resolve('@rollup/rollup-linux-x64-gnu');console.log('Rollup native module present')}catch(e){console.log('Rollup native missing - installing');process.exit(1)}" || \
-	npm install --no-audit --no-fund -D @rollup/rollup-linux-x64-gnu@latest || true
-
-# Minimal diagnostic only
-RUN node -e "try{console.log('Rollup version (pre-build):',require('rollup/package.json').version)}catch(e){console.log('Rollup not yet installed')}" || true
+RUN node -e "try{console.log('Rollup version:',require('rollup/package.json').version)}catch(e){console.log('Rollup não instalado ainda')}" || true
 
 # Copy source
 COPY frontend/ ./
