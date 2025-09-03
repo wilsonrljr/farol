@@ -63,12 +63,18 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
             const wealthDelta = s.metrics.wealth_accumulation - best.metrics.wealth_accumulation;
             const costDeltaLabel = costDelta === 0 ? '—' : (costDelta > 0 ? '+'+money(costDelta) : money(costDelta));
             const wealthDeltaLabel = wealthDelta === 0 ? '—' : (wealthDelta > 0 ? '+'+money(wealthDelta) : money(wealthDelta));
+            // Detect if scenario has rent withdrawals (flag active)
+            const anyWithdrawal = s.monthly_data.some((m: any) => (m.rent_withdrawal_from_investment || 0) > 0);
+            const totalWithdrawals = anyWithdrawal ? s.monthly_data.reduce((acc: number, m: any) => acc + (m.rent_withdrawal_from_investment || 0), 0) : 0;
             const coreMetrics = [
               { key:'wealth', label:'Patrimônio', value: money(s.metrics.wealth_accumulation), icon:<IconTrendingUp size={14} />, accentColor:accent },
               { key:'equity', label:'Equidade', value: money(s.final_equity), icon:<IconBuildingBank size={14} />, accentColor:accent },
               { key:'roi', label:'ROI', value: percent(s.metrics.roi_percentage), icon:<IconChartLine size={14} /> },
               { key:'custo', label:'Custo', value: money(s.total_cost), icon:<IconCash size={14} /> }
             ];
+            if (anyWithdrawal) {
+              coreMetrics.push({ key:'withdraw', label:'Ret. Aluguel', value: money(totalWithdrawals), icon:<IconCash size={14} />, accentColor:'red' });
+            }
             const deltaMetrics = [
               { key:'deltaW', label:'Δ Patrimônio', value: wealthDeltaLabel, icon: wealthDelta > 0 ? <IconArrowUpRight size={14} /> : wealthDelta < 0 ? <IconArrowDownRight size={14} /> : <IconMedal size={14} />, accentColor: wealthDelta > 0 ? 'teal' : wealthDelta < 0 ? 'red' : accent },
               { key:'deltaC', label:'Δ Custo', value: costDeltaLabel, icon: costDelta < 0 ? <IconArrowDownRight size={14} /> : costDelta > 0 ? <IconArrowUpRight size={14} /> : <IconMedal size={14} />, accentColor: costDelta < 0 ? 'teal' : costDelta > 0 ? 'red' : accent }
@@ -166,6 +172,8 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
                         <Table.Th>Fluxo</Table.Th>
                         <Table.Th>Equidade</Table.Th>
                         <Table.Th>Invest.</Table.Th>
+                        <Table.Th>Retirada Alug.</Table.Th>
+                        <Table.Th>Saldo Pré-Rend.</Table.Th>
                         <Table.Th>Valor Imóvel</Table.Th>
                         {isInvestBuy && <Table.Th>Prog%</Table.Th>}
                         {isInvestBuy && <Table.Th>Falta</Table.Th>}
@@ -189,6 +197,8 @@ export default function EnhancedComparisonResults({ result }: { result: Enhanced
                             <Table.Td>{moneySafe(m.cash_flow)}</Table.Td>
                             <Table.Td>{moneySafe(m.equity)}</Table.Td>
                             <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
+                            <Table.Td>{m.rent_withdrawal_from_investment != null ? moneySafe(m.rent_withdrawal_from_investment) : '—'}</Table.Td>
+                            <Table.Td>{m.remaining_investment_before_return != null ? moneySafe(m.remaining_investment_before_return) : '—'}</Table.Td>
                             <Table.Td>{moneySafe(m.property_value)}</Table.Td>
                             {isInvestBuy && <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>}
                             {isInvestBuy && <Table.Td>{m.shortfall != null ? moneySafe(m.shortfall) : '—'}</Table.Td>}

@@ -506,6 +506,7 @@ def simulate_rent_and_invest_scenario(
     inflation_rate: Optional[float] = None,
     rent_inflation_rate: Optional[float] = None,
     property_appreciation_rate: Optional[float] = None,
+    rent_reduces_investment: bool = False,
 ) -> ComparisonScenario:
     """Simulate renting and investing the down payment."""
     # Initialize variables
@@ -518,14 +519,7 @@ def simulate_rent_and_invest_scenario(
 
     # Calculate monthly data
     for month in range(1, term_months + 1):
-        # Get investment rate for this month
-        monthly_rate = get_monthly_investment_rate(investment_returns, month)
-
-        # Calculate investment return
-        investment_return = investment_balance * monthly_rate
-        investment_balance += investment_return
-
-        # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
+    # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
         effective_rent_inflation = (
             rent_inflation_rate if rent_inflation_rate is not None else inflation_rate
         )
@@ -543,6 +537,24 @@ def simulate_rent_and_invest_scenario(
         # Total monthly cost is rent + additional costs
         total_monthly_cost = current_rent + current_additional_costs
         total_rent_paid += total_monthly_cost
+
+        rent_withdrawal = 0.0
+        remaining_before_return = investment_balance
+        investment_return = 0.0
+
+        if rent_reduces_investment:
+            # Withdraw rent from investment before returns (FI-style drawdown)
+            rent_withdrawal = min(total_monthly_cost, investment_balance)
+            investment_balance -= rent_withdrawal
+            remaining_before_return = investment_balance
+            monthly_rate = get_monthly_investment_rate(investment_returns, month)
+            investment_return = investment_balance * monthly_rate
+            investment_balance += investment_return
+        else:
+            # Original behavior: investment untouched by rent
+            monthly_rate = get_monthly_investment_rate(investment_returns, month)
+            investment_return = investment_balance * monthly_rate
+            investment_balance += investment_return
 
         # For rent scenario, property value tracking is just for reference
         # since the person doesn't own the property and won't benefit from appreciation
@@ -569,6 +581,8 @@ def simulate_rent_and_invest_scenario(
                 "scenario_type": "rent_invest",
                 "equity": 0,  # No property equity in rent scenario
                 "liquid_wealth": investment_balance,  # All wealth is liquid
+                "rent_withdrawal_from_investment": rent_withdrawal if rent_reduces_investment else 0.0,
+                "remaining_investment_before_return": remaining_before_return if rent_reduces_investment else investment_balance,
             }
         )
 
@@ -602,6 +616,7 @@ def simulate_invest_then_buy_scenario(
     loan_type: str = "SAC",
     monthly_interest_rate: float = 1.0,
     amortizations: Optional[List[AmortizationInput]] = None,
+    rent_reduces_investment: bool = False,
 ) -> ComparisonScenario:
     """Simulate investing until having enough to buy the property outright."""
     # Initialize variables
@@ -721,12 +736,7 @@ def simulate_invest_then_buy_scenario(
         if extra_contribution_total > 0:
             total_scheduled_contributions += extra_contribution_total
 
-        # Apply investment growth AFTER contributions
-        monthly_rate = get_monthly_investment_rate(investment_returns, month)
-        investment_return = investment_balance * monthly_rate
-        investment_balance += investment_return
-
-        # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
+    # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
         effective_rent_inflation = (
             rent_inflation_rate if rent_inflation_rate is not None else inflation_rate
         )
@@ -739,6 +749,19 @@ def simulate_invest_then_buy_scenario(
         )
         total_rent_cost = current_rent + monthly_hoa + monthly_property_tax
         total_rent_paid += total_rent_cost
+
+        rent_withdrawal = 0.0
+        remaining_before_return = investment_balance
+        # If rent reduces investment, withdraw before growth
+        if rent_reduces_investment:
+            rent_withdrawal = min(total_rent_cost, investment_balance)
+            investment_balance -= rent_withdrawal
+            remaining_before_return = investment_balance
+
+        # Apply investment growth AFTER contributions (and potential rent withdrawal)
+        monthly_rate = get_monthly_investment_rate(investment_returns, month)
+        investment_return = investment_balance * monthly_rate
+        investment_balance += investment_return
 
         # Calculate additional investments
         additional_investment = 0.0
@@ -824,6 +847,8 @@ def simulate_invest_then_buy_scenario(
                 "is_milestone": is_milestone or status == "Imóvel comprado",
                 "scenario_type": "invest_buy",
                 "phase": "post_purchase" if status == "Imóvel comprado" else "pre_purchase",
+                "rent_withdrawal_from_investment": rent_withdrawal if rent_reduces_investment else 0.0,
+                "remaining_investment_before_return": remaining_before_return if rent_reduces_investment else investment_balance,
             }
         )
 
@@ -957,6 +982,7 @@ def compare_scenarios(
     invest_loan_difference: bool = False,
     fixed_monthly_investment: Optional[float] = None,
     fixed_investment_start_month: int = 1,
+    rent_reduces_investment: bool = False,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     term_months = loan_term_years * 12
@@ -986,6 +1012,7 @@ def compare_scenarios(
         inflation_rate,
         rent_inflation_rate,
         property_appreciation_rate,
+    rent_reduces_investment,
     )
 
     # Simulate investing then buying
@@ -1005,6 +1032,7 @@ def compare_scenarios(
         loan_type,
         monthly_interest_rate,
         amortizations,
+    rent_reduces_investment,
     )
 
     # Determine best scenario based on total cost
@@ -1030,6 +1058,7 @@ def enhanced_compare_scenarios(
     invest_loan_difference: bool = False,
     fixed_monthly_investment: Optional[float] = None,
     fixed_investment_start_month: int = 1,
+    rent_reduces_investment: bool = False,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
 
@@ -1050,6 +1079,7 @@ def enhanced_compare_scenarios(
         invest_loan_difference,
         fixed_monthly_investment,
         fixed_investment_start_month,
+    rent_reduces_investment,
     )
 
     buy_scenario = basic_comparison.scenarios[0]
@@ -1132,12 +1162,12 @@ def enhanced_compare_scenarios(
             (d for d in invest_buy_scenario.monthly_data if d["month"] == month), {}
         )
 
-    # Calculate explicit differences
-    buy_cost = buy_data.get("cash_flow", 0)
-    rent_cost = rent_data.get("cash_flow", 0)
-    invest_cost = invest_data.get("cash_flow", 0)
+        # Calculate explicit differences (inside loop so each month processed)
+        buy_cost = buy_data.get("cash_flow", 0)
+        rent_cost = rent_data.get("cash_flow", 0)
+        invest_cost = invest_data.get("cash_flow", 0)
 
-    month_comparison.update(
+        month_comparison.update(
             {
                 "buy_vs_rent_difference": buy_cost - rent_cost,
                 "buy_vs_rent_percentage": (
@@ -1158,8 +1188,8 @@ def enhanced_compare_scenarios(
                 "invest_total_wealth": invest_data.get("equity", 0)
                 + invest_data.get("investment_balance", 0),
             }
-    )
-    comparative_summary[f"month_{month}"] = month_comparison
+        )
+        comparative_summary[f"month_{month}"] = month_comparison
 
     return EnhancedComparisonResult(
         best_scenario=basic_comparison.best_scenario,

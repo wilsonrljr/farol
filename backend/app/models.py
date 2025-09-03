@@ -144,6 +144,10 @@ class ComparisonInput(BaseModel):
         1,
         description="Month to start fixed investment (1 for immediate, or after purchase month)",
     )
+    rent_reduces_investment: bool = Field(
+        False,
+        description="If true, rent (and related costs) is paid from investment balance before returns; otherwise assumed paid from external income.",
+    )
 
 
 class LoanInstallment(BaseModel):

@@ -77,6 +77,7 @@ export interface ComparisonInput {
   invest_loan_difference?: boolean;
   fixed_monthly_investment?: number | null;
   fixed_investment_start_month?: number | null;
+  rent_reduces_investment?: boolean;
 }
 
 export interface ComparisonScenario {

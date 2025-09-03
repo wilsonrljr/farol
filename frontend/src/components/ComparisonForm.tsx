@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, NumberInput, Select, Switch, Paper, Stack, Group, Divider, Checkbox, SimpleGrid, Text, SegmentedControl, Grid } from '@mantine/core';
+import { Button, NumberInput, Select, Switch, Paper, Stack, Group, Divider, Checkbox, SimpleGrid, Text, SegmentedControl, Grid, Tooltip } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { compareScenarios } from '../api/financeApi';
 import { ComparisonInput, ComparisonResult, EnhancedComparisonResult } from '../api/types';
@@ -32,7 +32,8 @@ export default function ComparisonForm() {
       property_appreciation_rate: 4,
       invest_loan_difference: false,
       fixed_monthly_investment: 0,
-      fixed_investment_start_month: 1
+  fixed_investment_start_month: 1,
+  rent_reduces_investment: false,
     }
   });
 
@@ -84,6 +85,9 @@ export default function ComparisonForm() {
                 <NumberInput label="Valorização % a.a." {...form.getInputProps('property_appreciation_rate')} />
               </Group>
               <Checkbox label="Investir diferença de parcela vs aluguel" {...form.getInputProps('invest_loan_difference', { type: 'checkbox' })} />
+              <Tooltip label="Se marcado, o aluguel e custos mensais são pagos retirando do saldo investido antes do rendimento. Caso contrário assumimos que o aluguel vem de renda externa e o capital fica intacto." multiline w={260} position="top-start" withArrow>
+                <Checkbox mt={4} label="Aluguel consome investimento" {...form.getInputProps('rent_reduces_investment', { type: 'checkbox' })} />
+              </Tooltip>
               <Group grow>
                 <NumberInput label="Aporte Mensal Fixo" {...form.getInputProps('fixed_monthly_investment')} thousandSeparator />
                 <NumberInput label="Início Aporte (mês)" {...form.getInputProps('fixed_investment_start_month')} />
