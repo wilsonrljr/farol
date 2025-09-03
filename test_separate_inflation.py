@@ -28,64 +28,26 @@ def test_separate_inflation():
     """Test that separate inflation parameters are properly processed"""
     url = "http://localhost:8000/api/compare-scenarios-enhanced"
 
-    try:
-        response = requests.post(url, json=test_data)
+    response = requests.post(url, json=test_data)
+    assert response.status_code == 200, f"API call failed: {response.status_code} {response.text}"
 
-        if response.status_code == 200:
-            result = response.json()
-            print("✅ API call successful!")
-            print(f"Best scenario: {result['best_scenario']}")
+    result = response.json()
+    assert result.get("scenarios"), "No scenarios returned"
 
-            # Print scenario results and check for different inflation effects
-            for scenario in result["scenarios"]:
-                print(f"\n📊 {scenario['name']}:")
-                print(f"  Total cost: R$ {scenario['total_cost']:,.2f}")
-                print(f"  Final equity: R$ {scenario['final_equity']:,.2f}")
-
-                if scenario["monthly_data"]:
-                    first_month = scenario["monthly_data"][0]
-                    last_month = scenario["monthly_data"][-1]
-
-                    # Check rent inflation effects
-                    if "rent_paid" in first_month and "rent_paid" in last_month:
-                        rent_increase = (
-                            last_month["rent_paid"] / first_month["rent_paid"] - 1
-                        ) * 100
-                        print(f"  🏠 Rent increase over 30 years: {rent_increase:.1f}%")
-                        print(
-                            f"  🏠 First month rent: R$ {first_month['rent_paid']:,.2f}"
-                        )
-                        print(
-                            f"  🏠 Last month rent: R$ {last_month['rent_paid']:,.2f}"
-                        )
-
-                    # Check property value changes
-                    if "property_value" in last_month:
-                        property_increase = (
-                            last_month["property_value"] / test_data["property_value"]
-                            - 1
-                        ) * 100
-                        print(
-                            f"  �️ Property value increase over 30 years: {property_increase:.1f}%"
-                        )
-                        print(
-                            f"  �️ Final property value: R$ {last_month['property_value']:,.2f}"
-                        )
-
-            return True
-        else:
-            print(f"❌ API call failed with status {response.status_code}")
-            print(f"Error: {response.text}")
-            return False
-
-    except requests.exceptions.ConnectionError:
-        print(
-            "❌ Could not connect to backend server. Make sure it's running on http://localhost:8000"
-        )
-        return False
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return False
+    for scenario in result["scenarios"]:
+        assert "total_cost" in scenario and "final_equity" in scenario
+        monthly = scenario["monthly_data"]
+        if not monthly:
+            continue
+        first_month = monthly[0]
+        last_month = monthly[-1]
+        # If rent is tracked ensure inflation effect (rent_inflation_rate > inflation_rate)
+        if "rent_paid" in first_month and "rent_paid" in last_month:
+            if first_month["rent_paid"] > 0:
+                assert last_month["rent_paid"] >= first_month["rent_paid"], "Rent should not decrease over period"
+        if "property_value" in last_month and "property_value" in first_month:
+            if first_month.get("property_value"):
+                assert last_month["property_value"] >= first_month["property_value"], "Property value should not decrease with positive appreciation"
 
 
 if __name__ == "__main__":

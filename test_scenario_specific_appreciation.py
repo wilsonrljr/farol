@@ -27,91 +27,39 @@ def test_scenario_specific_appreciation():
     """Test that property appreciation is applied correctly per scenario"""
     url = "http://localhost:8000/api/compare-scenarios-enhanced"
 
-    try:
-        response = requests.post(url, json=test_data)
+    response = requests.post(url, json=test_data)
+    assert response.status_code == 200, f"API error {response.status_code}: {response.text}"
 
-        if response.status_code == 200:
-            result = response.json()
-            print("✅ API call successful!")
-            print(
-                f"Test parameters: Property value: R$ {test_data['property_value']:,}"
-            )
-            print(
-                f"Property appreciation: {test_data['property_appreciation_rate']}% annually"
-            )
-            print(f"Inflation: {test_data['inflation_rate']}% annually")
-            print()
+    result = response.json()
+    assert "scenarios" in result and result["scenarios"], "No scenarios returned"
 
-            for scenario in result["scenarios"]:
-                print(f"📊 {scenario['name']}:")
+    names = {s["name"] for s in result["scenarios"]}
+    expected_names = {
+        "Comprar com financiamento",
+        "Alugar e investir",
+        "Investir e comprar à vista",
+    }
+    assert expected_names.issubset(names)
 
-                if scenario["monthly_data"]:
-                    first_month = scenario["monthly_data"][0]
-                    last_month = scenario["monthly_data"][-1]
+    for scenario in result["scenarios"]:
+        monthly = scenario["monthly_data"]
+        if not monthly:
+            continue
+        first_month = monthly[0]
+        last_month = monthly[-1]
+        first_val = first_month.get("property_value", 0)
+        last_val = last_month.get("property_value", 0)
 
-                    first_property_value = first_month.get("property_value", 0)
-                    last_property_value = last_month.get("property_value", 0)
-
-                    print(f"  Month 1 property value: R$ {first_property_value:,.2f}")
-                    print(f"  Last month property value: R$ {last_property_value:,.2f}")
-
-                    if first_property_value > 0 and last_property_value > 0:
-                        appreciation_percent = (
-                            (last_property_value / first_property_value) - 1
-                        ) * 100
-                        print(
-                            f"  Property appreciation during simulation: {appreciation_percent:.1f}%"
-                        )
-
-                    # Check scenario-specific logic
-                    if scenario["name"] == "Comprar com financiamento":
-                        if last_property_value > first_property_value:
-                            print(
-                                "  ✅ Property appreciated (affects final equity only)"
-                            )
-                        else:
-                            print("  ⚠️  No property appreciation detected")
-
-                    elif scenario["name"] == "Alugar e investir":
-                        if last_property_value == first_property_value:
-                            print(
-                                "  ✅ CORRECT: Property value unchanged (doesn't affect renter)"
-                            )
-                        else:
-                            print(
-                                "  ❌ ERROR: Property value should not change for rent scenario"
-                            )
-
-                    elif scenario["name"] == "Investir e comprar à vista":
-                        if last_property_value > first_property_value:
-                            print("  ✅ Property appreciated (affects purchase target)")
-
-                            # Check if purchase was successful
-                            purchase_successful = any(
-                                data.get("status") == "Imóvel comprado"
-                                for data in scenario["monthly_data"]
-                            )
-                            print(f"  Purchase successful: {purchase_successful}")
-                        else:
-                            print("  ⚠️  No property appreciation detected")
-
-                print(f"  Final equity: R$ {scenario['final_equity']:,.2f}")
-                print()
-
-            return True
-        else:
-            print(f"❌ API call failed with status {response.status_code}")
-            print(f"Error: {response.text}")
-            return False
-
-    except requests.exceptions.ConnectionError:
-        print(
-            "❌ Could not connect to backend server. Make sure it's running on http://localhost:8000"
-        )
-        return False
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return False
+        if scenario["name"] == "Comprar com financiamento":
+            if first_val and last_val:
+                assert last_val >= first_val, "Property should appreciate in buy scenario"
+        elif scenario["name"] == "Alugar e investir":
+            # Property value may be tracked but shouldn't change equity; allow equal or unchanged
+            if first_val and last_val:
+                assert last_val == first_val, "Rent scenario property value should remain constant"
+        elif scenario["name"] == "Investir e comprar à vista":
+            if first_val and last_val:
+                assert last_val >= first_val, "Invest then buy scenario property target should appreciate"
 
 
 if __name__ == "__main__":

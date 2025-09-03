@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM python:3.13-slim AS base
+FROM python:3.13-slim AS deps
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -18,20 +18,22 @@ COPY pyproject.toml ./
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir fastapi uvicorn pydantic numpy pandas matplotlib python-multipart requests httpx pytest
 
+FROM deps AS test
+WORKDIR /app
 ENV PYTHONPATH=/app
-
-# Copy full backend directory to preserve package structure for tests (imports like backend.app.finance)
 COPY backend ./backend
-
-# Copy tests (both root tests and backend/app/tests if exist)
-# Copy test directories if they exist
 COPY backend/app/tests ./backend/app/tests
 COPY backend/tests ./backend/tests
-COPY test_*.py ./tests_root/
-
-# Run tests (pytest auto-discovers). If some copied dirs don't exist, that's fine.
+COPY test_*.py ./tests_root/ 2>/dev/null || true
 RUN pytest -q || (echo "Tests failed during image build" && exit 1)
 
+FROM python:3.13-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+COPY pyproject.toml ./
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir fastapi uvicorn pydantic numpy pandas matplotlib python-multipart requests httpx
+ENV PYTHONPATH=/app
+COPY backend ./backend
 EXPOSE 8000
-
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

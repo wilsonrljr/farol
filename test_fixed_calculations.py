@@ -30,6 +30,7 @@ def test_calculation_fixes():
         response = requests.post(
             "http://localhost:8000/api/compare-scenarios-enhanced", json=test_data
         )
+        response.raise_for_status()
         result = response.json()
 
         buy_scenario = result["scenarios"][0]
@@ -93,17 +94,15 @@ def test_calculation_fixes():
         print("🎯 BEST SCENARIO:", result["best_scenario"])
         print("   Logic: Lowest total cost with good equity position")
 
-        return True
+        # If we reached this point without exception, test passes
+        assert result["scenarios"] and len(result["scenarios"]) == 3
 
     except Exception as e:
         print(f"❌ Error: {e}")
-        return False
+        raise
 
 
 if __name__ == "__main__":
-    success = test_calculation_fixes()
+    test_calculation_fixes()
     print("\n" + "=" * 50)
-    if success:
-        print("✅ All calculation fixes verified successfully!")
-    else:
-        print("❌ Some issues remain - check the error messages above")
+    print("✅ All calculation fixes verified successfully!")
