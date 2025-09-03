@@ -119,6 +119,62 @@ docker compose build --no-cache
 
 Se encontrar problemas com porta em uso, verifique processos locais ou ajuste mapeamentos em `docker-compose.yml`.
 
+## Testes
+
+O projeto utiliza Pytest. Os antigos scripts de verificação manual na raiz foram migrados para testes automatizados.
+
+Estrutura principal de testes:
+```
+backend/tests/
+  test_additional_costs_calc.py          # custos adicionais (unit)
+  test_api_additional_costs.py           # integração API custos adicionais
+  test_additional_costs_scenarios.py     # variação de cenários com custos
+  test_calculation_regressions.py        # regressões e sanity econômico
+  test_inflation_params.py               # inflação + apreciação geral
+  test_invest_then_buy_appreciation.py   # lógica invest-then-buy (compra + inflação)
+  test_scenario_appreciation.py          # apreciação específica por cenário
+  test_separate_inflation_params.py      # inflação separada (aluguel vs geral)
+backend/app/tests/                       # métricas e ROI ajustado, savings externos
+```
+
+Configuração (`pytest.ini`):
+```ini
+[pytest]
+testpaths = backend/tests backend/app/tests
+python_files = test_*.py
+addopts = -q
+```
+
+Executar toda a suíte:
+```bash
+pytest
+```
+
+Executar arquivo específico:
+```bash
+pytest backend/tests/test_additional_costs_calc.py
+```
+
+Executar teste específico:
+```bash
+pytest backend/tests/test_calculation_regressions.py::test_total_cost_positive_and_property_appreciates
+```
+
+Mais verboso:
+```bash
+pytest -vv
+```
+
+Cobertura (opcional se `pytest-cov` instalado):
+```bash
+pytest --cov=backend/app --cov-report=term-missing
+```
+
+Próximos passos sugeridos:
+- Separar futuramente em `backend/tests/unit` e `backend/tests/integration` se crescer.
+- Adicionar execução em pipeline CI antes do build de imagens.
+- Incluir badge de status e/ou cobertura no topo do README.
+
 ## Uso
 1. Acesse `http://localhost:5173`.
 2. Explore:
