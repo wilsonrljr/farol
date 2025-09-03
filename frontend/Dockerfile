@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1.7
 
 # --- Build Stage ---
-FROM node:20-alpine AS build
+FROM node:20-bullseye-slim AS build
 WORKDIR /app
 
 # Install deps separately for better caching
 COPY frontend/package*.json ./
-RUN npm ci --no-audit --no-fund
+ENV CI=1
+RUN npm ci --no-audit --no-fund || (echo "npm ci falhou, tentando npm install" && npm install --no-audit --no-fund)
 
 # Copy source
 COPY frontend/ ./
@@ -23,7 +24,13 @@ ENV VITE_API_BASE=${VITE_API_BASE}
 # Run tests if a test script is defined (will succeed if none or tests pass)
 RUN if npm run | grep -q "test"; then npm test -- --watch=false || npm test || exit 1; else echo "No test script"; fi
 
-RUN npm run build
+RUN set -eux; \
+	if ! npm run build; then \
+		echo '--- Rollup native build failed, tentando reinstalar dependências sem lock para forçar optional deps ---'; \
+		rm -rf node_modules; \
+		npm install --no-audit --no-fund; \
+		npm run build; \
+	fi
 
 # --- Runtime Stage ---
 FROM nginx:1.27-alpine
