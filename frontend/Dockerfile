@@ -11,7 +11,7 @@ RUN corepack enable || true && npm set fund false && npm set audit false
 # Install deps separately for better caching
 COPY frontend/package*.json ./
 ENV CI=1
-RUN npm ci --no-audit --no-fund || (echo "npm ci falhou, tentando npm install" && npm install --no-audit --no-fund)
+RUN rm -rf node_modules package-lock.json && npm install --no-audit --no-fund
 RUN node -e "try{console.log('Rollup version:',require('rollup/package.json').version)}catch(e){console.log('Rollup não instalado ainda')}" || true
 
 # Copy source

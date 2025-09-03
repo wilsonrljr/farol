@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite",
-    "build": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 tsc -b && cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite build",
+  "build": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 tsc -b && cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite build",
+  "postinstall": "node scripts/patch-rollup.js || echo 'patch-rollup skipped'",
     "preview": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite preview",
     "lint": "eslint src --ext .ts,.tsx || true"
   },
@@ -24,7 +25,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "rollup": "^4.21.0",
+  "rollup": "4.21.0",
     "cross-env": "^7.0.3",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
