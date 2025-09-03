@@ -66,7 +66,7 @@ jobs:
           fi
           # Attempt to install platform-specific rollup native package to satisfy optional require
           (npm install --no-audit --no-fund -D @rollup/rollup-linux-x64-gnu@latest || true)
-          node -e "try{console.log('Rollup native present?',!!require.resolve('@rollup/rollup-linux-x64-gnu'))}catch(e){console.log('Rollup native NOT present')}}"
+          node -e "try{require.resolve('@rollup/rollup-linux-x64-gnu');console.log('Rollup native present? true')}catch(e){console.log('Rollup native present? false')}"
 
       - name: Build
         env:
