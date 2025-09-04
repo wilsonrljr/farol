@@ -87,7 +87,7 @@ O frontend acessa o backend em `http://localhost:8000`. J√° existe uma imagem p√
 ```bash
 docker run -d --name farol-frontend -p 8080:80 \
   -e VITE_API_BASE=http://localhost:8000 \
-  wilsonrljr/farol-frontend:0.1.0
+  wilsonrljr/farol-frontend:0.1.1
 ```
 
 #### 4. Usar
