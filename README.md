@@ -25,29 +25,25 @@ Para conversar: abra uma issue ou mande um PR. Ideias e feedback são bem-vindos
 - Considera inflação, valorização do imóvel, custos adicionais (ITBI, escritura, condomínio, IPTU).
 - Resultados detalhados: fluxo de caixa mensal, patrimônio, saldo investido, equity, valor do imóvel.
 - Interface web responsiva (React + Mantine).
-- Página "Sobre" com explicações de uso e conceitos.
-- Estrutura preparada para expansão futura (ex: metas adicionais não imobiliárias).
 
 ## Tecnologias
 Backend: Python (FastAPI, Pydantic, NumPy, Pandas, Matplotlib)
 Frontend: React + Vite + TypeScript + Mantine UI
 
 ## Instalação (Dev)
+Você pode usar `uv` (recomendado) ou `pip`.
 
-### Backend
-Você pode usar `uv` (recomendado pela performance e lockfile) ou `pip` tradicional.
-
-Com `uv` (se já possuir instalado):
+Backend com `uv`:
 ```bash
 uv sync --extra dev
-uv run pytest   # opcional: rodar testes
+uv run pytest        # opcional
 uv run uvicorn backend.app.main:app --reload
 ```
 
-Sem `uv` (fallback pip):
+Backend com `pip`:
 ```bash
 pip install -e .[dev]
-pytest -q  # opcional
+pytest -q            # opcional
 uvicorn backend.app.main:app --reload
 ```
 
@@ -56,29 +52,113 @@ Gerar/atualizar lock (cria `uv.lock`):
 uv lock
 ```
 
-### Frontend
+Frontend (em outro terminal):
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-O aplicativo frontend estará disponível em `http://localhost:5173`.
+Frontend: http://localhost:5173
 
 ## Docker
 
-### Ambiente de Desenvolvimento (hot reload)
+### Guia Super Simples (Usuário sem conhecimento técnico)
+Objetivo: abrir o Farol no navegador sem instalar nada além de Docker.
+Tempo estimado (primeira vez): 5–10 min (download de imagens).
 
-Requisitos: Docker >= 24, Docker Compose Plugin.
+#### Passo 1. Instalar Docker
+Windows / macOS: https://www.docker.com/products/docker-desktop/ (instale, abra e deixe rodando).
+Linux: busque "Instalar Docker Engine <sua distro>" (Ubuntu, Fedora, etc.).
 
-Subir serviços (backend com reload + frontend Vite):
+#### Passo 2. Baixar o projeto
+Método fácil (ZIP):
+1. Vá em https://github.com/wilsonrljr/farol
+2. Botão verde "Code" → "Download ZIP"
+3. Extraia para uma pasta simples (ex: Desktop/farol)
 
+Método alternativo (Git opcional):
+```bash
+git clone https://github.com/wilsonrljr/farol.git
+```
+
+#### Passo 3. Abrir o terminal (linha de comando)
+Terminal é um programa para digitar comandos:
+- Windows: Abra o menu Iniciar, digite "PowerShell" ou "CMD" e Enter. OU na pasta extraída clique na barra de endereço, digite `powershell` e Enter.
+- macOS: Pressione ⌘ + Espaço, digite "Terminal" e Enter.
+- Linux: Geralmente Ctrl + Alt + T abre. Caso contrário procure por "Terminal".
+
+#### Passo 4. Ir até a pasta do projeto
+Use o comando `cd` (change directory) (copie e cole o comando abaixo):
+```bash
+# Windows (PowerShell) – ajuste Desktop para o caminho que você escolheu se necessário
+cd "$env:USERPROFILE\Desktop\farol"
+
+# macOS / Linux
+cd ~/Desktop/farol
+```
+
+Verifique se está certo listando arquivos:
+```bash
+ls
+```
+Você deve ver coisas como: `docker-compose.yml`, `backend`, `frontend`, `README.md`.
+
+Se NÃO aparecer, revise o caminho (talvez a pasta tenha nome `farol-main`).
+
+#### Passo 5. Subir a aplicação
+Com Docker Desktop aberto:
 ```bash
 docker compose up --build
 ```
+Fique aguardando; a primeira execução faz download. Ao ver mensagens do backend e uma linha do Vite com "ready in", prossiga.
 
+#### Passo 6. Abrir no navegador
+- Interface principal: http://localhost:5173
+- (Opcional) Documentação da API: http://localhost:8000/docs
+
+#### Passo 7. Parar
+No mesmo terminal: CTRL + C.
+Limpar containers (opcional):
+```bash
+docker compose down
+```
+
+#### Passo 8. (Opcional) Usar modo produção local (tudo em uma porta)
+```bash
+docker compose -f docker-compose.prod.yml up --build
+```
+Acesse: http://localhost:8080
+Parar: CTRL + C e (opcional):
+```bash
+docker compose -f docker-compose.prod.yml down
+```
+
+#### Passo 9. Atualizar para nova versão (sem Git)
+1. Pare (CTRL + C)
+2. Apague a pasta antiga
+3. Baixe novo ZIP e repita passos 2–8
+
+#### Passo 10. Problemas comuns
+| Sintoma | Causa provável | Como resolver |
+|---------|----------------|----------------|
+| Porta 5173 ou 8000 em uso | Outro app ocupando porta | Feche app ou reinicie Docker Desktop |
+| Página não abre | Ainda construindo dependências | Aguarde até ver "ready in" |
+| Comando não encontrado | Docker não instalado / digitado errado | Verifique instalação / use `docker compose` com espaço |
+| Muito lento | Primeiro download de imagens | Normal; próximas vezes serão rápidas |
+| Ficou travado | Cache local inconsistente | CTRL + C e rode: `docker compose down` depois `docker compose up --build` |
+
+Pronto. Você não precisa saber programar: só seguir esses 10 passos.
+
+### Ambiente de Desenvolvimento (hot reload)
+Requisitos: Docker >= 24, Docker Compose Plugin.
+
+Subir (backend com reload + frontend Vite):
+```bash
+docker compose up --build
+```
 Endpoints:
-- Backend API: http://localhost:8000/docs
+- Backend: http://localhost:8000/docs
 - Frontend: http://localhost:5173
 
 Parar:
@@ -87,21 +167,19 @@ docker compose down
 ```
 
 ### Ambiente de Produção (build otimizado)
-
 ```bash
 docker compose -f docker-compose.prod.yml up --build -d
 ```
-
 Endpoints:
-- App (frontend + assets): http://localhost:8080
-- Backend (rede interna): http://backend:8000 (acessível via frontend e outros containers)
+- App: http://localhost:8080
+- Backend (rede interna): http://backend:8000
 
 Logs:
 ```bash
 docker compose logs -f
 ```
 
-Derrubar produção:
+Derrubar:
 ```bash
 docker compose -f docker-compose.prod.yml down
 ```
