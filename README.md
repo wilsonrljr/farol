@@ -399,4 +399,16 @@ Os aportes extras reduzem o saldo devedor, encurtando prazo (SAC/PRICE) e diminu
 Ver `.env.example` para chaves como `APP_NAME`, `API_TITLE`, `API_DESCRIPTION`.
 
 ## Licença
-Definir licença (MIT / Apache 2.0, etc.).
+Este projeto está licenciado sob a **GNU Affero General Public License v3 (AGPL-3.0)**.
+
+Em resumo (não substitui o texto completo em `LICENSE`):
+- Você pode usar, estudar, modificar e redistribuir.
+- Se disponibilizar uma **versão modificada** acessível por rede (ex: aplicação web / API SaaS), deve oferecer o **código fonte completo** (incluindo suas modificações) aos usuários que interagem com o serviço.
+- Deve manter avisos de copyright e a mesma licença nas redistribuições.
+- Não há garantias ( software fornecido “no estado em que se encontra” ).
+
+Racional da escolha: garantir que melhorias em versões hospedadas publicamente retornem à comunidade e evitar o "SaaS loophole" existente em licenças como MIT ou GPL simples.
+
+Se você deseja discutir um acordo de uso diferente (ex: licença comercial dual), abra uma discussão.
+
+Copyright © 2025 Wilson Rocha Lacerda Junior.
