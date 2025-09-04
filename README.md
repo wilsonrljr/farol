@@ -2,6 +2,22 @@
 
 Farol é uma plataforma de simulação e planejamento financeiro focada inicialmente em cenários imobiliários no Brasil, com visão de expansão para outros objetivos (ex: veículo, reservas, grandes compras).
 
+<details open>
+<summary><strong>Comparação de cenários</strong></summary>
+
+&nbsp;
+![Comparação de cenários](docs/assets/comparacao.gif)
+
+</details>
+
+<details>
+<summary><strong>Simular financiamento</strong></summary>
+
+&nbsp;
+![Simular financiamento](docs/assets/simulacao.gif)
+
+</details>
+
 ## Autor
 Wilson Rocha Lacerda Junior – desenvolvedor da biblioteca open source de Aprendizado de Máquina [SysIdentPy](https://github.com/wilsonrljr/sysidentpy).
 
@@ -60,75 +76,144 @@ npm run dev
 
 Frontend: http://localhost:5173
 
-## Docker
+## Tutorial para quem não sabe programação
 
-### Tutorial Básico (Sem Docker Compose)
-Objetivo: abrir o Farol no seu computador usando Docker, em poucos passos. Não precisa saber programar.
+Se você só quer USAR o Farol no seu computador (sem aprender programação), siga um dos passo a passo abaixo. Eles usam o Docker para evitar instalações complicadas.
 
-O que vamos fazer: (1) baixar e iniciar o backend (já pronto) e (2) iniciar o frontend pronto que fala com ele.
+O que você vai fazer? (1) Instalar Docker Desktop, (2) rodar o “cérebro” (backend), (3) rodar a interface (frontend) e (4) abrir o navegador.
 
-#### 1. Antes de começar
-Instale e abra o Docker (Docker Desktop em Windows/macOS ou Docker Engine no Linux). Deixe ele rodando. Só isso.
+<details open>
+<summary><strong>Windows (passo a passo)</strong></summary>
 
-#### 2. Iniciar o backend (cérebro da aplicação)
-Execute no terminal (copie e cole):
-```bash
-docker run -d --name farol-backend -p 8000:8000 wilsonrljr/farol-backend:0.1.0
-```
-Verificar se está vivo (opcional):
-```bash
-curl -I http://localhost:8000/docs
-```
-Se aparecer algo com `200`, `307` ou `308`, está tudo certo.
+&nbsp;
 
-#### 3. Iniciar o frontend (interface que você usa)
-O frontend acessa o backend em `http://localhost:8000`. Já existe uma imagem pública preparada para isso:
-```bash
-docker run -d --name farol-frontend -p 8080:80 \
-  -e VITE_API_BASE=http://localhost:8000 \
-  wilsonrljr/farol-frontend:0.1.1
-```
+1. (Só uma vez) Ativar o WSL
+  - Abra o menu Iniciar, digite: powershell
+  - Clique com botão direito: “Executar como administrador”.
+  - Digite o comando abaixo e aperte Enter:
+    ```bash
+    wsl --install
+    ```
+  - Reinicie o computador se aparecer uma mensagem dizendo que deve reiniciar. Se não aparecer nada, pode fechar.
 
-#### 4. Usar
-Abra o navegador em: http://localhost:8080
+2. Instalar o Docker Desktop
+  - Baixe em: https://www.docker.com/products/docker-desktop/
+  - Instale aceitando as opções padrão. Se não quiser cadastrar uma conta, pode clicar na opção "skip" que fica no canto superior direito na tela de cadastro.
+  - Abra o Docker Desktop e espere o ícone na barra de tarefas ficar estável (rodando).
 
-Quer ver a documentação técnica da API? http://localhost:8000/docs
+3. Abrir um PowerShell normal (não precisa ser admin)
+  - Dica: você pode copiar e colar os comandos abaixo.
 
-#### 5. Parar quando terminar
-```bash
-docker stop farol-frontend farol-backend
-```
-Remover (opcional para limpar):
-```bash
-docker rm farol-frontend farol-backend
-```
+4. Rodar o backend (cérebro da simulação)
+  ```bash
+  docker run -d --name farol-backend -p 8000:8000 "wilsonrljr/farol-backend:0.1.0"
+  ```
 
-#### 6. Atualizar para uma nova versão
-Quando sair uma nova versão, troque os números das tags (ex: `0.1.2`) nos comandos acima e rode de novo. Se der erro de versão antiga, force o download:
-```bash
-docker pull wilsonrljr/farol-backend:0.1.2
-docker pull wilsonrljr/farol-frontend:0.1.2
-```
+5. Testar se o backend respondeu
+  - Abra: http://localhost:8000/docs — se abrir a página interativa, está ok.
 
-#### 7. Problemas comuns (tradução simples)
-| Problema | O que significa | O que fazer |
-|----------|-----------------|-------------|
-| Página não abre | Container ainda iniciando | Aguarde alguns segundos e recarregue |
-| Erro de rede na simulação | Frontend não encontrou o backend | Confirme se o backend está rodando: abra http://localhost:8000/docs |
-| Porta em uso | Já existe algo em 8000 ou 8080 | Feche o outro app ou mude `-p 8001:8000` e `-p 8081:80` |
-| CORS / bloqueio no console | Navegador bloqueou origem | Atualize backend para liberar `http://localhost:8080` (issue aberta ou ajuste técnico) |
-| Versão muito antiga aparece | Cache de imagem local | Rode `docker pull ...` das duas imagens e reinicie |
+6. Rodar o frontend (interface web)
+  ```bash
+  docker run -d --name farol-frontend -p 8080:80 ^
+    -e VITE_API_BASE=http://localhost:8000 ^
+    "wilsonrljr/farol-frontend:0.1.1"
+  ```
+  (No PowerShell o `^` quebra linha. Se preferir, pode colocar tudo em uma linha.)
 
-#### 8. (Opcional) Mudar a URL da API
-Se você rodar o backend em outro lugar (ex: outra máquina), ajuste a variável:
-```bash
-docker run -d --name farol-frontend -p 8080:80 \
-  -e VITE_API_BASE=http://IP_DO_BACKEND:8000 \
-  wilsonrljr/farol-frontend:0.1.1
-```
-Depois acesse de novo `http://localhost:8080`.
+7. Usar o Farol
+  - Acesse: http://localhost:8080
 
-Pronto! Esses são os passos mínimos para qualquer pessoa usar o Farol localmente com Docker.
+8. Encerrar quando não estiver usando
+  ```bash
+  docker stop farol-frontend farol-backend
+  ```
+
+9. Atualizar para nova versão (quando anunciado)
+  Substitua as tags e force baixar de novo:
+  ```bash
+  docker pull wilsonrljr/farol-backend:0.1.2
+  docker pull wilsonrljr/farol-frontend:0.1.2
+  docker stop farol-frontend farol-backend 2>$null
+  docker rm farol-frontend farol-backend 2>$null
+  ```
+  Depois repita os passos 4 e 6 com as novas tags.
+
+10. Problemas comuns
+
+| Problema | O que significa | Como resolver |
+|----------|-----------------|----------------|
+| Página não abre | Frontend ainda iniciando | Aguarde 5–10s e recarregue |
+| http://localhost:8000/docs não abre | Backend não subiu | Veja se o Docker Desktop está aberto / tente `docker logs farol-backend` |
+| Porta em uso | Já tem algo nas portas 8000/8080 | Troque mapeamento: `-p 8001:8000` e `-p 8081:80` (e use a nova URL) |
+| Versão antiga | Imagem cache local | Rode `docker pull ...` das duas imagens e reinicie |
+| Erro de rede na simulação | Frontend não acha backend | Confirme a variável `VITE_API_BASE` |
+| Mensagem sobre CORS | Navegador bloqueou origem | Abra issue (backend libera origens) |
+
+Pronto: esses são os passos mínimos no Windows.
+
+</details>
+
+<details>
+<summary><strong>macOS (passo a passo)</strong></summary>
+
+&nbsp;
+
+Funciona em Intel e Apple Silicon (M1/M2/M3). Versões exemplo:
+
+1. Instalar Docker Desktop
+  - Baixe: https://www.docker.com/products/docker-desktop/
+  - Arraste para Aplicativos e abra. Conceda permissões se solicitar.
+
+2. Confirmar que o Docker está rodando
+  - Ícone da baleia deve aparecer na barra de menus (topo). Espere “Docker is running”.
+
+3. Abrir o Terminal (Spotlight: ⌘ + Espaço → “Terminal”)
+
+4. Rodar backend
+  ```bash
+  docker run -d --name farol-backend -p 8000:8000 wilsonrljr/farol-backend:0.1.0
+  ```
+
+5. Testar backend: abra http://localhost:8000/docs
+
+6. Rodar frontend
+  ```bash
+  docker run -d --name farol-frontend -p 8080:80 \
+    -e VITE_API_BASE=http://localhost:8000 \
+    wilsonrljr/farol-frontend:0.1.1
+  ```
+
+7. Usar: http://localhost:8080
+
+8. Parar quando terminar
+  ```bash
+  docker stop farol-frontend farol-backend
+  ```
+
+9. Atualizar versões
+  ```bash
+  docker pull wilsonrljr/farol-backend:0.1.2
+  docker pull wilsonrljr/farol-frontend:0.1.2
+  docker stop farol-frontend farol-backend 2>/dev/null || true
+  docker rm farol-frontend farol-backend 2>/dev/null || true
+  ```
+  Refaça os passos 4 e 6 com as novas tags.
+
+10. Problemas comuns
+
+| Problema | Significado | Ação |
+|----------|-------------|------|
+| Página vazia | Frontend iniciando | Aguarde e recarregue |
+| Não abre /docs | Backend não subiu | `docker ps` / `docker logs farol-backend` |
+| Porta já usada | Outra app usa 8000/8080 | Troque para 8001 / 8081 |
+| Versão antiga | Cache local | `docker pull` das imagens |
+| Erro rede simulação | Variável API errada | Confirme `VITE_API_BASE` |
+
+Pronto: usando o Farol no macOS.
+
+</details>
+
+---
 
 ---
 
