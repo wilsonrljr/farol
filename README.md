@@ -68,7 +68,7 @@ Objetivo: abrir o Farol no navegador sem instalar nada além de Docker.
 Tempo estimado (primeira vez): 5–10 min (download de imagens).
 
 #### Passo 1. Instalar Docker
-Windows / macOS: https://www.docker.com/products/docker-desktop/ (instale, abra e deixe rodando).
+Windows / macOS: https://www.docker.com/products/docker-desktop/ (instale, abra e deixe rodando). Ao abrir o docker, ele deve pedir para criar uma conta. Você pode criar uma conta ou clicar em "Skip" (ou Ignorar) no canto superior direito.
 Linux: busque "Instalar Docker Engine <sua distro>" (Ubuntu, Fedora, etc.).
 
 #### Passo 2. Baixar o projeto
@@ -84,7 +84,7 @@ git clone https://github.com/wilsonrljr/farol.git
 
 #### Passo 3. Abrir o terminal (linha de comando)
 Terminal é um programa para digitar comandos:
-- Windows: Abra o menu Iniciar, digite "PowerShell" ou "CMD" e Enter. OU na pasta extraída clique na barra de endereço, digite `powershell` e Enter.
+- Windows: Abra o menu Iniciar, pesquise por "PowerShell" ou "CMD" (Prompt de Comando) e clique para abrir.
 - macOS: Pressione ⌘ + Espaço, digite "Terminal" e Enter.
 - Linux: Geralmente Ctrl + Alt + T abre. Caso contrário procure por "Terminal".
 
@@ -92,10 +92,14 @@ Terminal é um programa para digitar comandos:
 Use o comando `cd` (change directory) (copie e cole o comando abaixo):
 ```bash
 # Windows (PowerShell) – ajuste Desktop para o caminho que você escolheu se necessário
-cd "$env:USERPROFILE\Desktop\farol"
+cd "$env:USERPROFILE\Desktop\farol-main"
+
+# Windows (Terminal ou CMD) – ajuste Desktop para o caminho que você escolheu se necessário
+# Entre na pasta que você baixou e extraiu. Em squida, clique na barra de endereços e copie o endereço da pasta.
+cd endereço_copiado
 
 # macOS / Linux
-cd ~/Desktop/farol
+cd ~/Desktop/farol-main
 ```
 
 Verifique se está certo listando arquivos:
@@ -104,7 +108,7 @@ ls
 ```
 Você deve ver coisas como: `docker-compose.yml`, `backend`, `frontend`, `README.md`.
 
-Se NÃO aparecer, revise o caminho (talvez a pasta tenha nome `farol-main`).
+Se NÃO aparecer, revise o caminho (talvez a pasta tenha nome `farol` (sem o "main")).
 
 #### Passo 5. Subir a aplicação
 Com Docker Desktop aberto:
