@@ -63,96 +63,78 @@ Frontend: http://localhost:5173
 
 ## Docker
 
-### Guia Super Simples (Usuário sem conhecimento técnico)
-Objetivo: abrir o Farol no navegador sem instalar nada além de Docker.
-Tempo estimado (primeira vez): 5–10 min (download de imagens).
+### Tutorial Básico (Sem Docker Compose)
+Objetivo: abrir o Farol no seu computador usando Docker, em poucos passos. Não precisa saber programar.
 
-#### Passo 1. Instalar Docker
-Windows / macOS: https://www.docker.com/products/docker-desktop/ (instale, abra e deixe rodando). Ao abrir o docker, ele deve pedir para criar uma conta. Você pode criar uma conta ou clicar em "Skip" (ou Ignorar) no canto superior direito.
-Linux: busque "Instalar Docker Engine <sua distro>" (Ubuntu, Fedora, etc.).
+O que vamos fazer: (1) baixar e iniciar o backend (já pronto) e (2) iniciar o frontend pronto que fala com ele.
 
-#### Passo 2. Baixar o projeto
-Método fácil (ZIP):
-1. Vá em https://github.com/wilsonrljr/farol
-2. Botão verde "Code" → "Download ZIP"
-3. Extraia para uma pasta simples (ex: Desktop/farol)
+#### 1. Antes de começar
+Instale e abra o Docker (Docker Desktop em Windows/macOS ou Docker Engine no Linux). Deixe ele rodando. Só isso.
 
-Método alternativo (Git opcional):
+#### 2. Iniciar o backend (cérebro da aplicação)
+Execute no terminal (copie e cole):
 ```bash
-git clone https://github.com/wilsonrljr/farol.git
+docker run -d --name farol-backend -p 8000:8000 wilsonrljr/farol-backend:0.1.0
+```
+Verificar se está vivo (opcional):
+```bash
+curl -I http://localhost:8000/docs
+```
+Se aparecer algo com `200`, `307` ou `308`, está tudo certo.
+
+#### 3. Iniciar o frontend (interface que você usa)
+O frontend acessa o backend em `http://localhost:8000`. Já existe uma imagem pública preparada para isso:
+```bash
+docker run -d --name farol-frontend -p 8080:80 \
+  -e VITE_API_BASE=http://localhost:8000 \
+  wilsonrljr/farol-frontend:0.1.0
 ```
 
-#### Passo 3. Abrir o terminal (linha de comando)
-Terminal é um programa para digitar comandos:
-- Windows: Abra o menu Iniciar, pesquise por "PowerShell" ou "CMD" (Prompt de Comando) e clique para abrir.
-- macOS: Pressione ⌘ + Espaço, digite "Terminal" e Enter.
-- Linux: Geralmente Ctrl + Alt + T abre. Caso contrário procure por "Terminal".
+#### 4. Usar
+Abra o navegador em: http://localhost:8080
 
-#### Passo 4. Ir até a pasta do projeto
-Use o comando `cd` (change directory) (copie e cole o comando abaixo):
+Quer ver a documentação técnica da API? http://localhost:8000/docs
+
+#### 5. Parar quando terminar
 ```bash
-# Windows (PowerShell) – ajuste Desktop para o caminho que você escolheu se necessário
-cd "$env:USERPROFILE\Desktop\farol-main"
-
-# Windows (Terminal ou CMD) – ajuste Desktop para o caminho que você escolheu se necessário
-# Entre na pasta que você baixou e extraiu. Em squida, clique na barra de endereços e copie o endereço da pasta.
-cd endereço_copiado
-
-# macOS / Linux
-cd ~/Desktop/farol-main
+docker stop farol-frontend farol-backend
+```
+Remover (opcional para limpar):
+```bash
+docker rm farol-frontend farol-backend
 ```
 
-Verifique se está certo listando arquivos:
+#### 6. Atualizar para uma nova versão
+Quando sair uma nova versão, troque os números das tags (ex: `0.1.2`) nos comandos acima e rode de novo. Se der erro de versão antiga, force o download:
 ```bash
-ls
-```
-Você deve ver coisas como: `docker-compose.yml`, `backend`, `frontend`, `README.md`.
-
-Se NÃO aparecer, revise o caminho (talvez a pasta tenha nome `farol` (sem o "main")).
-
-#### Passo 5. Subir a aplicação
-Com Docker Desktop aberto:
-```bash
-docker compose up --build
-```
-Fique aguardando; a primeira execução faz download. Ao ver mensagens do backend e uma linha do Vite com "ready in", prossiga.
-
-#### Passo 6. Abrir no navegador
-- Interface principal: http://localhost:5173
-- (Opcional) Documentação da API: http://localhost:8000/docs
-
-#### Passo 7. Parar
-No mesmo terminal: CTRL + C.
-Limpar containers (opcional):
-```bash
-docker compose down
+docker pull wilsonrljr/farol-backend:0.1.2
+docker pull wilsonrljr/farol-frontend:0.1.2
 ```
 
-#### Passo 8. (Opcional) Usar modo produção local (tudo em uma porta)
+#### 7. Problemas comuns (tradução simples)
+| Problema | O que significa | O que fazer |
+|----------|-----------------|-------------|
+| Página não abre | Container ainda iniciando | Aguarde alguns segundos e recarregue |
+| Erro de rede na simulação | Frontend não encontrou o backend | Confirme se o backend está rodando: abra http://localhost:8000/docs |
+| Porta em uso | Já existe algo em 8000 ou 8080 | Feche o outro app ou mude `-p 8001:8000` e `-p 8081:80` |
+| CORS / bloqueio no console | Navegador bloqueou origem | Atualize backend para liberar `http://localhost:8080` (issue aberta ou ajuste técnico) |
+| Versão muito antiga aparece | Cache de imagem local | Rode `docker pull ...` das duas imagens e reinicie |
+
+#### 8. (Opcional) Mudar a URL da API
+Se você rodar o backend em outro lugar (ex: outra máquina), ajuste a variável:
 ```bash
-docker compose -f docker-compose.prod.yml up --build
+docker run -d --name farol-frontend -p 8080:80 \
+  -e VITE_API_BASE=http://IP_DO_BACKEND:8000 \
+  wilsonrljr/farol-frontend:0.1.1
 ```
-Acesse: http://localhost:8080
-Parar: CTRL + C e (opcional):
-```bash
-docker compose -f docker-compose.prod.yml down
-```
+Depois acesse de novo `http://localhost:8080`.
 
-#### Passo 9. Atualizar para nova versão (sem Git)
-1. Pare (CTRL + C)
-2. Apague a pasta antiga
-3. Baixe novo ZIP e repita passos 2–8
+Pronto! Esses são os passos mínimos para qualquer pessoa usar o Farol localmente com Docker.
 
-#### Passo 10. Problemas comuns
-| Sintoma | Causa provável | Como resolver |
-|---------|----------------|----------------|
-| Porta 5173 ou 8000 em uso | Outro app ocupando porta | Feche app ou reinicie Docker Desktop |
-| Página não abre | Ainda construindo dependências | Aguarde até ver "ready in" |
-| Comando não encontrado | Docker não instalado / digitado errado | Verifique instalação / use `docker compose` com espaço |
-| Muito lento | Primeiro download de imagens | Normal; próximas vezes serão rápidas |
-| Ficou travado | Cache local inconsistente | CTRL + C e rode: `docker compose down` depois `docker compose up --build` |
+---
 
-Pronto. Você não precisa saber programar: só seguir esses 10 passos.
+### (Opcional) Uso com Docker Compose
+Se preferir orquestrar tudo com Compose (dev com hot reload ou modo produção), as seções abaixo permanecem disponíveis.
 
 ### Ambiente de Desenvolvimento (hot reload)
 Requisitos: Docker >= 24, Docker Compose Plugin.
