@@ -78,6 +78,8 @@ Frontend: http://localhost:5173
 
 ## Tutorial para quem não sabe programação
 
+Obs.: por enquanto é a opção mais fácil que consegui disponibilizar. Vou tentar publicar a aplicação em algum serviço web gratuito em breve (atualizarei aqui quando estiver online).
+
 Se você só quer USAR o Farol no seu computador (sem aprender programação), siga um dos passo a passo abaixo. Eles usam o Docker para evitar instalações complicadas.
 
 O que você vai fazer? (1) Instalar Docker Desktop, (2) rodar o “cérebro” (backend), (3) rodar a interface (frontend) e (4) abrir o navegador.
