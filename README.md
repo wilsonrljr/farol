@@ -3,15 +3,14 @@
 Farol é uma plataforma de simulação e planejamento financeiro focada inicialmente em cenários imobiliários no Brasil, com visão de expansão para outros objetivos (ex: veículo, reservas, grandes compras).
 
 ## Autor
-Wilson Rocha Lacerda Junior – desenvolvedor da biblioteca open source [SysIdentPy](https://github.com/wilsonrljr/sysidentpy). Entusiasta de modelagem matemática, identificação de sistemas, simulação financeira e engenharia de software. O Farol nasce do mesmo princípio de transparência e reprodutibilidade presente no trabalho com SysIdentPy: tornar cálculos, premissas e trade-offs claros para apoiar decisões informadas.
+Wilson Rocha Lacerda Junior – desenvolvedor da biblioteca open source de Aprendizado de Máquina [SysIdentPy](https://github.com/wilsonrljr/sysidentpy).
 
 Redes e contato:
 - GitHub: https://github.com/wilsonrljr
 - LinkedIn: https://www.linkedin.com/in/wilsonrljr
-- Twitter/X: https://twitter.com/wilsonrljr
 - ORCID: https://orcid.org/0000-0002-3263-1152
 
-Para conversar: abra uma issue ou mande um PR. Ideias e feedback são bem-vindos.
+Para conversar: abra uma discussão, issue ou mande um PR. Ideias e feedback são bem-vindos.
 
 ## Funcionalidades
 - Simulação de financiamentos imobiliários nos sistemas SAC e PRICE.
