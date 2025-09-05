@@ -5,7 +5,7 @@ Farol é uma plataforma de simulação e planejamento financeiro focada inicialm
 Disponível em: [Aplicação Web](https://farol-web.onrender.com/)
 
 > **Atenção**
-> Serviço hospedado em plano gratuito. Por ser instância gratuita, ela será suspensa em caso de inatividade, o que pode atrasar a primeira simulação em 50 segundos ou mais. A estabilidade pode variar sem aviso prévio. Use por sua conta e risco.
+> Serviço hospedado em plano gratuito. Por ser instância gratuita, ela será suspensa em caso de inatividade, o que pode atrasar a primeira simulação em 50 segundos ou mais. A estabilidade pode variar sem aviso prévio.
 
 Se preferir rodar localmente, há instruções ao longo deste README.
 
