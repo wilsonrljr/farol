@@ -13,6 +13,7 @@ import { BadgeCard } from './cards/BadgeCard';
 import { CardWithStats } from './cards/CardWithStats';
 import { FeaturesCard } from './cards/FeaturesCard';
 import { IconBuildingBank, IconChartLine, IconArrowsShuffle } from '@tabler/icons-react';
+import { LabelWithHelp } from './LabelWithHelp';
 
 export default function ComparisonForm() {
   const form = useForm<ComparisonInput>({
@@ -83,41 +84,58 @@ export default function ComparisonForm() {
           {showAdvanced && (
             <Stack gap="sm">
               <Divider label="Parâmetros adicionais" />
-              <Group grow>
-                <NumberInput label="Inflação % a.a." {...form.getInputProps('inflation_rate')} />
-                <NumberInput label="Inflação Aluguel % a.a." {...form.getInputProps('rent_inflation_rate')} />
-                <NumberInput label="Valorização % a.a." {...form.getInputProps('property_appreciation_rate')} />
+              <Group grow align="flex-end">
+                <div>
+                  <LabelWithHelp
+                    label="Inflação Geral (% a.a.)"
+                    help={
+                      'Taxa anual média de inflação geral usada para atualizar valores como condomínio, IPTU e custos. Aplicada de forma composta mês a mês.'
+                    }
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('inflation_rate')} />
+                </div>
+                <div>
+                  <LabelWithHelp
+                    label="Inflação do Aluguel (% a.a.)"
+                    help={
+                      'Inflação específica do aluguel. Use se o aluguel deve subir em ritmo diferente da inflação geral. Caso contrário deixe igual ou vazio.'
+                    }
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('rent_inflation_rate')} />
+                </div>
+                <div>
+                  <LabelWithHelp
+                    label="Valorização do Imóvel (% a.a.)"
+                    help={
+                      'Estimativa de aumento do preço de mercado do imóvel por ano. Essencial para comparar com investir e comprar depois: um imóvel de 500k hoje pode custar mais futuramente.'
+                    }
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('property_appreciation_rate')} />
+                </div>
               </Group>
               <Checkbox label="Investir diferença de parcela vs aluguel" {...form.getInputProps('invest_loan_difference', { type: 'checkbox' })} />
               <Tooltip label="Se marcado, o aluguel e custos mensais são pagos retirando do saldo investido antes do rendimento. Caso contrário assumimos que o aluguel vem de renda externa e o capital fica intacto." multiline w={260} position="top-start" withArrow>
                 <Checkbox mt={4} label="Aluguel consome investimento" {...form.getInputProps('rent_reduces_investment', { type: 'checkbox' })} />
               </Tooltip>
-              <Group grow>
-                <Tooltip
-                  label={
-                    `Renda / aporte externo mensal usado primeiro para pagar aluguel e custos (condomínio/IPTU se informados).
-Se ficar em branco ou = 0:
-  - Se 'Aluguel consome investimento' estiver DESMARCADO: assumimos que o aluguel é pago externamente (saldo investido não é reduzido).
-  - Se estiver MARCADO: todo o aluguel/custos é retirado do investimento.
-Se este valor for maior que o custo mensal, a sobra pode ser automaticamente investida se você marcar 'Investir sobra externa'.`
-                  }
-                  multiline
-                  w={340}
-                  withArrow
-                >
-                  <NumberInput label="Renda Externa p/ Custos" {...form.getInputProps('monthly_external_savings')} thousandSeparator min={0} />
-                </Tooltip>
-                <Tooltip
-                  label={
-                    `Quando marcado, qualquer sobra de 'Renda Externa p/ Custos' após pagar aluguel/custos é adicionada ao investimento nesse mês.
-Ignorado se a renda externa for 0 ou não cobrir totalmente o aluguel (nesse caso não há sobra).`
-                  }
-                  w={300}
-                  multiline
-                  withArrow
-                >
-                  <Checkbox mt={22} label="Investir sobra externa" {...form.getInputProps('invest_external_surplus', { type: 'checkbox' })} />
-                </Tooltip>
+              <Group grow align="flex-end">
+                <div style={{flex:1}}>
+                  <LabelWithHelp
+                    label="Renda Externa p/ Custos"
+                    help={`Valor mensal externo usado primeiro para pagar aluguel e custos (condomínio/IPTU).
+Se 0:
+ - Se 'Aluguel consome investimento' estiver DESMARCADO: aluguel é pago fora e não reduz investimentos.
+ - Se MARCADO: aluguel/custos saem do saldo investido.
+Se maior que custos, a sobra pode ser investida se marcado 'Investir sobra externa'.`}
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('monthly_external_savings')} thousandSeparator min={0} />
+                </div>
+                <div>
+                  <LabelWithHelp
+                    label="Investir sobra externa"
+                    help={`Se houver sobra da renda externa após pagar aluguel/custos, investe automaticamente esse excedente no mês.`}
+                  />
+                  <Checkbox mt={6} {...form.getInputProps('invest_external_surplus', { type: 'checkbox' })} />
+                </div>
               </Group>
               <Group grow>
                 <NumberInput label="Aporte Mensal Fixo" {...form.getInputProps('fixed_monthly_investment')} thousandSeparator />

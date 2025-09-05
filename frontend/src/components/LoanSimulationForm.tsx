@@ -12,6 +12,7 @@ import { FeaturesCard } from './cards/FeaturesCard';
 import { CardWithStats } from './cards/CardWithStats';
 // Removed pie/ring usage
 import { IconArrowsShuffle, IconCash, IconBolt } from '@tabler/icons-react';
+import { LabelWithHelp } from './LabelWithHelp';
 
 export default function LoanSimulationForm() {
   const form = useForm<LoanSimulationInput>({
@@ -72,10 +73,19 @@ export default function LoanSimulationForm() {
                     <NumberInput label="IPTU (R$)" {...form.getInputProps('additional_costs.monthly_property_tax')} thousandSeparator />
                   </Group>
                   <Divider label="Inflação / Valorização" />
-                  <Group grow>
-                    <NumberInput label="Inflação % a.a." {...form.getInputProps('inflation_rate')} />
-                    <NumberInput label="Inflação Aluguel % a.a." {...form.getInputProps('rent_inflation_rate')} />
-                    <NumberInput label="Valorização % a.a." {...form.getInputProps('property_appreciation_rate')} />
+                  <Group grow align="flex-end">
+                    <div>
+                      <LabelWithHelp label="Inflação Geral (% a.a.)" help="Taxa anual média de inflação usada para atualizar custos e valores." />
+                      <NumberInput mt={4} {...form.getInputProps('inflation_rate')} />
+                    </div>
+                    <div>
+                      <LabelWithHelp label="Inflação do Aluguel (% a.a.)" help="Ritmo de reajuste esperado do aluguel. Use apenas se diferente da inflação geral." />
+                      <NumberInput mt={4} {...form.getInputProps('rent_inflation_rate')} />
+                    </div>
+                    <div>
+                      <LabelWithHelp label="Valorização do Imóvel (% a.a.)" help="Aumento estimado do preço de mercado do imóvel a cada ano." />
+                      <NumberInput mt={4} {...form.getInputProps('property_appreciation_rate')} />
+                    </div>
                   </Group>
                   <AmortizationsFieldArray
                     termMonths={(form.values.loan_term_years||0)*12}
