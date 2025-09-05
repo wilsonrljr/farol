@@ -2,7 +2,7 @@
 
 Farol é uma plataforma de simulação e planejamento financeiro focada inicialmente em cenários imobiliários no Brasil.
 
-Disponível em: [Aplicação Web](https://farol-2.onrender.com/)
+Disponível em: [Aplicação Web](https://farol-web.onrender.com/)
 
 > **Atenção**
 > Serviço hospedado em plano gratuito. Por ser instância gratuita, ela será suspensa em caso de inatividade, o que pode atrasar a primeira simulação em 50 segundos ou mais. A estabilidade pode variar sem aviso prévio. Use por sua conta e risco.
