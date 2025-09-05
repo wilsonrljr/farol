@@ -292,57 +292,6 @@ docker compose build --no-cache
     - Docs: documentação detalhada (Quickstart, Cálculos, Glossário).
 
 
-## Testes
-
-O projeto utiliza Pytest. Os antigos scripts de verificação manual na raiz foram migrados para testes automatizados.
-
-Estrutura principal de testes:
-```
-backend/tests/
-  test_additional_costs_calc.py          # custos adicionais (unit)
-  test_api_additional_costs.py           # integração API custos adicionais
-  test_additional_costs_scenarios.py     # variação de cenários com custos
-  test_calculation_regressions.py        # regressões e sanity econômico
-  test_inflation_params.py               # inflação + apreciação geral
-  test_invest_then_buy_appreciation.py   # lógica invest-then-buy (compra + inflação)
-  test_scenario_appreciation.py          # apreciação específica por cenário
-  test_separate_inflation_params.py      # inflação separada (aluguel vs geral)
-backend/app/tests/                       # métricas e ROI ajustado, savings externos
-```
-
-Configuração (`pytest.ini`):
-```ini
-[pytest]
-testpaths = backend/tests backend/app/tests
-python_files = test_*.py
-addopts = -q
-```
-
-Executar toda a suíte:
-```bash
-pytest
-```
-
-Executar arquivo específico:
-```bash
-pytest backend/tests/test_additional_costs_calc.py
-```
-
-Executar teste específico:
-```bash
-pytest backend/tests/test_calculation_regressions.py::test_total_cost_positive_and_property_appreciates
-```
-
-Mais verboso:
-```bash
-pytest -vv
-```
-
-Cobertura (opcional se `pytest-cov` instalado):
-```bash
-pytest --cov=backend/app --cov-report=term-missing
-```
-
 ## Exportação de Resultados
 É possível exportar dados das simulações e comparações em CSV ou XLSX.
 
@@ -372,22 +321,6 @@ Arquivos fonte correspondentes em `docs/quickstart.md`, `docs/calculations.md`, 
 | `end_month` | int? | Último mês (inclusivo) da recorrência. Ignorado se `occurrences` informado. |
 | `inflation_adjust` | bool | Se `true`, valores fixos são corrigidos pela inflação a partir do mês inicial da série. |
 
-### Regras de Expansão
-1. Se apenas `month` e `value` forem informados, comportamento antigo (evento único) permanece.
-2. Se `interval_months` > 0, gera-se a sequência: `month`, `month + interval`, ... até atingir `occurrences` ou `end_month` (ou o prazo do financiamento).
-3. Para `value_type=percentage`, o valor aplicado em cada ocorrência é: `saldo_outstanding_do_mês * (value/100)` no momento da parcela.
-4. Para `inflation_adjust=True` com `value_type=fixed`, cada ocorrência é ajustada por inflação acumulada desde o mês base (primeiro da série) usando a mesma taxa anual de inflação da simulação.
-5. Múltiplas amortizações (fixas e/ou percentuais) no mesmo mês são somadas antes de limitar pelo saldo restante.
-
-### Exemplo JSON
-```json
-[
-  { "month": 12, "value": 10000, "interval_months": 12, "occurrences": 5, "value_type": "fixed", "inflation_adjust": true },
-  { "month": 6, "value": 2.0, "interval_months": 6, "end_month": 36, "value_type": "percentage" },
-  { "month": 18, "value": 5000 }
-]
-```
-
 ### Estratégias Possíveis
 - Bônus anual de fim de ano: `interval_months=12`.
 - Aporte semestral variável ao saldo: `%` a cada 6 meses.
@@ -397,20 +330,8 @@ Arquivos fonte correspondentes em `docs/quickstart.md`, `docs/calculations.md`, 
 ### Efeito na Simulação
 Os aportes extras reduzem o saldo devedor, encurtando prazo (SAC/PRICE) e diminuindo juros totais. Percentuais se adaptam ao saldo residual, mantendo estratégia proporcional ao tempo. Valores inflacionados preservam poder real do aporte.
 
-## Variáveis de Ambiente
-Ver `.env.example` para chaves como `APP_NAME`, `API_TITLE`, `API_DESCRIPTION`.
 
 ## Licença
 Este projeto está licenciado sob a **GNU Affero General Public License v3 (AGPL-3.0)**.
-
-Em resumo (não substitui o texto completo em `LICENSE`):
-- Você pode usar, estudar, modificar e redistribuir.
-- Se disponibilizar uma **versão modificada** acessível por rede (ex: aplicação web / API SaaS), deve oferecer o **código fonte completo** (incluindo suas modificações) aos usuários que interagem com o serviço.
-- Deve manter avisos de copyright e a mesma licença nas redistribuições.
-- Não há garantias ( software fornecido “no estado em que se encontra” ).
-
-Racional da escolha: garantir que melhorias em versões hospedadas publicamente retornem à comunidade e evitar o "SaaS loophole" existente em licenças como MIT ou GPL simples.
-
-Se você deseja discutir um acordo de uso diferente (ex: licença comercial dual), abra uma discussão.
 
 Copyright © 2025 Wilson Rocha Lacerda Junior.
