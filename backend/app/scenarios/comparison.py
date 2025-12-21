@@ -9,6 +9,7 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from typing import TypedDict
+from collections.abc import Sequence
 
 from ..core.protocols import (
     AdditionalCostsLike,
@@ -37,8 +38,8 @@ def compare_scenarios(
     monthly_interest_rate: float,
     loan_type: str,
     rent_value: float,
-    investment_returns: list[InvestmentReturnLike],
-    amortizations: list[AmortizationLike] | None = None,
+    investment_returns: Sequence[InvestmentReturnLike],
+    amortizations: Sequence[AmortizationLike] | None = None,
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
@@ -61,7 +62,7 @@ def compare_scenarios(
         loan_term_years,
         monthly_interest_rate,
         loan_type,
-        amortizations,
+        list(amortizations) if amortizations else None,
         investment_returns,
         additional_costs,
         inflation_rate,
@@ -123,8 +124,8 @@ def enhanced_compare_scenarios(
     monthly_interest_rate: float,
     loan_type: str,
     rent_value: float,
-    investment_returns: list[InvestmentReturnLike],
-    amortizations: list[AmortizationLike] | None = None,
+    investment_returns: Sequence[InvestmentReturnLike],
+    amortizations: Sequence[AmortizationLike] | None = None,
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,

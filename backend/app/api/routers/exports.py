@@ -2,24 +2,26 @@
 
 import json
 from io import BytesIO, StringIO
+from typing import Any, cast
 
 import pandas as pd  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from ...models import ComparisonInput, LoanSimulationInput
-from .simulations import (
-    compare_housing_scenarios,
-    compare_housing_scenarios_enhanced,
-    simulate_loan,
+from ...finance import (
+    convert_interest_rate,
+    simulate_price_loan,
+    simulate_sac_loan,
 )
+from ...models import ComparisonInput, LoanSimulationInput
+from ...scenarios.comparison import compare_scenarios, enhanced_compare_scenarios
 
 router = APIRouter(tags=["exports"])
 
 
 def _dataframe_to_stream(
     df: pd.DataFrame,
-    meta: dict,
+    meta: dict[str, object],
     base_filename: str,
     file_format: str,
 ) -> StreamingResponse:
@@ -59,12 +61,39 @@ def _dataframe_to_stream(
 
 
 @router.post("/api/simulate-loan/export")
-async def export_simulate_loan(
+def export_simulate_loan(
     input_data: LoanSimulationInput,
     file_format: str = Query("csv", pattern="^(csv|xlsx)$", alias="format"),
 ) -> StreamingResponse:
     """Export loan simulation (SAC/PRICE) to CSV or XLSX."""
-    result = await simulate_loan(input_data)
+    loan_value = input_data.property_value - input_data.down_payment
+
+    annual_rate = input_data.annual_interest_rate
+    monthly_rate = input_data.monthly_interest_rate
+    if annual_rate is None and monthly_rate is None:
+        raise ValueError(
+            "Either annual_interest_rate or monthly_interest_rate must be provided"
+        )
+
+    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
+    term_months = input_data.loan_term_years * 12
+
+    if input_data.loan_type == "SAC":
+        result = simulate_sac_loan(
+            loan_value,
+            term_months,
+            monthly_rate,
+            input_data.amortizations,
+            input_data.inflation_rate,
+        )
+    else:
+        result = simulate_price_loan(
+            loan_value,
+            term_months,
+            monthly_rate,
+            input_data.amortizations,
+            input_data.inflation_rate,
+        )
     rows = [
         {
             "month": inst.month,
@@ -77,7 +106,7 @@ async def export_simulate_loan(
         for inst in result.installments
     ]
     df = pd.DataFrame(rows)
-    meta = {
+    meta: dict[str, object] = {
         "loan_value": result.loan_value,
         "total_paid": result.total_paid,
         "total_interest_paid": result.total_interest_paid,
@@ -90,23 +119,60 @@ async def export_simulate_loan(
 
 
 @router.post("/api/compare-scenarios/export")
-async def export_compare_scenarios(
+def export_compare_scenarios(
     input_data: ComparisonInput,
     file_format: str = Query("csv", pattern="^(csv|xlsx)$", alias="format"),
     shape: str = Query("long", pattern="^(long|wide)$"),
 ) -> StreamingResponse:
     """Export basic scenario comparison."""
-    result = await compare_housing_scenarios(input_data)
+    annual_rate = input_data.annual_interest_rate
+    monthly_rate = input_data.monthly_interest_rate
+    if annual_rate is None and monthly_rate is None:
+        raise ValueError(
+            "Either annual_interest_rate or monthly_interest_rate must be provided"
+        )
+
+    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
+
+    rent_value = input_data.rent_value
+    if rent_value is None and input_data.rent_percentage is not None:
+        rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
+    if rent_value is None:
+        raise ValueError("Either rent_value or rent_percentage must be provided")
+
+    amortizations = cast("Any", input_data.amortizations)
+    result = compare_scenarios(
+        property_value=input_data.property_value,
+        down_payment=input_data.down_payment,
+        loan_term_years=input_data.loan_term_years,
+        monthly_interest_rate=monthly_rate,
+        loan_type=input_data.loan_type,
+        rent_value=rent_value,
+        investment_returns=input_data.investment_returns,
+        amortizations=amortizations,
+        additional_costs=input_data.additional_costs,
+        inflation_rate=input_data.inflation_rate,
+        rent_inflation_rate=input_data.rent_inflation_rate,
+        property_appreciation_rate=input_data.property_appreciation_rate,
+        invest_loan_difference=input_data.invest_loan_difference,
+        fixed_monthly_investment=input_data.fixed_monthly_investment,
+        fixed_investment_start_month=input_data.fixed_investment_start_month or 1,
+        rent_reduces_investment=input_data.rent_reduces_investment,
+        monthly_external_savings=input_data.monthly_external_savings,
+        invest_external_surplus=input_data.invest_external_surplus,
+        investment_tax=input_data.investment_tax,
+        fgts=input_data.fgts,
+    )
 
     long_rows: list[dict] = []
     for sc in result.scenarios:
         for m in sc.monthly_data:
-            row = dict(m)
+            row = m.model_dump()
             row["scenario"] = sc.name
             long_rows.append(row)
 
     if not long_rows:
-        raise HTTPException(status_code=400, detail="No data to export")
+        raise ValueError("No data to export")
 
     monthly_long = pd.DataFrame(long_rows)
 
@@ -200,18 +266,55 @@ async def export_compare_scenarios(
 
 
 @router.post("/api/compare-scenarios-enhanced/export")
-async def export_compare_scenarios_enhanced(
+def export_compare_scenarios_enhanced(
     input_data: ComparisonInput,
     file_format: str = Query("csv", pattern="^(csv|xlsx)$", alias="format"),
     shape: str = Query("long", pattern="^(long|wide)$"),
 ) -> StreamingResponse:
     """Export enhanced scenario comparison (metrics + monthly data)."""
-    result = await compare_housing_scenarios_enhanced(input_data)
+    annual_rate = input_data.annual_interest_rate
+    monthly_rate = input_data.monthly_interest_rate
+    if annual_rate is None and monthly_rate is None:
+        raise ValueError(
+            "Either annual_interest_rate or monthly_interest_rate must be provided"
+        )
+
+    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
+
+    rent_value = input_data.rent_value
+    if rent_value is None and input_data.rent_percentage is not None:
+        rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
+    if rent_value is None:
+        raise ValueError("Either rent_value or rent_percentage must be provided")
+
+    amortizations = cast("Any", input_data.amortizations)
+    result = enhanced_compare_scenarios(
+        property_value=input_data.property_value,
+        down_payment=input_data.down_payment,
+        loan_term_years=input_data.loan_term_years,
+        monthly_interest_rate=monthly_rate,
+        loan_type=input_data.loan_type,
+        rent_value=rent_value,
+        investment_returns=input_data.investment_returns,
+        amortizations=amortizations,
+        additional_costs=input_data.additional_costs,
+        inflation_rate=input_data.inflation_rate,
+        rent_inflation_rate=input_data.rent_inflation_rate,
+        property_appreciation_rate=input_data.property_appreciation_rate,
+        invest_loan_difference=input_data.invest_loan_difference,
+        fixed_monthly_investment=input_data.fixed_monthly_investment,
+        fixed_investment_start_month=input_data.fixed_investment_start_month or 1,
+        rent_reduces_investment=input_data.rent_reduces_investment,
+        monthly_external_savings=input_data.monthly_external_savings,
+        invest_external_surplus=input_data.invest_external_surplus,
+        investment_tax=input_data.investment_tax,
+        fgts=input_data.fgts,
+    )
 
     long_rows: list[dict] = []
     for sc in result.scenarios:
         for m in sc.monthly_data:
-            row = dict(m)
+            row = m.model_dump()
             row["scenario"] = sc.name
             long_rows.append(row)
 
@@ -292,7 +395,7 @@ async def export_compare_scenarios_enhanced(
         if wide is not None:
             wide.to_excel(writer, index=False, sheet_name="monthly_wide")
 
-        comp = result.comparative_summary
+        comp: dict[str, dict[str, object]] = dict(result.comparative_summary)
         if isinstance(comp, dict) and all(isinstance(v, dict) for v in comp.values()):
             rows = []
             for key, data in comp.items():

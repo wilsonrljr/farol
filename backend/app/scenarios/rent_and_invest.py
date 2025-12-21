@@ -9,6 +9,7 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 
 from ..core.investment import InvestmentCalculator, InvestmentResult
 from ..core.protocols import (
@@ -33,7 +34,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     """
 
     rent_value: float = field(default=0.0)
-    investment_returns: list[InvestmentReturnLike] = field(default_factory=list)
+    investment_returns: Sequence[InvestmentReturnLike] = field(default_factory=list)
     rent_inflation_rate: float | None = field(default=None)
     property_appreciation_rate: float | None = field(default=None)
     rent_reduces_investment: bool = field(default=False)
@@ -200,7 +201,7 @@ def simulate_rent_and_invest_scenario(
     down_payment: float,
     term_months: int,
     rent_value: float,
-    investment_returns: list[InvestmentReturnLike],
+    investment_returns: Sequence[InvestmentReturnLike],
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,

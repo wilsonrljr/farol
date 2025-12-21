@@ -3,15 +3,16 @@
 Routes here are intentionally thin: parsing + calling the facade in backend.app.finance.
 """
 
-from fastapi import APIRouter, HTTPException
+from typing import Any, cast
+
+from fastapi import APIRouter
 
 from ...finance import (
-    compare_scenarios,
     convert_interest_rate,
-    enhanced_compare_scenarios,
     simulate_price_loan,
     simulate_sac_loan,
 )
+from ...scenarios.comparison import compare_scenarios, enhanced_compare_scenarios
 from ...models import (
     ComparisonInput,
     ComparisonResult,
@@ -26,7 +27,7 @@ router = APIRouter(tags=["simulations"])
 
 
 @router.post("/api/simulate-loan", response_model=LoanSimulationResult)
-async def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult:
+def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult:
     """Simulate a loan with either SAC or PRICE method."""
     loan_value = input_data.property_value - input_data.down_payment
 
@@ -34,9 +35,8 @@ async def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult
     monthly_rate = input_data.monthly_interest_rate
 
     if annual_rate is None and monthly_rate is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either annual_interest_rate or monthly_interest_rate must be provided",
+        raise ValueError(
+            "Either annual_interest_rate or monthly_interest_rate must be provided"
         )
 
     _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
@@ -62,15 +62,14 @@ async def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult
 
 
 @router.post("/api/compare-scenarios", response_model=ComparisonResult)
-async def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
+def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
     """Compare buy vs rent+invest vs invest-then-buy."""
     annual_rate = input_data.annual_interest_rate
     monthly_rate = input_data.monthly_interest_rate
 
     if annual_rate is None and monthly_rate is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either annual_interest_rate or monthly_interest_rate must be provided",
+        raise ValueError(
+            "Either annual_interest_rate or monthly_interest_rate must be provided"
         )
 
     _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
@@ -80,11 +79,9 @@ async def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonRe
         rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
 
     if rent_value is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either rent_value or rent_percentage must be provided",
-        )
+        raise ValueError("Either rent_value or rent_percentage must be provided")
 
+    amortizations = cast(Any, input_data.amortizations)
     return compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,
@@ -93,7 +90,7 @@ async def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonRe
         loan_type=input_data.loan_type,
         rent_value=rent_value,
         investment_returns=input_data.investment_returns,
-        amortizations=input_data.amortizations,
+        amortizations=amortizations,
         additional_costs=input_data.additional_costs,
         inflation_rate=input_data.inflation_rate,
         rent_inflation_rate=input_data.rent_inflation_rate,
@@ -110,15 +107,14 @@ async def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonRe
 
 
 @router.post("/api/scenario-metrics", response_model=ScenariosMetricsResult)
-async def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
+def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
     """Lightweight metrics summary without detailed monthly_data."""
     annual_rate = input_data.annual_interest_rate
     monthly_rate = input_data.monthly_interest_rate
 
     if annual_rate is None and monthly_rate is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either annual_interest_rate or monthly_interest_rate must be provided",
+        raise ValueError(
+            "Either annual_interest_rate or monthly_interest_rate must be provided"
         )
 
     _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
@@ -128,11 +124,9 @@ async def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResul
         rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
 
     if rent_value is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either rent_value or rent_percentage must be provided",
-        )
+        raise ValueError("Either rent_value or rent_percentage must be provided")
 
+    amortizations = cast(Any, input_data.amortizations)
     enhanced = enhanced_compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,
@@ -141,7 +135,7 @@ async def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResul
         loan_type=input_data.loan_type,
         rent_value=rent_value,
         investment_returns=input_data.investment_returns,
-        amortizations=input_data.amortizations,
+        amortizations=amortizations,
         additional_costs=input_data.additional_costs,
         inflation_rate=input_data.inflation_rate,
         rent_inflation_rate=input_data.rent_inflation_rate,
@@ -181,17 +175,16 @@ async def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResul
 
 
 @router.post("/api/compare-scenarios-enhanced", response_model=EnhancedComparisonResult)
-async def compare_housing_scenarios_enhanced(
+def compare_housing_scenarios_enhanced(
     input_data: ComparisonInput,
 ) -> EnhancedComparisonResult:
-    """Enhanced comparison with detailed metrics and analysis."""
+    """Compare scenarios + compute extra metrics."""
     annual_rate = input_data.annual_interest_rate
     monthly_rate = input_data.monthly_interest_rate
 
     if annual_rate is None and monthly_rate is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either annual_interest_rate or monthly_interest_rate must be provided",
+        raise ValueError(
+            "Either annual_interest_rate or monthly_interest_rate must be provided"
         )
 
     _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
@@ -201,11 +194,9 @@ async def compare_housing_scenarios_enhanced(
         rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
 
     if rent_value is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Either rent_value or rent_percentage must be provided",
-        )
+        raise ValueError("Either rent_value or rent_percentage must be provided")
 
+    amortizations = cast(Any, input_data.amortizations)
     return enhanced_compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,
@@ -214,7 +205,7 @@ async def compare_housing_scenarios_enhanced(
         loan_type=input_data.loan_type,
         rent_value=rent_value,
         investment_returns=input_data.investment_returns,
-        amortizations=input_data.amortizations,
+        amortizations=amortizations,
         additional_costs=input_data.additional_costs,
         inflation_rate=input_data.inflation_rate,
         rent_inflation_rate=input_data.rent_inflation_rate,

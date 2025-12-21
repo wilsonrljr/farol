@@ -9,6 +9,7 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
@@ -29,7 +30,7 @@ class LoanSimulator(ABC):
     loan_value: float
     term_months: int
     monthly_interest_rate: float
-    amortizations: list[AmortizationLike] | None = None
+    amortizations: Sequence[AmortizationLike] | None = None
     annual_inflation_rate: float | None = None
 
     # Internal state

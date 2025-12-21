@@ -9,13 +9,14 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from collections import defaultdict
+from collections.abc import Sequence
 
 from .inflation import apply_inflation
 from .protocols import AmortizationLike
 
 
 def preprocess_amortizations(
-    amortizations: list[AmortizationLike] | None,
+    amortizations: Sequence[AmortizationLike] | None,
     term_months: int,
     annual_inflation_rate: float | None = None,
 ) -> tuple[dict[int, float], dict[int, list[float]]]:

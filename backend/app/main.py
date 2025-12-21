@@ -16,38 +16,35 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import os
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.errors import configure_logging, install_exception_handlers
+from .api.middleware import install_request_context_middleware
 from .api.routers.exports import router as exports_router
 from .api.routers.simulations import router as simulations_router
+from .config import load_config
 
-APP_NAME = os.getenv("APP_NAME", "Farol")
-API_TITLE = os.getenv("API_TITLE", f"{APP_NAME} API")
-API_DESCRIPTION = os.getenv(
-    "API_DESCRIPTION",
-    "Plataforma Farol: simulação e planejamento financeiro (imóveis hoje; outros objetivos no futuro).",
-)
+config = load_config()
 
 app = FastAPI(
-    title=API_TITLE,
-    description=API_DESCRIPTION,
-    version="0.1.0",
+    title=config.api_title,
+    description=config.api_description,
+    version=config.version,
 )
 
 configure_logging()
 install_exception_handlers(app)
+install_request_context_middleware(app, config)
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=config.cors_allow_origins,
+    allow_credentials=config.cors_allow_credentials,
+    allow_methods=config.cors_allow_methods,
+    allow_headers=config.cors_allow_headers,
 )
 
 app.include_router(simulations_router)
@@ -56,7 +53,7 @@ app.include_router(exports_router)
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": f"{API_TITLE}", "name": APP_NAME}
+    return {"message": f"{config.api_title}", "name": config.app_name}
 
 
 if __name__ == "__main__":

@@ -420,7 +420,7 @@ class ComparisonResult(BaseModel):
 class EnhancedComparisonResult(BaseModel):
     best_scenario: str
     scenarios: list[EnhancedComparisonScenario]
-    comparative_summary: dict = Field(
+    comparative_summary: dict[str, dict[str, object]] = Field(
         ..., description="Month-by-month comparison between scenarios"
     )
 

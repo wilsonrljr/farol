@@ -9,6 +9,7 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 
 from ..core.inflation import apply_property_appreciation
 from ..core.protocols import AdditionalCostsLike, AmortizationLike, FGTSLike
@@ -33,7 +34,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
     loan_term_years: int = field(default=0)
     monthly_interest_rate: float = field(default=0.0)
     loan_type: str = field(default="SAC")
-    amortizations: list[AmortizationLike] | None = field(default=None)
+    amortizations: Sequence[AmortizationLike] | None = field(default=None)
 
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
@@ -139,8 +140,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
             # - Includes upfront additional costs once (month 1)
             if month == 1:
                 cumulative_payments += self._total_upfront_costs
-            cumulative_payments += inst.installment + monthly_additional  # type: ignore[attr-defined]
-            cumulative_interest += inst.interest  # type: ignore[attr-defined]
+            cumulative_payments += inst.installment + monthly_additional
+            cumulative_interest += inst.interest
 
             record = self._create_monthly_record(
                 inst,
@@ -168,23 +169,21 @@ class BuyScenarioSimulator(ScenarioSimulator):
         """Create a monthly record from loan installment."""
         return MonthlyRecord(
             month=month,
-            cash_flow=-(inst.installment + monthly_additional),  # type: ignore[attr-defined]
-            equity=property_value - inst.outstanding_balance,  # type: ignore[attr-defined]
-            installment=inst.installment,  # type: ignore[attr-defined]
-            principal_payment=inst.amortization,  # type: ignore[attr-defined]
-            interest_payment=inst.interest,  # type: ignore[attr-defined]
-            outstanding_balance=inst.outstanding_balance,  # type: ignore[attr-defined]
+            cash_flow=-(inst.installment + monthly_additional),
+            equity=property_value - inst.outstanding_balance,
+            installment=inst.installment,
+            principal_payment=inst.amortization,
+            interest_payment=inst.interest,
+            outstanding_balance=inst.outstanding_balance,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
             property_value=property_value,
-            total_monthly_cost=inst.installment + monthly_additional,  # type: ignore[attr-defined]
+            total_monthly_cost=inst.installment + monthly_additional,
             cumulative_payments=cumulative_payments,
             cumulative_interest=cumulative_interest,
             equity_percentage=(
-                (property_value - inst.outstanding_balance)
-                / property_value
-                * 100  # type: ignore[attr-defined]
+                (property_value - inst.outstanding_balance) / property_value * 100
                 if property_value > 0
                 else 0
             ),
@@ -234,7 +233,7 @@ def simulate_buy_scenario(
     loan_term_years: int,
     monthly_interest_rate: float,
     loan_type: str,
-    amortizations: list[AmortizationLike] | None = None,
+    amortizations: Sequence[AmortizationLike] | None = None,
     _investment_returns: object = None,  # Not used, kept for API compatibility
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,

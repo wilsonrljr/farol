@@ -10,11 +10,12 @@ the Free Software Foundation, either version 3 of the License, or
 
 import math
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 
 from ..core.amortization import preprocess_amortizations
 from ..core.costs import CostsBreakdown, calculate_additional_costs
 from ..core.inflation import apply_inflation, apply_property_appreciation
-from ..core.investment import InvestmentCalculator
+from ..core.investment import InvestmentCalculator, InvestmentResult
 from ..core.protocols import (
     AdditionalCostsLike,
     AmortizationLike,
@@ -42,7 +43,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     """
 
     rent_value: float = field(default=0.0)
-    investment_returns: list[InvestmentReturnLike] = field(default_factory=list)
+    investment_returns: Sequence[InvestmentReturnLike] = field(default_factory=list)
     rent_inflation_rate: float | None = field(default=None)
     property_appreciation_rate: float | None = field(default=None)
     invest_loan_difference: bool = field(default=False)
@@ -50,7 +51,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     fixed_investment_start_month: int = field(default=1)
     loan_type: str = field(default="SAC")
     monthly_interest_rate: float = field(default=1.0)
-    amortizations: list[AmortizationLike] | None = field(default=None)
+    amortizations: Sequence[AmortizationLike] | None = field(default=None)
     rent_reduces_investment: bool = field(default=False)
     monthly_external_savings: float | None = field(default=None)
     invest_external_surplus: bool = field(default=False)
@@ -105,7 +106,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 loan_value=loan_value,
                 term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=self.amortizations,
+                amortizations=list(self.amortizations) if self.amortizations else None,
                 annual_inflation_rate=self.inflation_rate,
             )
         else:
@@ -113,7 +114,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 loan_value=loan_value,
                 term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=self.amortizations,
+                amortizations=list(self.amortizations) if self.amortizations else None,
                 annual_inflation_rate=self.inflation_rate,
             )
 
@@ -128,7 +129,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             return
 
         fixed, percent = preprocess_amortizations(
-            self.amortizations,
+            list(self.amortizations) if self.amortizations else None,
             self.term_months,
             self.inflation_rate,
         )
@@ -200,8 +201,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
 
         # Apply investment returns
-        investment_result = self._investment_calculator.calculate_monthly_return(
-            self._investment_balance, month
+        investment_result: InvestmentResult = (
+            self._investment_calculator.calculate_monthly_return(
+                self._investment_balance, month
+            )
         )
         self._investment_balance = investment_result.new_balance
 
@@ -365,7 +368,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         current_rent: float,
         rent_result: dict[str, float],
         cashflow_result: dict[str, float],
-        investment_result: object,
+        investment_result: InvestmentResult,
         additional_investment: float,
         progress_percent: float,
         shortfall: float,
@@ -408,7 +411,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         withdrawal = (
             cashflow_result["rent_withdrawal"] if self.rent_reduces_investment else 0.0
         )
-        investment_return = investment_result.net_return  # type: ignore[attr-defined]
+        investment_return = investment_result.net_return
 
         sustainable_withdrawal_ratio = (
             (investment_return / withdrawal) if withdrawal > 0 else None
@@ -446,9 +449,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             external_surplus_invested=cashflow_result["external_surplus_invested"],
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
-            investment_return_gross=investment_result.gross_return,  # type: ignore[attr-defined]
-            investment_tax_paid=investment_result.tax_paid,  # type: ignore[attr-defined]
-            investment_return_net=investment_result.net_return,  # type: ignore[attr-defined]
+            investment_return_gross=investment_result.gross_return,
+            investment_tax_paid=investment_result.tax_paid,
+            investment_return_net=investment_result.net_return,
             fgts_balance=self.fgts_balance if self.fgts else None,
             fgts_used=fgts_used_this_month if self.fgts else 0.0,
         )
@@ -469,8 +472,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         monthly_additional = monthly_hoa + monthly_property_tax
 
         # Apply investment returns
-        investment_result = self._investment_calculator.calculate_monthly_return(
-            self._investment_balance, month
+        investment_result: InvestmentResult = (
+            self._investment_calculator.calculate_monthly_return(
+                self._investment_balance, month
+            )
         )
         self._investment_balance = investment_result.new_balance
 
@@ -623,7 +628,7 @@ def simulate_invest_then_buy_scenario(
     property_value: float,
     down_payment: float,
     term_months: int,
-    investment_returns: list[InvestmentReturnLike],
+    investment_returns: Sequence[InvestmentReturnLike],
     rent_value: float,
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
@@ -634,7 +639,7 @@ def simulate_invest_then_buy_scenario(
     fixed_investment_start_month: int = 1,
     loan_type: str = "SAC",
     monthly_interest_rate: float = 1.0,
-    amortizations: list[AmortizationLike] | None = None,
+    amortizations: Sequence[AmortizationLike] | None = None,
     rent_reduces_investment: bool = False,
     monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
