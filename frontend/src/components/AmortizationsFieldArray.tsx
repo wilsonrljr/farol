@@ -19,11 +19,24 @@ import { IconPlus, IconTrash, IconEye, IconCalendar, IconCoin } from '@tabler/ic
 import { useState, useMemo } from 'react';
 import type { AmortizationInput } from '../api/types';
 
-interface Props {
-  value: AmortizationInput[];
-  onChange: (val: AmortizationInput[]) => void;
+interface UIText {
+  configuredTitle: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  addButtonLabel: string;
+  addEmptyButtonLabel: string;
+  itemLabel: string;
+  percentageDescription: string;
+  previewTitle: string;
+  percentageFootnote: string;
+}
+
+interface Props<T extends AmortizationInput = AmortizationInput> {
+  value: T[];
+  onChange: (val: T[]) => void;
   termMonths?: number;
   inflationRate?: number | null;
+  uiText?: Partial<UIText>;
 }
 
 export default function AmortizationsFieldArray({
@@ -31,7 +44,21 @@ export default function AmortizationsFieldArray({
   onChange,
   termMonths = 360,
   inflationRate,
+  uiText,
 }: Props) {
+  const ui: UIText = {
+    configuredTitle: 'Amortizações Configuradas',
+    emptyTitle: 'Nenhuma amortização extra',
+    emptyDescription: 'Adicione pagamentos extras para reduzir o prazo ou juros',
+    addButtonLabel: 'Adicionar',
+    addEmptyButtonLabel: 'Adicionar Amortização',
+    itemLabel: 'Amortização',
+    percentageDescription: 'Percentual do saldo devedor',
+    previewTitle: 'Pré-visualização dos Pagamentos',
+    percentageFootnote: '* Valores percentuais dependem do saldo devedor.',
+    ...uiText,
+  };
+
   const [showPreview, setShowPreview] = useState(false);
 
   const previewData = useMemo(() => {
@@ -84,8 +111,8 @@ export default function AmortizationsFieldArray({
     return { nominalFixed, inflatedFixed, hasPct: pctList.length > 0 };
   }, [previewData]);
 
-  const addAmortization = () => {
-    onChange([...(value || []), { month: 12, value: 10000, value_type: 'fixed' }]);
+  const addItem = () => {
+    onChange([...(value || []), { month: 12, value: 10000, value_type: 'fixed' } as any]);
   };
 
   return (
@@ -94,7 +121,7 @@ export default function AmortizationsFieldArray({
       <Group justify="space-between">
         <Group gap="xs">
           <Text fw={600} c="sage.8">
-            Amortizações Configuradas
+            {ui.configuredTitle}
           </Text>
           <Text size="xs" c="sage.5">
             ({(value || []).length})
@@ -118,9 +145,9 @@ export default function AmortizationsFieldArray({
             variant="light"
             color="sage"
             radius="lg"
-            onClick={addAmortization}
+            onClick={addItem}
           >
-            Adicionar
+            {ui.addButtonLabel}
           </Button>
         </Group>
       </Group>
@@ -142,10 +169,10 @@ export default function AmortizationsFieldArray({
             </ThemeIcon>
             <div>
               <Text fw={500} c="sage.8">
-                Nenhuma amortização extra
+                {ui.emptyTitle}
               </Text>
               <Text size="sm" c="sage.5">
-                Adicione pagamentos extras para reduzir o prazo ou juros
+                {ui.emptyDescription}
               </Text>
             </div>
             <Button
@@ -153,9 +180,9 @@ export default function AmortizationsFieldArray({
               variant="light"
               color="sage"
               radius="lg"
-              onClick={addAmortization}
+              onClick={addItem}
             >
-              Adicionar Amortização
+              {ui.addEmptyButtonLabel}
             </Button>
           </Stack>
         </Paper>
@@ -179,7 +206,7 @@ export default function AmortizationsFieldArray({
                   <IconCalendar size={16} />
                 </ThemeIcon>
                 <Text fw={500} c="sage.8">
-                  Amortização {idx + 1}
+                  {ui.itemLabel} {idx + 1}
                 </Text>
               </Group>
               <ActionIcon
@@ -288,7 +315,7 @@ export default function AmortizationsFieldArray({
                 label={item.value_type === 'percentage' ? 'Percentual (%)' : 'Valor (R$)'}
                 description={
                   item.value_type === 'percentage'
-                    ? 'Percentual do saldo devedor'
+                    ? ui.percentageDescription
                     : 'Valor fixo por ocorrência'
                 }
                 min={0}
@@ -333,7 +360,7 @@ export default function AmortizationsFieldArray({
           }}
         >
           <Text fw={600} size="sm" c="sage.8" mb="md">
-            Pré-visualização dos Pagamentos
+            {ui.previewTitle}
           </Text>
 
           {previewData.length === 0 && (
@@ -402,7 +429,7 @@ export default function AmortizationsFieldArray({
             </div>
             {totals.hasPct && (
               <Text size="xs" c="sage.5" style={{ fontStyle: 'italic' }}>
-                * Valores percentuais dependem do saldo devedor.
+                {ui.percentageFootnote}
               </Text>
             )}
           </Group>

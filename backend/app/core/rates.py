@@ -15,7 +15,10 @@ from .protocols import InvestmentReturnLike
 # Constants for rate conversions
 MONTHS_PER_YEAR = 12
 PERCENTAGE_BASE = 100
-RATE_TOLERANCE = 0.05
+# Absolute tolerance in annual percentage points when both annual+monthly are supplied.
+# Users frequently provide rounded monthly rates (e.g. 1.00% a.m.) that correspond to
+# an annual rate (e.g. 12.68% a.a.) rather than the naive 12.00% a.a.
+RATE_TOLERANCE = 1.0
 
 
 def convert_interest_rate(

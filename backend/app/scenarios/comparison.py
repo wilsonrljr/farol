@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from ..core.protocols import (
     AdditionalCostsLike,
     AmortizationLike,
+    ContributionLike,
     FGTSLike,
     InvestmentReturnLike,
     InvestmentTaxLike,
@@ -36,6 +37,7 @@ def compare_scenarios(
     rent_value: float,
     investment_returns: Sequence[InvestmentReturnLike],
     amortizations: Sequence[AmortizationLike] | None = None,
+    contributions: Sequence[ContributionLike] | None = None,
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
@@ -60,6 +62,7 @@ def compare_scenarios(
         rent_value=rent_value,
         investment_returns=investment_returns,
         amortizations=amortizations,
+        contributions=contributions,
         additional_costs=additional_costs,
         inflation_rate=inflation_rate,
         rent_inflation_rate=rent_inflation_rate,
@@ -87,6 +90,7 @@ def _compare_scenarios_domain(
     rent_value: float,
     investment_returns: Sequence[InvestmentReturnLike],
     amortizations: Sequence[AmortizationLike] | None = None,
+    contributions: Sequence[ContributionLike] | None = None,
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
@@ -152,7 +156,8 @@ def _compare_scenarios_domain(
         fixed_investment_start_month=fixed_investment_start_month,
         loan_type=loan_type,
         monthly_interest_rate=monthly_interest_rate,
-        amortizations=amortizations,
+        loan_amortizations=amortizations,
+        contributions=contributions,
         rent_reduces_investment=rent_reduces_investment,
         monthly_external_savings=monthly_external_savings,
         invest_external_surplus=invest_external_surplus,
@@ -175,6 +180,7 @@ def enhanced_compare_scenarios(
     rent_value: float,
     investment_returns: Sequence[InvestmentReturnLike],
     amortizations: Sequence[AmortizationLike] | None = None,
+    contributions: Sequence[ContributionLike] | None = None,
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
@@ -199,6 +205,7 @@ def enhanced_compare_scenarios(
         rent_value=rent_value,
         investment_returns=investment_returns,
         amortizations=amortizations,
+        contributions=contributions,
         additional_costs=additional_costs,
         inflation_rate=inflation_rate,
         rent_inflation_rate=rent_inflation_rate,
@@ -226,6 +233,7 @@ def _enhanced_compare_scenarios_domain(
     rent_value: float,
     investment_returns: Sequence[InvestmentReturnLike],
     amortizations: Sequence[AmortizationLike] | None = None,
+    contributions: Sequence[ContributionLike] | None = None,
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
@@ -249,6 +257,7 @@ def _enhanced_compare_scenarios_domain(
         rent_value=rent_value,
         investment_returns=investment_returns,
         amortizations=amortizations,
+        contributions=contributions,
         additional_costs=additional_costs,
         inflation_rate=inflation_rate,
         rent_inflation_rate=rent_inflation_rate,
@@ -323,9 +332,8 @@ class _DomainMetricsCalculator:
     ) -> domain.ComparisonMetrics:
         """Calculate metrics for a scenario."""
         total_cost_diff = scenario.total_cost - self.best_cost
-        total_cost_pct_diff = (
-            (total_cost_diff / self.best_cost * 100) if self.best_cost else 0
-        )
+        denom = abs(self.best_cost)
+        total_cost_pct_diff = None if denom < 1e-6 else (total_cost_diff / denom * 100)
 
         monthly_costs = [_get_monthly_cost(d) for d in scenario.monthly_data]
         avg_monthly_cost = (

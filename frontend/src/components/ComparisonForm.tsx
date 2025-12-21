@@ -55,6 +55,7 @@ export default function ComparisonForm() {
       rent_percentage: null,
       investment_returns: [{ start_month: 1, end_month: null, annual_rate: 8 }],
       amortizations: [],
+      contributions: [],
       inflation_rate: 4,
       rent_inflation_rate: 5,
       property_appreciation_rate: 4,
@@ -73,6 +74,7 @@ export default function ComparisonForm() {
       },
       investment_tax: {
         enabled: false,
+        mode: "on_withdrawal",
         effective_tax_rate: 15,
       },
     },
@@ -425,6 +427,9 @@ export default function ComparisonForm() {
                   >
                     Amortizações
                   </Tabs.Tab>
+                  <Tabs.Tab value="aportes" leftSection={<IconCash size={16} />}>
+                    Aportes
+                  </Tabs.Tab>
                 </Tabs.List>
 
                 <Tabs.Panel value="inflacao" pt="md">
@@ -633,16 +638,29 @@ export default function ComparisonForm() {
                     <Grid.Col span={{ base: 12, sm: 6 }}>
                       <Checkbox
                         label="Aplicar imposto sobre rendimentos"
-                        description="Aproximação simples sobre ganhos mensais"
+                        description="Se ligado, aplica IR conforme o modo escolhido"
                         {...form.getInputProps("investment_tax.enabled", {
                           type: "checkbox",
                         })}
                       />
                     </Grid.Col>
                     <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Select
+                        label="Modo de tributação"
+                        description="Mensal (aproximação) ou no resgate (mais realista)"
+                        data={[
+                          { value: "on_withdrawal", label: "No resgate (ganho realizado)" },
+                          { value: "monthly", label: "Mensal (aproximação simples)" },
+                        ]}
+                        {...form.getInputProps("investment_tax.mode")}
+                        disabled={!form.values.investment_tax?.enabled}
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
                       <NumberInput
                         label="Alíquota efetiva"
-                        description="Percentual sobre rendimentos"
+                        description="Percentual sobre ganho (modo mensal/no resgate)"
                         placeholder="15"
                         {...form.getInputProps(
                           "investment_tax.effective_tax_rate",
@@ -669,6 +687,28 @@ export default function ComparisonForm() {
                     }
                     inflationRate={form.values.inflation_rate || undefined}
                     termMonths={form.values.loan_term_years * 12}
+                  />
+                </Tabs.Panel>
+
+                <Tabs.Panel value="aportes" pt="md">
+                  <AmortizationsFieldArray
+                    value={form.values.contributions || []}
+                    onChange={(v: any) => form.setFieldValue("contributions", v)}
+                    inflationRate={form.values.inflation_rate || undefined}
+                    termMonths={form.values.loan_term_years * 12}
+                    uiText={{
+                      configuredTitle: "Aportes Configurados",
+                      emptyTitle: "Nenhum aporte programado",
+                      emptyDescription:
+                        "Adicione aportes extras para acelerar a compra à vista",
+                      addButtonLabel: "Adicionar",
+                      addEmptyButtonLabel: "Adicionar Aporte",
+                      itemLabel: "Aporte",
+                      percentageDescription: "Percentual do saldo investido",
+                      previewTitle: "Pré-visualização dos Aportes",
+                      percentageFootnote:
+                        "* Valores percentuais dependem do saldo investido.",
+                    }}
                   />
                 </Tabs.Panel>
               </Tabs>

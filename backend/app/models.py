@@ -50,6 +50,10 @@ class AmortizationInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_recurrence(self) -> "AmortizationInput":
+        # Backward compatibility: treat null value_type as fixed.
+        if self.value_type is None:
+            self.value_type = "fixed"
+
         if self.month is not None and self.month < 1:
             raise ValueError("month must be >= 1")
         if self.end_month is not None and self.end_month < 1:
@@ -64,6 +68,73 @@ class AmortizationInput(BaseModel):
             )
         if self.interval_months is not None and self.interval_months <= 0:
             raise ValueError("interval_months must be positive")
+
+        if self.value < 0:
+            raise ValueError("value must be >= 0")
+        if self.value_type == "percentage" and self.value > 100:
+            raise ValueError("percentage value must be <= 100")
+
+        return self
+
+
+class ContributionInput(BaseModel):
+    """Scheduled contributions (aportes) used by the invest-then-buy scenario.
+
+    This intentionally mirrors the recurrence fields of AmortizationInput, but the
+    semantics are different:
+    - fixed: fixed currency deposit into the investment account
+    - percentage: percentage of the current investment balance (not loan balance)
+    """
+
+    month: int | None = Field(
+        None, description="Month when the contribution occurs (for single events)"
+    )
+    value: float = Field(
+        ..., description="Contribution value or percentage depending on value_type"
+    )
+    end_month: int | None = Field(
+        None, description="Last month (inclusive) for recurring contributions"
+    )
+    interval_months: int | None = Field(
+        None, description="Interval in months for recurrence (e.g. 12 for annual)"
+    )
+    occurrences: int | None = Field(
+        None, description="Number of occurrences (alternative to end_month)"
+    )
+    value_type: Literal["fixed", "percentage"] | None = Field(
+        "fixed",
+        description="Whether value is fixed currency or percentage of investment balance",
+    )
+    inflation_adjust: bool | None = Field(
+        False,
+        description="If true, fixed values are inflation-adjusted from the first occurrence month",
+    )
+
+    @model_validator(mode="after")
+    def validate_recurrence(self) -> "ContributionInput":
+        if self.value_type is None:
+            self.value_type = "fixed"
+
+        if self.month is not None and self.month < 1:
+            raise ValueError("month must be >= 1")
+        if self.end_month is not None and self.end_month < 1:
+            raise ValueError("end_month must be >= 1")
+        if self.occurrences is not None and self.end_month is not None:
+            raise ValueError(
+                "Provide either occurrences or end_month for recurring contribution, not both"
+            )
+        if self.interval_months is None and (self.occurrences or self.end_month):
+            raise ValueError(
+                "interval_months must be set when occurrences or end_month are provided"
+            )
+        if self.interval_months is not None and self.interval_months <= 0:
+            raise ValueError("interval_months must be positive")
+
+        if self.value < 0:
+            raise ValueError("value must be >= 0")
+        if self.value_type == "percentage" and self.value > 100:
+            raise ValueError("percentage value must be <= 100")
+
         return self
 
 
@@ -89,6 +160,13 @@ class InvestmentTaxInput(BaseModel):
     enabled: bool = Field(
         False,
         description="If true, applies an effective tax rate over monthly investment returns (approximation).",
+    )
+    mode: Literal["monthly", "on_withdrawal"] = Field(
+        "on_withdrawal",
+        description=(
+            "Taxation mode. 'on_withdrawal' is closer to Brazilian practice (tax on realized gains when selling/rescuing). "
+            "'monthly' keeps the previous simplified behavior (tax each month on positive returns)."
+        ),
     )
     effective_tax_rate: float = Field(
         15.0,
@@ -179,6 +257,12 @@ class MonthlyRecord(BaseModel):
     external_surplus_invested: float | None = None
     sustainable_withdrawal_ratio: float | None = None
     burn_month: bool | None = None
+
+    # Withdrawals (for tax-on-withdrawal mode)
+    investment_withdrawal_gross: float | None = None
+    investment_withdrawal_net: float | None = None
+    investment_withdrawal_realized_gain: float | None = None
+    investment_withdrawal_tax_paid: float | None = None
 
     # New: Investment tax (approximation)
     investment_return_gross: float | None = None
@@ -281,6 +365,13 @@ class ComparisonInput(BaseModel):
     )
     amortizations: list[AmortizationInput] | None = Field(
         None, description="Extra amortizations"
+    )
+    contributions: list[ContributionInput] | None = Field(
+        None,
+        description=(
+            "Scheduled investment contributions (aportes) for the invest-then-buy scenario. "
+            "Use this instead of amortizations; amortizations are reserved for extra loan prepayments."
+        ),
     )
     additional_costs: AdditionalCostsInput | None = Field(
         None, description="Additional costs like ITBI, deed, HOA, property tax"
@@ -416,8 +507,12 @@ class ComparisonMetrics(BaseModel):
     total_cost_difference: float = Field(
         ..., description="Difference from best scenario"
     )
-    total_cost_percentage_difference: float = Field(
-        ..., description="Percentage difference from best scenario"
+    total_cost_percentage_difference: float | None = Field(
+        None,
+        description=(
+            "Percentage difference from best scenario. Can be null when the best scenario cost is ~0, "
+            "to avoid meaningless huge percentages."
+        ),
     )
     break_even_month: int | None = Field(
         None, description="Month when this scenario becomes profitable"

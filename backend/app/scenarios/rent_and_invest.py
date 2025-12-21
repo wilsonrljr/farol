@@ -11,7 +11,7 @@ the Free Software Foundation, either version 3 of the License, or
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from ..core.investment import InvestmentCalculator, InvestmentResult
+from ..core.investment import InvestmentAccount, InvestmentResult
 from ..core.protocols import (
     AdditionalCostsLike,
     FGTSLike,
@@ -48,9 +48,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     initial_investment: float = field(default=0.0)
 
     # Internal state
-    _investment_balance: float = field(init=False)
+    _account: InvestmentAccount = field(init=False)
     _total_rent_paid: float = field(init=False, default=0.0)
-    _investment_calculator: InvestmentCalculator = field(init=False)
 
     @property
     def scenario_name(self) -> str:
@@ -62,13 +61,14 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         super().__post_init__()
         if self.term_months <= 0:
             raise ValueError("term_months must be > 0")
-        # Investment balance starts with down payment plus any additional initial capital
-        self._investment_balance = self.down_payment + self.initial_investment
-        self._total_rent_paid = 0.0
-        self._investment_calculator = InvestmentCalculator(
+        initial_balance = self.down_payment + self.initial_investment
+        self._account = InvestmentAccount(
             investment_returns=self.investment_returns,
             investment_tax=self.investment_tax,
+            balance=initial_balance,
+            principal=initial_balance,
         )
+        self._total_rent_paid = 0.0
 
     def simulate(self) -> ComparisonScenario:
         """Run the rent and invest simulation (API model)."""
@@ -93,14 +93,11 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_monthly_cost = current_rent
         self._total_rent_paid += total_monthly_cost
 
-        # Process cashflows
+        # Process cashflows (external cover, optional investing surplus, optional withdrawal)
         cashflow_result = self._process_monthly_cashflows(total_monthly_cost)
 
         # Apply investment returns
-        investment_result = self._investment_calculator.calculate_monthly_return(
-            self._investment_balance, month
-        )
-        self._investment_balance = investment_result.new_balance
+        investment_result = self._account.apply_monthly_return(month)
 
         return self._create_monthly_record(
             month=month,
@@ -118,12 +115,50 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_monthly_cost: float,
     ) -> dict[str, float]:
         """Process monthly cashflows including external savings and rent withdrawal."""
-        return self._apply_rent_cashflows(
-            total_monthly_cost=total_monthly_cost,
-            rent_reduces_investment=self.rent_reduces_investment,
-            monthly_external_savings=self.monthly_external_savings,
-            invest_external_surplus=self.invest_external_surplus,
-        )
+        rent_withdrawal = 0.0
+        external_cover = 0.0
+        external_surplus_invested = 0.0
+        withdrawal_gross = 0.0
+        withdrawal_tax_paid = 0.0
+        withdrawal_realized_gain = 0.0
+
+        remaining_before_return = self._account.balance
+
+        if self.rent_reduces_investment:
+            cost_remaining = total_monthly_cost
+
+            if self.monthly_external_savings and self.monthly_external_savings > 0:
+                external_cover = min(cost_remaining, self.monthly_external_savings)
+                cost_remaining -= external_cover
+
+                surplus = self.monthly_external_savings - external_cover
+                if surplus > 0 and self.invest_external_surplus:
+                    self._account.deposit(surplus)
+                    external_surplus_invested = surplus
+
+            withdrawal = self._account.withdraw_net(cost_remaining)
+            rent_withdrawal = withdrawal.net_cash
+            withdrawal_gross = withdrawal.gross_withdrawal
+            withdrawal_tax_paid = withdrawal.tax_paid
+            withdrawal_realized_gain = withdrawal.realized_gain
+            remaining_before_return = self._account.balance
+
+        elif self.invest_external_surplus and self.monthly_external_savings:
+            if self.monthly_external_savings > 0:
+                self._account.deposit(self.monthly_external_savings)
+                external_surplus_invested = self.monthly_external_savings
+                remaining_before_return = self._account.balance
+
+        return {
+            "rent_withdrawal": rent_withdrawal,
+            "external_cover": external_cover,
+            "external_surplus_invested": external_surplus_invested,
+            "remaining_before_return": remaining_before_return,
+            "investment_withdrawal_gross": withdrawal_gross,
+            "investment_withdrawal_net": rent_withdrawal,
+            "investment_withdrawal_realized_gain": withdrawal_realized_gain,
+            "investment_withdrawal_tax_paid": withdrawal_tax_paid,
+        }
 
     def _create_monthly_record(
         self,
@@ -159,7 +194,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         return DomainMonthlyRecord(
             month=month,
             cash_flow=-total_monthly_cost,
-            investment_balance=self._investment_balance,
+            investment_balance=self._account.balance,
             investment_return=investment_return,
             rent_paid=current_rent,
             monthly_hoa=monthly_hoa,
@@ -168,25 +203,15 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             property_value=self.property_value,
             total_monthly_cost=total_monthly_cost,
             cumulative_rent_paid=self._total_rent_paid,
-            cumulative_investment_gains=self._investment_balance
-            - self.down_payment
-            - self.initial_investment,
+            cumulative_investment_gains=(self._account.balance - self._account.principal),
             investment_roi_percentage=(
-                (
-                    (
-                        self._investment_balance
-                        - self.down_payment
-                        - self.initial_investment
-                    )
-                    / (self.down_payment + self.initial_investment)
-                    * 100
-                )
-                if (self.down_payment + self.initial_investment) > 0
+                ((self._account.balance - self._account.principal) / self._account.principal * 100)
+                if self._account.principal > 0
                 else 0.0
             ),
             scenario_type="rent_invest",
             equity=0.0,
-            liquid_wealth=self._investment_balance,
+            liquid_wealth=self._account.balance,
             rent_withdrawal_from_investment=withdrawal,
             remaining_investment_before_return=cashflow_result[
                 "remaining_before_return"
@@ -195,6 +220,14 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             external_surplus_invested=cashflow_result["external_surplus_invested"],
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
+            investment_withdrawal_gross=cashflow_result.get("investment_withdrawal_gross") or None,
+            investment_withdrawal_net=cashflow_result.get("investment_withdrawal_net") or None,
+            investment_withdrawal_realized_gain=(
+                cashflow_result.get("investment_withdrawal_realized_gain") or None
+            ),
+            investment_withdrawal_tax_paid=(
+                cashflow_result.get("investment_withdrawal_tax_paid") or None
+            ),
             investment_return_gross=investment_result.gross_return,
             investment_tax_paid=investment_result.tax_paid,
             investment_return_net=investment_result.net_return,
@@ -203,7 +236,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     def _build_domain_result(self) -> DomainComparisonScenario:
         """Build the final comparison scenario result (domain)."""
-        final_equity = self._investment_balance + self.fgts_balance
+        final_equity = self._account.balance + self.fgts_balance
         total_outflows = sum((d.total_monthly_cost or 0.0) for d in self._monthly_data)
         net_cost = total_outflows - final_equity
 

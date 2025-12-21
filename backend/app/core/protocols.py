@@ -26,6 +26,16 @@ class AmortizationLike(Protocol):
     inflation_adjust: bool | None
 
 
+class ContributionLike(Protocol):
+    month: int | None
+    value: float
+    end_month: int | None
+    interval_months: int | None
+    occurrences: int | None
+    value_type: str | None
+    inflation_adjust: bool | None
+
+
 class FGTSLike(Protocol):
     initial_balance: float
     monthly_contribution: float
@@ -42,4 +52,5 @@ class InvestmentReturnLike(Protocol):
 
 class InvestmentTaxLike(Protocol):
     enabled: bool
+    mode: str
     effective_tax_rate: float

@@ -71,6 +71,12 @@ class MonthlyRecord:
     sustainable_withdrawal_ratio: float | None = None
     burn_month: bool | None = None
 
+    # Withdrawals (for tax-on-withdrawal mode)
+    investment_withdrawal_gross: float | None = None
+    investment_withdrawal_net: float | None = None
+    investment_withdrawal_realized_gain: float | None = None
+    investment_withdrawal_tax_paid: float | None = None
+
     # Investment tax (approximation)
     investment_return_gross: float | None = None
     investment_tax_paid: float | None = None
@@ -99,7 +105,7 @@ class ComparisonScenario:
 @dataclass
 class ComparisonMetrics:
     total_cost_difference: float
-    total_cost_percentage_difference: float
+    total_cost_percentage_difference: float | None
     break_even_month: int | None
     roi_percentage: float
     roi_adjusted_percentage: float | None

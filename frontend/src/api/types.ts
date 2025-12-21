@@ -12,6 +12,10 @@ export interface AmortizationInput {
   inflation_adjust?: boolean; // adjust fixed values by inflation
 }
 
+// Mirrors backend ContributionInput (same recurrence fields as AmortizationInput,
+// but semantics differ: percentage is over investment balance, not loan balance).
+export interface ContributionInput extends AmortizationInput {}
+
 export interface InvestmentReturnInput {
   start_month: number;
   end_month?: number | null;
@@ -20,7 +24,8 @@ export interface InvestmentReturnInput {
 
 export interface InvestmentTaxInput {
   enabled?: boolean;
-  effective_tax_rate?: number; // percentage (effective monthly approximation)
+  mode?: 'monthly' | 'on_withdrawal';
+  effective_tax_rate?: number; // percentage
 }
 
 export interface FGTSInput {
@@ -84,6 +89,7 @@ export interface ComparisonInput {
   rent_percentage?: number | null;
   investment_returns: InvestmentReturnInput[];
   amortizations?: AmortizationInput[];
+  contributions?: ContributionInput[];
   additional_costs?: AdditionalCostsInput;
   inflation_rate?: number | null;
   rent_inflation_rate?: number | null;
@@ -156,6 +162,12 @@ export interface MonthlyRecord {
   sustainable_withdrawal_ratio?: number;
   burn_month?: boolean;
 
+  // Withdrawals (for tax-on-withdrawal mode)
+  investment_withdrawal_gross?: number;
+  investment_withdrawal_net?: number;
+  investment_withdrawal_realized_gain?: number;
+  investment_withdrawal_tax_paid?: number;
+
   // Tax (approximation)
   investment_return_gross?: number;
   investment_tax_paid?: number;
@@ -186,7 +198,7 @@ export interface ComparisonResult {
 
 export interface ComparisonMetrics {
   total_cost_difference: number;
-  total_cost_percentage_difference: number;
+  total_cost_percentage_difference: number | null;
   break_even_month: number | null;
   roi_percentage: number;
   roi_adjusted_percentage?: number | null;
