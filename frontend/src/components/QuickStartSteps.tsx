@@ -15,7 +15,7 @@ export function QuickStartSteps() {
       {steps.map(s => (
         <Card key={s.title} withBorder radius="md" padding="md" shadow="sm" style={{ position:'relative' }}>
           <Group align="flex-start" gap="sm" wrap="nowrap">
-            <ThemeIcon size={34} radius="md" variant="light" color="indigo">{s.icon}</ThemeIcon>
+            <ThemeIcon size={34} radius="md" variant="light" color="moss">{s.icon}</ThemeIcon>
             <Stack gap={4} style={{ flex:1 }}>
               <Text fw={600} size="sm">{s.title}</Text>
               <Text size="xs" c="dimmed" style={{ lineHeight:1.3 }}>{s.description}</Text>

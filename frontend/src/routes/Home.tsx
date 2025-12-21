@@ -18,16 +18,16 @@ export default function Home() {
       <Space h="xl" />
       <Title order={2} mb="md" ta="center">Recursos Principais</Title>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md" mb="xl">
-        <BadgeCard icon={<IconBuildingBank size={18} />} color="indigo" title="Financiamentos" description="Sistemas SAC e PRICE com amortizações extras." badges={["SAC", "PRICE", "Amortizações"]} />
-        <BadgeCard icon={<IconChartLine size={18} />} color="teal" title="Investimentos" description="Retornos variáveis, inflação e valorização." badges={["ROI", "Inflação", "Valorização"]} />
-        <BadgeCard icon={<IconArrowsShuffle size={18} />} color="orange" title="Comparações" description="Três estratégias lado a lado para decisão." badges={["Comprar", "Alugar", "Investir"]} />
-        <BadgeCard icon={<IconReportAnalytics size={18} />} color="grape" title="Métricas" description="Custo total, ROI, patrimônio e mais." badges={["Custo", "Equity", "Wealth"]} />
+        <BadgeCard icon={<IconBuildingBank size={18} />} color="moss" title="Financiamentos" description="Sistemas SAC e PRICE com amortizações extras." badges={["SAC", "PRICE", "Amortizações"]} />
+        <BadgeCard icon={<IconChartLine size={18} />} color="ember" title="Investimentos" description="Retornos variáveis, inflação e valorização." badges={["ROI", "Inflação", "Valorização"]} />
+        <BadgeCard icon={<IconArrowsShuffle size={18} />} color="moss" title="Comparações" description="Três estratégias lado a lado para decisão." badges={["Comprar", "Alugar", "Investir"]} />
+        <BadgeCard icon={<IconReportAnalytics size={18} />} color="sand" title="Métricas" description="Custo total, ROI, patrimônio e mais." badges={["Custo", "Equity", "Wealth"]} />
       </SimpleGrid>
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" mb="xl">
         <ScenarioSummaryCard
           title="Exemplo Custos"
           subtitle="Distribuição"
-          color="indigo"
+          color="moss"
           density="compact"
           metrics={[
             { key:'entrada', label:'Entrada', value:'R$ 100k', icon:<IconCash size={14} /> },
@@ -39,7 +39,7 @@ export default function Home() {
         <ScenarioSummaryCard
           title="Exemplo Tempo"
           subtitle="Horizonte"
-          color="teal"
+          color="ember"
           density="compact"
           metrics={[
             { key:'meses', label:'Meses', value:'360' },
@@ -51,7 +51,7 @@ export default function Home() {
         <ScenarioSummaryCard
           title="Exemplo Patrimônio"
           subtitle="Crescimento"
-          color="orange"
+          color="moss"
           density="compact"
           metrics={[
             { key:'eq', label:'Equity', value:'R$ 580k' },

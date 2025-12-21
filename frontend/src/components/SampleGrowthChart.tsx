@@ -12,7 +12,7 @@ export function SampleGrowthChart() {
         h={220}
         data={sampleData}
         dataKey="mes"
-        series={[{ name: 'Comprar', color: 'indigo.6' }, { name: 'AlugarInvestir', color: 'teal.6' }]}
+        series={[{ name: 'Comprar', color: 'moss.6' }, { name: 'AlugarInvestir', color: 'ember.6' }]}
         curveType="monotone"
       />
     </Card>

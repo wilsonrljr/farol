@@ -1,4 +1,4 @@
-import { Card, Group, Text, ThemeIcon, Stack, Progress, Badge } from '@mantine/core';
+import { Card, Group, Text, ThemeIcon, Stack, Progress, Badge, useMantineColorScheme } from '@mantine/core';
 import { ReactNode } from 'react';
 
 interface StatItem { label: string; value: string; icon?: ReactNode; tooltip?: string; accent?: string; }
@@ -13,8 +13,12 @@ interface CardWithStatsProps {
   description?: string; // small muted line at bottom
 }
 
-export function CardWithStats({ title, subtitle, stats, progress, accentColor = 'indigo', highlight, badge, description }: CardWithStatsProps) {
-  const borderStyle = highlight ? `1px solid var(--mantine-color-${accentColor}-5)` : '1px solid var(--mantine-color-dark-3)';
+export function CardWithStats({ title, subtitle, stats, progress, accentColor = 'moss', highlight, badge, description }: CardWithStatsProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === 'dark';
+  const borderStyle = highlight
+    ? `1px solid var(--mantine-color-${accentColor}-5)`
+    : `1px solid ${isDark ? 'var(--mantine-color-dark-4)' : 'var(--mantine-color-gray-3)'}`;
   return (
     <Card
       withBorder
@@ -25,10 +29,7 @@ export function CardWithStats({ title, subtitle, stats, progress, accentColor = 
         height: '100%',
         position: 'relative',
         border: borderStyle,
-        background: highlight
-          ? `linear-gradient(135deg,var(--mantine-color-${accentColor}-0), var(--mantine-color-${accentColor}-1))`
-          : 'var(--mantine-color-body)',
-        boxShadow: highlight ? '0 4px 18px -4px rgba(0,0,0,0.25)' : undefined,
+        background: highlight ? `var(--mantine-color-${accentColor}-0)` : 'var(--mantine-color-body)',
         overflow: 'hidden'
       }}
     >

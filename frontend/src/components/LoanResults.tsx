@@ -41,8 +41,8 @@ export default function LoanResults({ result, inputPayload }: { result: LoanSimu
 
   // Metrics for extremes card
   const extremesCore = [
-    { key:'primeira', label:'1ª Parc', value: money(firstInstallment.installment), icon:<IconArrowUpRight size={14} />, accentColor:'indigo' },
-    { key:'ultima', label:'Última', value: money(lastInstallment.installment), icon:<IconArrowDownRight size={14} />, accentColor:'teal' }
+    { key:'primeira', label:'1ª Parc', value: money(firstInstallment.installment), icon:<IconArrowUpRight size={14} />, accentColor:'moss' },
+    { key:'ultima', label:'Última', value: money(lastInstallment.installment), icon:<IconArrowDownRight size={14} />, accentColor:'ember' }
   ];
   const extremesExtra = [
     { key:'maiorJ', label:'Maior Juros', value: money(Math.max(...result.installments.map(i => i.interest))) },
@@ -53,14 +53,14 @@ export default function LoanResults({ result, inputPayload }: { result: LoanSimu
 
   const metaBadges: React.ReactNode[] = [];
   if (result.months_saved) {
-    metaBadges.push(<Badge key="months_saved" color="teal" variant="light">-{result.months_saved} meses</Badge>);
+    metaBadges.push(<Badge key="months_saved" color="moss" variant="light">-{result.months_saved} meses</Badge>);
   }
   if (result.total_extra_amortization) {
-    metaBadges.push(<Badge key="extra_total" color="indigo" variant="light">Extra {money(result.total_extra_amortization)}</Badge>);
+    metaBadges.push(<Badge key="extra_total" color="ember" variant="light">Extra {money(result.total_extra_amortization)}</Badge>);
   }
   if (result.actual_term_months && result.original_term_months && result.actual_term_months !== result.original_term_months) {
     const pct = ((result.original_term_months - result.actual_term_months) / result.original_term_months) * 100;
-    metaBadges.push(<Badge key="pct_saved" color="grape" variant="light">Prazo -{pct.toFixed(1)}%</Badge>);
+    metaBadges.push(<Badge key="pct_saved" color="sand" variant="light">Prazo -{pct.toFixed(1)}%</Badge>);
   }
 
   return (
@@ -90,7 +90,7 @@ export default function LoanResults({ result, inputPayload }: { result: LoanSimu
         <ScenarioSummaryCard
           title="Resumo"
           subtitle="Financiamento"
-          color="indigo"
+          color="moss"
           density={density}
           expandable={density==='comfortable'}
           expanded={!!expanded.overview}
@@ -102,7 +102,7 @@ export default function LoanResults({ result, inputPayload }: { result: LoanSimu
         <ScenarioSummaryCard
           title="Extremos"
           subtitle="Parcelas e Juros"
-          color="teal"
+          color="ember"
           density={density}
           expandable={density==='comfortable'}
           expanded={!!expanded.extremos}
@@ -120,26 +120,26 @@ export default function LoanResults({ result, inputPayload }: { result: LoanSimu
         <Tabs.Panel value="fluxo" pt="xs">
           <Paper withBorder p="sm" radius="md">
             {chartType === 'area' && (
-              <AreaChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'indigo.6'}]} curveType="monotone" />
+              <AreaChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'moss.6'}]} curveType="monotone" />
             )}
             {chartType === 'bar' && (
-              <BarChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'indigo.6'}]} />
+              <BarChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'moss.6'}]} />
             )}
             {chartType === 'line' && (
-              <LineChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'indigo.6'}]} curveType="monotone" />
+              <LineChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'moss.6'}]} curveType="monotone" />
             )}
           </Paper>
         </Tabs.Panel>
         <Tabs.Panel value="saldo" pt="xs">
           <Paper withBorder p="sm" radius="md">
             {chartType === 'area' && (
-              <AreaChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'teal.6'}]} curveType="monotone" />
+              <AreaChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'ember.6'}]} curveType="monotone" />
             )}
             {chartType === 'bar' && (
-              <BarChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'teal.6'}]} />
+              <BarChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'ember.6'}]} />
             )}
             {chartType === 'line' && (
-              <LineChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'teal.6'}]} curveType="monotone" />
+              <LineChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'ember.6'}]} curveType="monotone" />
             )}
           </Paper>
         </Tabs.Panel>

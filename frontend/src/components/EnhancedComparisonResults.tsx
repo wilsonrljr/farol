@@ -13,7 +13,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
   const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggleExpand = (name: string) => setExpanded(e => ({ ...e, [name]: !e[name] }));
-  const wealthSeries = result.scenarios.map((s) => ({ name: s.name, color: 'indigo.6' }));
   const months = new Set<number>();
   result.scenarios.forEach((s) => s.monthly_data.forEach((m) => months.add(m.month)));
   const wealthData = Array.from(months).sort((a,b)=>a-b).map((month) => {
@@ -30,9 +29,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
   const [milestonesOnly, setMilestonesOnly] = useState(false);
   const colorForProgress = (p: number) => {
     if (p >= 90) return 'green';
-    if (p >= 75) return 'teal';
-    if (p >= 50) return 'blue';
-    if (p >= 25) return 'yellow';
+    if (p >= 75) return 'moss';
+    if (p >= 50) return 'ember';
+    if (p >= 25) return 'sand';
     return 'red';
   };
 
@@ -70,7 +69,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             return b.metrics.wealth_accumulation - a.metrics.wealth_accumulation;
           });
           const best = ranked[0];
-          const palette = ['indigo','teal','orange','grape'];
+          const palette = ['moss','ember','sand','gray'];
           return result.scenarios.map((s, idx) => {
             const accent = palette[idx % palette.length];
             const interestOrRentPct = s.metrics.total_interest_or_rent_paid / (s.total_cost + s.metrics.wealth_accumulation) * 100 || 0;
@@ -85,7 +84,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               { key:'wealth', label:'Patrimônio', value: money(s.metrics.wealth_accumulation), icon:<IconTrendingUp size={14} />, accentColor:accent },
               { key:'equity', label:'Equidade', value: money(s.final_equity), icon:<IconBuildingBank size={14} />, accentColor:accent },
               { key:'roi', label:'ROI Bruto', value: percent(s.metrics.roi_percentage), icon:<IconChartLine size={14} /> },
-              ...(s.metrics.roi_adjusted_percentage != null ? [{ key:'roiAdj', label:'ROI Ajust.', value: percent(s.metrics.roi_adjusted_percentage), icon:<IconChartLine size={14} />, accentColor:'teal' }] : []),
+              ...(s.metrics.roi_adjusted_percentage != null ? [{ key:'roiAdj', label:'ROI Ajust.', value: percent(s.metrics.roi_adjusted_percentage), icon:<IconChartLine size={14} />, accentColor:'moss' }] : []),
               { key:'custo', label:'Custo', value: money(s.total_cost), icon:<IconCash size={14} /> }
             ];
             if (anyWithdrawal) {
@@ -97,12 +96,12 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 coreMetrics.push({ key:'burns', label:'Meses Burn', value: String(s.metrics.months_with_burn), icon:<IconArrowDownRight size={14} />, accentColor:'orange' });
               }
               if (s.metrics.average_sustainable_withdrawal_ratio != null) {
-                coreMetrics.push({ key:'sust', label:'Rend/Ret', value: (s.metrics.average_sustainable_withdrawal_ratio).toFixed(2)+'x', icon:<IconTrendingUp size={14} />, accentColor:'teal' });
+                coreMetrics.push({ key:'sust', label:'Rend/Ret', value: (s.metrics.average_sustainable_withdrawal_ratio).toFixed(2)+'x', icon:<IconTrendingUp size={14} />, accentColor:'moss' });
               }
             }
             const deltaMetrics = [
-              { key:'deltaW', label:'Δ Patrimônio', value: wealthDeltaLabel, icon: wealthDelta > 0 ? <IconArrowUpRight size={14} /> : wealthDelta < 0 ? <IconArrowDownRight size={14} /> : <IconMedal size={14} />, accentColor: wealthDelta > 0 ? 'teal' : wealthDelta < 0 ? 'red' : accent },
-              { key:'deltaC', label:'Δ Custo', value: costDeltaLabel, icon: costDelta < 0 ? <IconArrowDownRight size={14} /> : costDelta > 0 ? <IconArrowUpRight size={14} /> : <IconMedal size={14} />, accentColor: costDelta < 0 ? 'teal' : costDelta > 0 ? 'red' : accent }
+              { key:'deltaW', label:'Δ Patrimônio', value: wealthDeltaLabel, icon: wealthDelta > 0 ? <IconArrowUpRight size={14} /> : wealthDelta < 0 ? <IconArrowDownRight size={14} /> : <IconMedal size={14} />, accentColor: wealthDelta > 0 ? 'moss' : wealthDelta < 0 ? 'red' : accent },
+              { key:'deltaC', label:'Δ Custo', value: costDeltaLabel, icon: costDelta < 0 ? <IconArrowDownRight size={14} /> : costDelta > 0 ? <IconArrowUpRight size={14} /> : <IconMedal size={14} />, accentColor: costDelta < 0 ? 'moss' : costDelta > 0 ? 'red' : accent }
             ];
             const otherMetrics = [
               { key:'avg', label:'Mensal', value: money(s.metrics.average_monthly_cost) },
@@ -137,13 +136,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         <Tabs.Panel value="wealth" pt="xs">
           <Paper withBorder p="sm" radius="md">
             {chartType === 'area' && (
-              <AreaChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['indigo.6','teal.6','orange.6'][i%3] }))} curveType="monotone" />
+              <AreaChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['moss.6','ember.6','gray.6'][i%3] }))} curveType="monotone" />
             )}
             {chartType === 'bar' && (
-              <BarChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['indigo.6','teal.6','orange.6'][i%3] }))} />
+              <BarChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['moss.6','ember.6','gray.6'][i%3] }))} />
             )}
             {chartType === 'line' && (
-              <LineChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['indigo.6','teal.6','orange.6'][i%3] }))} curveType="monotone" />
+              <LineChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['moss.6','ember.6','gray.6'][i%3] }))} curveType="monotone" />
             )}
           </Paper>
         </Tabs.Panel>
@@ -168,7 +167,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         {purchaseMonth ? `Comprado (mês ${purchaseMonth})` : 'Ainda não comprado'}
                       </Badge>
                       {!purchaseMonth && projected && (
-                        <Badge color="blue" variant="light">Prev. compra: mês {projected}</Badge>
+                        <Badge color="sand" variant="light">Prev. compra: mês {projected}</Badge>
                       )}
                       <Badge color={colorForProgress(progress)} variant="light">
                         Progresso {progress.toFixed(1)}%
@@ -182,7 +181,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     </Group>
                   </Group>
                   {!purchaseMonth && first?.estimated_months_remaining != null && (
-                    <Alert color="blue" variant="light" radius="md" title="Projeção">
+                    <Alert color="sand" variant="light" radius="md" title="Projeção">
                       Estimativa de meses restantes: {first.estimated_months_remaining ?? '—'}
                     </Alert>
                   )}
@@ -211,9 +210,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     <Table.Tbody>
                       {rows.slice(0, 600).map((m: any) => {
                         const purchase = m.status === 'Imóvel comprado';
-                        const phaseColor = m.phase === 'pre_purchase' ? 'var(--mantine-color-yellow-light)' : undefined;
+                        const phaseColor = m.phase === 'pre_purchase' ? 'var(--mantine-color-sand-1)' : undefined;
                         const style: React.CSSProperties = {
-                          background: purchase ? 'var(--mantine-color-green-light)' : phaseColor,
+                          background: purchase ? 'var(--mantine-color-moss-1)' : phaseColor,
                           fontWeight: m.is_milestone ? 500 : 400,
                         };
                         return (
@@ -240,9 +239,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               </Paper>
               {isInvestBuy && (
                 <Group gap="xs" mt="xs" wrap="wrap" fz="xs">
-                  <Badge color="yellow" variant="light">Pré-compra</Badge>
-                  <Badge color="green" variant="light">Mês de compra / Pós-compra</Badge>
-                  <Badge color="blue" variant="outline">Linha em negrito = marco</Badge>
+                  <Badge color="sand" variant="light">Pré-compra</Badge>
+                  <Badge color="moss" variant="light">Mês de compra / Pós-compra</Badge>
+                  <Badge color="sand" variant="outline">Linha em negrito = marco</Badge>
                 </Group>
               )}
             </Tabs.Panel>

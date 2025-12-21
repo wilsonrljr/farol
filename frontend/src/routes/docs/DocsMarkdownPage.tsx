@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader, Paper, ScrollArea, Text } from '@mantine/core';
+import { Loader, Paper, ScrollArea, Text, TypographyStylesProvider } from '@mantine/core';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -35,7 +35,9 @@ export function DocsMarkdownPage({ doc }: Props) {
   return (
     <ScrollArea h="75vh">
       <Paper p="md" withBorder>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        <TypographyStylesProvider>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        </TypographyStylesProvider>
       </Paper>
     </ScrollArea>
   );

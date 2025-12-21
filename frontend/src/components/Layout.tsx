@@ -1,5 +1,6 @@
-import { ReactNode, useState } from 'react';
-import { AppShell, Group, Burger, Button, useMantineColorScheme, ActionIcon, Text, Drawer, Stack, ThemeIcon } from '@mantine/core';
+import { ReactNode } from 'react';
+import { AppShell, Group, Burger, useMantineColorScheme, ActionIcon, Text, NavLink, ScrollArea, Stack } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { Link, useLocation } from 'react-router-dom';
 import { IconSun, IconMoon, IconHome, IconCalculator, IconArrowsShuffle, IconInfoCircle } from '@tabler/icons-react';
 
@@ -12,57 +13,59 @@ const links = [
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const [opened, setOpened] = useState(false);
+  const [opened, { toggle, close }] = useDisclosure(false);
   const { setColorScheme, colorScheme } = useMantineColorScheme();
   const location = useLocation();
 
+  const isActive = (to: string) => {
+    if (to === '/') return location.pathname === '/';
+    return location.pathname === to || location.pathname.startsWith(to + '/');
+  };
+
   return (
-    <AppShell header={{ height: 60 }} padding="md">
+    <AppShell
+      header={{ height: 64 }}
+      navbar={{ width: 280, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      padding="md"
+    >
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group gap="sm">
-            <Burger opened={opened} onClick={() => setOpened(true)} hiddenFrom="sm" size="sm" aria-label="Abrir menu" />
-            <Text fw={700}>Farol</Text>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap">
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Abrir menu" />
+            <div>
+              <Text fw={800} lh={1.1}>Farol</Text>
+              <Text size="xs" c="dimmed" lh={1.2}>Simulador financeiro imobiliário</Text>
+            </div>
           </Group>
-          <Group visibleFrom="sm" gap="xs">
-            {links.map((l) => (
-              <Button
-                key={l.to}
-                leftSection={l.icon}
-                variant={location.pathname === l.to ? 'filled' : 'subtle'}
-                component={Link}
-                to={l.to}
-                size="xs"
-              >
-                {l.label}
-              </Button>
-            ))}
-            <ActionIcon variant="subtle" onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')} aria-label="Alternar tema">
-              {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-            </ActionIcon>
-          </Group>
-          <ActionIcon hiddenFrom="sm" variant="subtle" onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')} aria-label="Alternar tema">
+          <ActionIcon
+            variant="subtle"
+            onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
+            aria-label="Alternar tema"
+          >
             {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
           </ActionIcon>
         </Group>
       </AppShell.Header>
-      <Drawer opened={opened} onClose={() => setOpened(false)} title="Navegação" padding="md" size="xs">
-        <Stack gap="xs">
-          {links.map((l) => (
-            <Button
-              key={l.to}
-              leftSection={<ThemeIcon size={20} variant="light" radius="sm">{l.icon}</ThemeIcon>}
-              justify="flex-start"
-              variant={location.pathname === l.to ? 'light' : 'subtle'}
-              component={Link}
-              to={l.to}
-              onClick={() => setOpened(false)}
-            >
-              {l.label}
-            </Button>
-          ))}
-        </Stack>
-      </Drawer>
+
+      <AppShell.Navbar p="sm">
+        <AppShell.Section component={ScrollArea} scrollbarSize={6} offsetScrollbars grow>
+          <Stack gap={4}>
+            {links.map((l) => (
+              <NavLink
+                key={l.to}
+                label={l.label}
+                leftSection={l.icon}
+                component={Link}
+                to={l.to}
+                active={isActive(l.to)}
+                onClick={close}
+                variant="subtle"
+              />
+            ))}
+          </Stack>
+        </AppShell.Section>
+      </AppShell.Navbar>
+
       <AppShell.Main style={{ scrollBehavior: 'smooth' }}>{children}</AppShell.Main>
     </AppShell>
   );

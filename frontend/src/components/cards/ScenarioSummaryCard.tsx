@@ -1,4 +1,4 @@
-import { Card, Group, Stack, Text, Badge, ThemeIcon, Grid, Tooltip, ActionIcon } from '@mantine/core';
+import { Card, Group, Stack, Text, Badge, ThemeIcon, Grid, Tooltip, ActionIcon, useMantineColorScheme } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { ReactNode } from 'react';
 
@@ -34,12 +34,14 @@ export function ScenarioSummaryCard({
   metrics,
   allMetrics,
   footer,
-  color = 'indigo',
+  color = 'moss',
   density = 'comfortable',
   expandable = false,
   expanded = false,
   onToggle
 }: ScenarioSummaryCardProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === 'dark';
   const showMetrics = expandable && !expanded ? metrics : (allMetrics || metrics);
   // Always use 2 columns in comfortable mode per user request (avoid switching to 3 when expanded)
   const cols = 2;
@@ -51,16 +53,24 @@ export function ScenarioSummaryCard({
       shadow={highlight ? 'lg' : 'sm'}
       style={{
         position: 'relative',
-        background: highlight
-          ? `linear-gradient(145deg,var(--mantine-color-${color}-0),var(--mantine-color-${color}-1))`
-          : 'var(--mantine-color-body)',
-        border: highlight ? `1px solid var(--mantine-color-${color}-4)` : '1px solid var(--mantine-color-dark-3)',
+        background: highlight ? `var(--mantine-color-${color}-0)` : 'var(--mantine-color-body)',
+        border: highlight
+          ? `1px solid var(--mantine-color-${color}-4)`
+          : `1px solid ${isDark ? 'var(--mantine-color-dark-4)' : 'var(--mantine-color-gray-3)'}`,
         minHeight: density === 'compact' ? (expanded ? 220 : 170) : (expanded ? 260 : 185),
         display: 'flex',
         flexDirection: 'column'
       }}
     >
-      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 'inherit', boxShadow: highlight ? `0 0 0 1px var(--mantine-color-${color}-4), 0 6px 22px -6px rgba(0,0,0,0.25)` : undefined }} />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          borderRadius: 'inherit',
+          boxShadow: highlight ? `0 0 0 1px var(--mantine-color-${color}-4)` : undefined,
+        }}
+      />
       <Stack gap={6} mb={4} style={{ flex: '0 0 auto' }}>
         <Group gap={8} align="center" justify="space-between" wrap="nowrap">
           <Group gap={8} align="center">

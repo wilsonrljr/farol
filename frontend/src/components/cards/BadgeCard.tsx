@@ -1,4 +1,4 @@
-import { Card, Image, Text, Badge, Group, Stack, useMantineTheme, ThemeIcon } from '@mantine/core';
+import { Card, Image, Text, Badge, Group, Stack, ThemeIcon, useMantineColorScheme } from '@mantine/core';
 import { ReactNode } from 'react';
 
 interface BadgeCardProps {
@@ -8,29 +8,20 @@ interface BadgeCardProps {
   image?: string;
   footer?: ReactNode;
   icon?: ReactNode;
-  color?: string; // mantine color or gradient start
+  color?: string; // mantine color name
 }
 
-export function BadgeCard({ title, description, badges, image, footer, icon, color = 'indigo' }: BadgeCardProps) {
-  const theme = useMantineTheme();
-  // Mantine v7 exposes resolved color scheme via data attributes; fallback to light
-  const isDark = document?.documentElement?.getAttribute('data-mantine-color-scheme') === 'dark';
+export function BadgeCard({ title, description, badges, image, footer, icon, color = 'moss' }: BadgeCardProps) {
+  const { colorScheme } = useMantineColorScheme();
+  const isDark = colorScheme === 'dark';
   return (
     <Card
       withBorder
       radius="md"
       padding="md"
       shadow="sm"
-      style={{ position: 'relative', height: '100%', overflow: 'hidden' }}
+      style={{ position: 'relative', height: '100%', overflow: 'hidden', borderTop: `3px solid var(--mantine-color-${color}-6)` }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: `linear-gradient(135deg, ${theme.colors[color]?.[6] || theme.colors.indigo[6]}11 0%, transparent 60%)`,
-          pointerEvents: 'none'
-        }}
-      />
       {image && <Image src={image} h={120} radius="sm" alt={title} fit="cover" mb="sm" />}
       <Stack gap={4} mb="xs">
         <Group gap={6}>
