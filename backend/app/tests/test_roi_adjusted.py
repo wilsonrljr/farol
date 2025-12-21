@@ -1,13 +1,5 @@
-import sys, os
-import math
-
-# Add backend root to path (mirroring other tests style)
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-
-from app.finance import enhanced_compare_scenarios  # type: ignore
-from app.models import InvestmentReturnInput  # type: ignore
+from app.finance import enhanced_compare_scenarios
+from app.models import InvestmentReturnInput
 
 
 def test_roi_adjusted_present_when_withdrawals():
@@ -19,7 +11,9 @@ def test_roi_adjusted_present_when_withdrawals():
         monthly_interest_rate=0.8,
         loan_type="PRICE",
         rent_value=2500.0,  # ensure rent drawdowns significant vs returns
-        investment_returns=[InvestmentReturnInput(start_month=1, end_month=None, annual_rate=6.0)],
+        investment_returns=[
+            InvestmentReturnInput(start_month=1, end_month=None, annual_rate=6.0)
+        ],
         amortizations=None,
         additional_costs=None,
         inflation_rate=None,
@@ -37,7 +31,10 @@ def test_roi_adjusted_present_when_withdrawals():
     metrics = rent_scenario.metrics
 
     # Should have withdrawals
-    assert metrics.total_rent_withdrawn_from_investment and metrics.total_rent_withdrawn_from_investment > 0
+    assert (
+        metrics.total_rent_withdrawn_from_investment
+        and metrics.total_rent_withdrawn_from_investment > 0
+    )
     # Adjusted ROI should be higher than gross ROI due to adding back withdrawals
     assert metrics.roi_adjusted_percentage is not None
     assert metrics.roi_adjusted_percentage > metrics.roi_percentage
@@ -52,7 +49,9 @@ def test_roi_adjusted_absent_without_withdrawals():
         monthly_interest_rate=0.8,
         loan_type="PRICE",
         rent_value=800.0,  # small rent, returns should cover or no withdrawals if rent_reduces_investment False
-        investment_returns=[InvestmentReturnInput(start_month=1, end_month=None, annual_rate=10.0)],
+        investment_returns=[
+            InvestmentReturnInput(start_month=1, end_month=None, annual_rate=10.0)
+        ],
         amortizations=None,
         additional_costs=None,
         inflation_rate=None,

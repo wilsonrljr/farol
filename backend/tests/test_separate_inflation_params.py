@@ -1,5 +1,7 @@
 """Integration test for separate rent & general inflation (from `test_separate_inflation.py`)."""
+
 from fastapi.testclient import TestClient
+
 from backend.app.main import app
 
 client = TestClient(app)

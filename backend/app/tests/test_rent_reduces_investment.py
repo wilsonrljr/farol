@@ -1,5 +1,5 @@
 from backend.app.finance import simulate_rent_and_invest_scenario
-from backend.app.models import InvestmentReturnInput, AdditionalCostsInput
+from backend.app.models import AdditionalCostsInput, InvestmentReturnInput
 
 
 def test_rent_does_not_reduce_when_flag_false():

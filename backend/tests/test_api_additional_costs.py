@@ -2,7 +2,9 @@
 
 Replaces root script `test_api_additional_costs.py` using TestClient instead of real HTTP calls.
 """
+
 from fastapi.testclient import TestClient
+
 from backend.app.main import app
 
 client = TestClient(app)

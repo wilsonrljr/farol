@@ -16,29 +16,29 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import List, Dict, Optional, Tuple
-from collections import defaultdict
 import math
+from collections import defaultdict
+
 from .models import (
+    AdditionalCostsInput,
     AmortizationInput,
+    ComparisonMetrics,
+    ComparisonResult,
+    ComparisonScenario,
+    EnhancedComparisonResult,
+    EnhancedComparisonScenario,
+    FGTSInput,
     InvestmentReturnInput,
     InvestmentTaxInput,
-    FGTSInput,
     LoanInstallment,
     LoanSimulationResult,
-    ComparisonScenario,
-    ComparisonResult,
-    AdditionalCostsInput,
-    ComparisonMetrics,
-    EnhancedComparisonScenario,
-    EnhancedComparisonResult,
     MonthlyRecord,
 )
 
 
 def convert_interest_rate(
-    annual_rate: Optional[float] = None, monthly_rate: Optional[float] = None
-) -> Tuple[float, float]:
+    annual_rate: float | None = None, monthly_rate: float | None = None
+) -> tuple[float, float]:
     """Convert between annual and monthly interest rates."""
     if annual_rate is not None and monthly_rate is None:
         monthly_rate = ((1 + annual_rate / 100) ** (1 / 12) - 1) * 100
@@ -62,10 +62,10 @@ def convert_interest_rate(
 
 
 def preprocess_amortizations(
-    amortizations: Optional[List[AmortizationInput]],
+    amortizations: list[AmortizationInput] | None,
     term_months: int,
-    annual_inflation_rate: Optional[float] = None,
-) -> Tuple[Dict[int, float], Dict[int, List[float]]]:
+    annual_inflation_rate: float | None = None,
+) -> tuple[dict[int, float], dict[int, list[float]]]:
     """Expand and separate fixed and percentage amortizations.
 
     Returns:
@@ -75,8 +75,8 @@ def preprocess_amortizations(
     if not amortizations:
         return {}, {}
 
-    fixed_by_month: Dict[int, float] = defaultdict(float)
-    percent_by_month: Dict[int, List[float]] = defaultdict(list)
+    fixed_by_month: dict[int, float] = defaultdict(float)
+    percent_by_month: dict[int, list[float]] = defaultdict(list)
 
     for a in amortizations:
         # Determine recurrence months
@@ -115,15 +115,15 @@ def simulate_sac_loan(
     loan_value: float,
     term_months: int,
     monthly_interest_rate: float,
-    amortizations: Optional[List[AmortizationInput]] = None,
-    annual_inflation_rate: Optional[float] = None,
+    amortizations: list[AmortizationInput] | None = None,
+    annual_inflation_rate: float | None = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the SAC (Sistema de Amortização Constante) method."""
     # Convert interest rate to decimal
     monthly_rate_decimal = monthly_interest_rate / 100
 
     # Initialize variables
-    installments: List[LoanInstallment] = []
+    installments: list[LoanInstallment] = []
     outstanding_balance = loan_value
     fixed_amortization = loan_value / term_months
     total_paid = 0.0
@@ -207,8 +207,8 @@ def simulate_price_loan(
     loan_value: float,
     term_months: int,
     monthly_interest_rate: float,
-    amortizations: Optional[List[AmortizationInput]] = None,
-    annual_inflation_rate: Optional[float] = None,
+    amortizations: list[AmortizationInput] | None = None,
+    annual_inflation_rate: float | None = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the PRICE (French) method."""
     # Convert interest rate to decimal
@@ -225,7 +225,7 @@ def simulate_price_loan(
         fixed_installment = loan_value / term_months
 
     # Initialize variables
-    installments: List[LoanInstallment] = []
+    installments: list[LoanInstallment] = []
     outstanding_balance = loan_value
     total_paid = 0.0
     total_interest_paid = 0.0
@@ -305,7 +305,7 @@ def simulate_price_loan(
 
 
 def get_monthly_investment_rate(
-    investment_returns: List[InvestmentReturnInput], month: int
+    investment_returns: list[InvestmentReturnInput], month: int
 ) -> float:
     """Get the monthly investment rate for a specific month."""
     for ret in investment_returns:
@@ -321,8 +321,8 @@ def get_monthly_investment_rate(
 
 
 def calculate_additional_costs(
-    property_value: float, additional_costs: Optional[AdditionalCostsInput] = None
-) -> Dict[str, float]:
+    property_value: float, additional_costs: AdditionalCostsInput | None = None
+) -> dict[str, float]:
     """Calculate additional costs associated with property purchase."""
     if additional_costs is None:
         return {
@@ -358,7 +358,7 @@ def apply_inflation(
     value: float,
     month: int,
     base_month: int = 1,
-    annual_inflation_rate: Optional[float] = None,
+    annual_inflation_rate: float | None = None,
 ) -> float:
     """Apply inflation to a value based on the number of months passed."""
     if annual_inflation_rate is None or annual_inflation_rate == 0:
@@ -377,8 +377,8 @@ def apply_property_appreciation(
     property_value: float,
     month: int,
     base_month: int = 1,
-    property_appreciation_rate: Optional[float] = None,
-    fallback_inflation_rate: Optional[float] = None,
+    property_appreciation_rate: float | None = None,
+    fallback_inflation_rate: float | None = None,
 ) -> float:
     """Apply property appreciation to a property value based on the number of months passed."""
     # Use property appreciation rate if provided, otherwise fall back to inflation rate
@@ -396,21 +396,102 @@ def apply_property_appreciation(
     return property_value * ((1 + monthly_appreciation_rate) ** months_passed)
 
 
+def _compute_fgts_monthly_rate(fgts: FGTSInput | None) -> float:
+    if fgts and fgts.annual_yield_rate:
+        return (1 + (fgts.annual_yield_rate or 0.0) / 100) ** (1 / 12) - 1
+    return 0.0
+
+
+def _accumulate_fgts_balance(
+    fgts_balance: float, *, fgts: FGTSInput | None, fgts_monthly_rate: float
+) -> float:
+    if not fgts:
+        return fgts_balance
+    return (fgts_balance + (fgts.monthly_contribution or 0.0)) * (1 + fgts_monthly_rate)
+
+
+def _inflated_monthly_additional_costs(
+    costs: dict[str, float], *, month: int, inflation_rate: float | None
+) -> tuple[float, float, float]:
+    monthly_hoa = apply_inflation(costs["monthly_hoa"], month, 1, inflation_rate)
+    monthly_property_tax = apply_inflation(
+        costs["monthly_property_tax"], month, 1, inflation_rate
+    )
+    monthly_additional = monthly_hoa + monthly_property_tax
+    return monthly_hoa, monthly_property_tax, monthly_additional
+
+
+def _current_rent_value(
+    rent_value: float,
+    *,
+    month: int,
+    inflation_rate: float | None,
+    rent_inflation_rate: float | None,
+) -> float:
+    effective_rent_inflation = (
+        rent_inflation_rate if rent_inflation_rate is not None else inflation_rate
+    )
+    return apply_inflation(rent_value, month, 1, effective_rent_inflation)
+
+
+def _apply_investment_return_with_tax(
+    investment_balance: float,
+    *,
+    investment_returns: list[InvestmentReturnInput],
+    month: int,
+    investment_tax: InvestmentTaxInput | None,
+) -> tuple[float, float, float, float]:
+    monthly_rate = get_monthly_investment_rate(investment_returns, month)
+    investment_return_gross = investment_balance * monthly_rate
+    investment_tax_paid = 0.0
+    if investment_tax and investment_tax.enabled and investment_return_gross > 0:
+        investment_tax_paid = investment_return_gross * (
+            investment_tax.effective_tax_rate / 100.0
+        )
+    investment_return_net = investment_return_gross - investment_tax_paid
+    investment_balance += investment_return_net
+    return (
+        investment_balance,
+        investment_return_gross,
+        investment_tax_paid,
+        investment_return_net,
+    )
+
+
+def _apply_external_savings_to_cost(
+    investment_balance: float,
+    *,
+    remaining_cost: float,
+    monthly_external_savings: float | None,
+    invest_external_surplus: bool,
+) -> tuple[float, float, float, float]:
+    external_cover = 0.0
+    external_surplus_invested = 0.0
+    if monthly_external_savings and monthly_external_savings > 0:
+        external_cover = min(remaining_cost, monthly_external_savings)
+        remaining_cost -= external_cover
+        surplus = monthly_external_savings - external_cover
+        if surplus > 0 and invest_external_surplus:
+            investment_balance += surplus
+            external_surplus_invested = surplus
+    return investment_balance, remaining_cost, external_cover, external_surplus_invested
+
+
 def simulate_buy_scenario(
     property_value: float,
     down_payment: float,
     loan_term_years: int,
     monthly_interest_rate: float,
     loan_type: str,
-    amortizations: Optional[List[AmortizationInput]] = None,
-    _investment_returns: Optional[
-        List[InvestmentReturnInput]
-    ] = None,  # Not used in buy scenario
-    additional_costs: Optional[AdditionalCostsInput] = None,
-    inflation_rate: Optional[float] = None,
-    _property_appreciation_rate: Optional[float] = None,  # Not used in buy scenario
-    _investment_tax: Optional[InvestmentTaxInput] = None,  # Not used in buy scenario
-    fgts: Optional[FGTSInput] = None,
+    amortizations: list[AmortizationInput] | None = None,
+    _investment_returns: (
+        list[InvestmentReturnInput] | None
+    ) = None,  # Not used in buy scenario
+    additional_costs: AdditionalCostsInput | None = None,
+    inflation_rate: float | None = None,
+    _property_appreciation_rate: float | None = None,  # Not used in buy scenario
+    _investment_tax: InvestmentTaxInput | None = None,  # Not used in buy scenario
+    fgts: FGTSInput | None = None,
 ) -> ComparisonScenario:
     """Simulate buying a property with a loan."""
     # _investment_returns parameter is kept for API consistency but not used in buy scenario
@@ -435,11 +516,7 @@ def simulate_buy_scenario(
         loan_value = 0.0
     term_months = loan_term_years * 12
 
-    fgts_monthly_rate = (
-        (1 + (fgts.annual_yield_rate or 0.0) / 100) ** (1 / 12) - 1
-        if fgts and fgts.annual_yield_rate
-        else 0.0
-    )
+    fgts_monthly_rate = _compute_fgts_monthly_rate(fgts)
 
     # Simulate loan
     if loan_type == "SAC":
@@ -460,24 +537,22 @@ def simulate_buy_scenario(
         )
 
     # Calculate monthly data
-    monthly_data: List[MonthlyRecord] = []
+    monthly_data: list[MonthlyRecord] = []
     total_monthly_additional_costs = 0.0
 
     for inst in loan_result.installments:
         month = inst.month
 
-        if fgts:
-            # After purchase, FGTS may continue to accumulate (MVP: track as separate wealth).
-            fgts_balance = (fgts_balance + (fgts.monthly_contribution or 0.0)) * (
-                1 + fgts_monthly_rate
-            )
-
-        # Apply inflation to monthly additional costs if applicable
-        monthly_hoa = apply_inflation(costs["monthly_hoa"], month, 1, inflation_rate)
-        monthly_property_tax = apply_inflation(
-            costs["monthly_property_tax"], month, 1, inflation_rate
+        # After purchase, FGTS may continue to accumulate (MVP: track as separate wealth).
+        fgts_balance = _accumulate_fgts_balance(
+            fgts_balance, fgts=fgts, fgts_monthly_rate=fgts_monthly_rate
         )
-        monthly_additional = monthly_hoa + monthly_property_tax
+
+        monthly_hoa, monthly_property_tax, monthly_additional = (
+            _inflated_monthly_additional_costs(
+                costs, month=month, inflation_rate=inflation_rate
+            )
+        )
 
         # Track total additional monthly costs
         total_monthly_additional_costs += monthly_additional
@@ -554,27 +629,23 @@ def simulate_rent_and_invest_scenario(
     down_payment: float,
     term_months: int,
     rent_value: float,
-    investment_returns: List[InvestmentReturnInput],
-    additional_costs: Optional[AdditionalCostsInput] = None,
-    inflation_rate: Optional[float] = None,
-    rent_inflation_rate: Optional[float] = None,
-    property_appreciation_rate: Optional[float] = None,
+    investment_returns: list[InvestmentReturnInput],
+    additional_costs: AdditionalCostsInput | None = None,
+    inflation_rate: float | None = None,
+    rent_inflation_rate: float | None = None,
+    property_appreciation_rate: float | None = None,
     rent_reduces_investment: bool = False,
-    monthly_external_savings: Optional[float] = None,
+    monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
-    investment_tax: Optional[InvestmentTaxInput] = None,
-    fgts: Optional[FGTSInput] = None,
+    investment_tax: InvestmentTaxInput | None = None,
+    fgts: FGTSInput | None = None,
 ) -> ComparisonScenario:
     """Simulate renting and investing the down payment."""
     # Initialize variables
-    monthly_data: List[MonthlyRecord] = []
+    monthly_data: list[MonthlyRecord] = []
     investment_balance = down_payment
     fgts_balance = fgts.initial_balance if fgts else 0.0
-    fgts_monthly_rate = (
-        (1 + (fgts.annual_yield_rate or 0.0) / 100) ** (1 / 12) - 1
-        if fgts and fgts.annual_yield_rate
-        else 0.0
-    )
+    fgts_monthly_rate = _compute_fgts_monthly_rate(fgts)
     total_rent_paid = 0.0
 
     # Get base monthly additional costs
@@ -582,24 +653,21 @@ def simulate_rent_and_invest_scenario(
 
     # Calculate monthly data
     for month in range(1, term_months + 1):
-        if fgts:
-            fgts_balance = (fgts_balance + (fgts.monthly_contribution or 0.0)) * (
-                1 + fgts_monthly_rate
-            )
-        # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
-        effective_rent_inflation = (
-            rent_inflation_rate if rent_inflation_rate is not None else inflation_rate
+        fgts_balance = _accumulate_fgts_balance(
+            fgts_balance, fgts=fgts, fgts_monthly_rate=fgts_monthly_rate
         )
-        current_rent = apply_inflation(rent_value, month, 1, effective_rent_inflation)
+        current_rent = _current_rent_value(
+            rent_value,
+            month=month,
+            inflation_rate=inflation_rate,
+            rent_inflation_rate=rent_inflation_rate,
+        )
 
-        # Apply inflation to additional costs
-        current_monthly_hoa = apply_inflation(
-            costs["monthly_hoa"], month, 1, inflation_rate
+        current_monthly_hoa, current_monthly_property_tax, current_additional_costs = (
+            _inflated_monthly_additional_costs(
+                costs, month=month, inflation_rate=inflation_rate
+            )
         )
-        current_monthly_property_tax = apply_inflation(
-            costs["monthly_property_tax"], month, 1, inflation_rate
-        )
-        current_additional_costs = current_monthly_hoa + current_monthly_property_tax
 
         # Total monthly cost is rent + additional costs
         total_monthly_cost = current_rent + current_additional_costs
@@ -616,48 +684,48 @@ def simulate_rent_and_invest_scenario(
 
         if rent_reduces_investment:
             cost_remaining = total_monthly_cost
-            if monthly_external_savings and monthly_external_savings > 0:
-                external_cover = min(cost_remaining, monthly_external_savings)
-                cost_remaining -= external_cover
-                # Optional surplus invest
-                surplus = monthly_external_savings - external_cover
-                if surplus > 0 and invest_external_surplus:
-                    investment_balance += surplus
-                    external_surplus_invested = surplus
-            # Withdraw remaining cost from investment
+            (
+                investment_balance,
+                cost_remaining,
+                external_cover,
+                external_surplus_invested,
+            ) = _apply_external_savings_to_cost(
+                investment_balance,
+                remaining_cost=cost_remaining,
+                monthly_external_savings=monthly_external_savings,
+                invest_external_surplus=invest_external_surplus,
+            )
             rent_withdrawal = min(cost_remaining, investment_balance)
             investment_balance -= rent_withdrawal
             remaining_before_return = investment_balance
-            monthly_rate = get_monthly_investment_rate(investment_returns, month)
-            investment_return_gross = investment_balance * monthly_rate
-            if (
-                investment_tax
-                and investment_tax.enabled
-                and investment_return_gross > 0
-            ):
-                investment_tax_paid = investment_return_gross * (
-                    investment_tax.effective_tax_rate / 100.0
-                )
-            investment_return_net = investment_return_gross - investment_tax_paid
-            investment_balance += investment_return_net
+            (
+                investment_balance,
+                investment_return_gross,
+                investment_tax_paid,
+                investment_return_net,
+            ) = _apply_investment_return_with_tax(
+                investment_balance,
+                investment_returns=investment_returns,
+                month=month,
+                investment_tax=investment_tax,
+            )
             investment_return = investment_return_net
         else:
             # Optionally invest external savings fully (modeling deposit of external income)
             if invest_external_surplus and monthly_external_savings:
                 investment_balance += monthly_external_savings
                 external_surplus_invested = monthly_external_savings
-            monthly_rate = get_monthly_investment_rate(investment_returns, month)
-            investment_return_gross = investment_balance * monthly_rate
-            if (
-                investment_tax
-                and investment_tax.enabled
-                and investment_return_gross > 0
-            ):
-                investment_tax_paid = investment_return_gross * (
-                    investment_tax.effective_tax_rate / 100.0
-                )
-            investment_return_net = investment_return_gross - investment_tax_paid
-            investment_balance += investment_return_net
+            (
+                investment_balance,
+                investment_return_gross,
+                investment_tax_paid,
+                investment_return_net,
+            ) = _apply_investment_return_with_tax(
+                investment_balance,
+                investment_returns=investment_returns,
+                month=month,
+                investment_tax=investment_tax,
+            )
             investment_return = investment_return_net
             remaining_before_return = investment_balance
 
@@ -738,36 +806,32 @@ def simulate_invest_then_buy_scenario(
     property_value: float,
     down_payment: float,
     term_months: int,
-    investment_returns: List[InvestmentReturnInput],
+    investment_returns: list[InvestmentReturnInput],
     rent_value: float,
-    additional_costs: Optional[AdditionalCostsInput] = None,
-    inflation_rate: Optional[float] = None,
-    rent_inflation_rate: Optional[float] = None,
-    property_appreciation_rate: Optional[float] = None,
+    additional_costs: AdditionalCostsInput | None = None,
+    inflation_rate: float | None = None,
+    rent_inflation_rate: float | None = None,
+    property_appreciation_rate: float | None = None,
     invest_loan_difference: bool = False,
-    fixed_monthly_investment: Optional[float] = None,
+    fixed_monthly_investment: float | None = None,
     fixed_investment_start_month: int = 1,
     loan_type: str = "SAC",
     monthly_interest_rate: float = 1.0,
-    amortizations: Optional[List[AmortizationInput]] = None,
+    amortizations: list[AmortizationInput] | None = None,
     rent_reduces_investment: bool = False,
-    monthly_external_savings: Optional[float] = None,
+    monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
-    investment_tax: Optional[InvestmentTaxInput] = None,
-    fgts: Optional[FGTSInput] = None,
+    investment_tax: InvestmentTaxInput | None = None,
+    fgts: FGTSInput | None = None,
 ) -> ComparisonScenario:
     """Simulate investing until having enough to buy the property outright."""
     # Initialize variables
-    monthly_data: List[MonthlyRecord] = []
+    monthly_data: list[MonthlyRecord] = []
     investment_balance = down_payment
     fgts_balance = fgts.initial_balance if fgts else 0.0
-    fgts_monthly_rate = (
-        (1 + (fgts.annual_yield_rate or 0.0) / 100) ** (1 / 12) - 1
-        if fgts and fgts.annual_yield_rate
-        else 0.0
-    )
+    fgts_monthly_rate = _compute_fgts_monthly_rate(fgts)
     total_rent_paid = 0.0
-    purchase_month: Optional[int] = None
+    purchase_month: int | None = None
     milestone_thresholds = {25, 50, 75, 90, 100}
     last_progress_bucket = 0
 
@@ -801,8 +865,8 @@ def simulate_invest_then_buy_scenario(
         loan_installments = loan_result.installments
 
     # Preprocess amortizations as scheduled additional contributions (aportes)
-    fixed_contrib_by_month: Dict[int, float] = {}
-    percent_contrib_by_month: Dict[int, List[float]] = {}
+    fixed_contrib_by_month: dict[int, float] = {}
+    percent_contrib_by_month: dict[int, list[float]] = {}
     if amortizations:
         fixed_contrib_by_month, percent_contrib_by_month = preprocess_amortizations(
             amortizations=amortizations,
@@ -814,10 +878,9 @@ def simulate_invest_then_buy_scenario(
 
     # Calculate monthly data
     for month in range(1, term_months + 1):
-        if fgts:
-            fgts_balance = (fgts_balance + (fgts.monthly_contribution or 0.0)) * (
-                1 + fgts_monthly_rate
-            )
+        fgts_balance = _accumulate_fgts_balance(
+            fgts_balance, fgts=fgts, fgts_monthly_rate=fgts_monthly_rate
+        )
 
         fgts_used_this_month = 0.0
         # Current target purchase cost (property + upfront) with appreciation
@@ -829,29 +892,25 @@ def simulate_invest_then_buy_scenario(
 
         # If already purchased, handle post-purchase scenario
         if purchase_month is not None:
-            monthly_hoa = apply_inflation(
-                costs["monthly_hoa"], month, 1, inflation_rate
+            monthly_hoa, monthly_property_tax, monthly_additional = (
+                _inflated_monthly_additional_costs(
+                    costs, month=month, inflation_rate=inflation_rate
+                )
             )
-            monthly_property_tax = apply_inflation(
-                costs["monthly_property_tax"], month, 1, inflation_rate
-            )
-            monthly_additional = monthly_hoa + monthly_property_tax
 
             # Calculate investment after purchase
-            monthly_rate = get_monthly_investment_rate(investment_returns, month)
-            investment_return_gross = investment_balance * monthly_rate
-            investment_tax_paid = 0.0
-            if (
-                investment_tax
-                and investment_tax.enabled
-                and investment_return_gross > 0
-            ):
-                investment_tax_paid = investment_return_gross * (
-                    investment_tax.effective_tax_rate / 100.0
-                )
-            investment_return_net = investment_return_gross - investment_tax_paid
+            (
+                investment_balance,
+                investment_return_gross,
+                investment_tax_paid,
+                investment_return_net,
+            ) = _apply_investment_return_with_tax(
+                investment_balance,
+                investment_returns=investment_returns,
+                month=month,
+                investment_tax=investment_tax,
+            )
             investment_return = investment_return_net
-            investment_balance += investment_return_net
 
             # Add fixed monthly investment if applicable
             additional_investment = 0.0
@@ -905,15 +964,18 @@ def simulate_invest_then_buy_scenario(
             total_scheduled_contributions += extra_contribution_total
 
         # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
-        effective_rent_inflation = (
-            rent_inflation_rate if rent_inflation_rate is not None else inflation_rate
+        current_rent = _current_rent_value(
+            rent_value,
+            month=month,
+            inflation_rate=inflation_rate,
+            rent_inflation_rate=rent_inflation_rate,
         )
-        current_rent = apply_inflation(rent_value, month, 1, effective_rent_inflation)
 
         # Add monthly additional costs to rent (HOA and property tax that tenant pays)
-        monthly_hoa = apply_inflation(costs["monthly_hoa"], month, 1, inflation_rate)
-        monthly_property_tax = apply_inflation(
-            costs["monthly_property_tax"], month, 1, inflation_rate
+        monthly_hoa, monthly_property_tax, _monthly_additional = (
+            _inflated_monthly_additional_costs(
+                costs, month=month, inflation_rate=inflation_rate
+            )
         )
         total_rent_cost = current_rent + monthly_hoa + monthly_property_tax
         total_rent_paid += total_rent_cost
@@ -924,13 +986,17 @@ def simulate_invest_then_buy_scenario(
         external_surplus_invested = 0.0
         if rent_reduces_investment:
             remaining_cost = total_rent_cost
-            if monthly_external_savings and monthly_external_savings > 0:
-                external_cover = min(remaining_cost, monthly_external_savings)
-                remaining_cost -= external_cover
-                surplus = monthly_external_savings - external_cover
-                if surplus > 0 and invest_external_surplus:
-                    investment_balance += surplus
-                    external_surplus_invested = surplus
+            (
+                investment_balance,
+                remaining_cost,
+                external_cover,
+                external_surplus_invested,
+            ) = _apply_external_savings_to_cost(
+                investment_balance,
+                remaining_cost=remaining_cost,
+                monthly_external_savings=monthly_external_savings,
+                invest_external_surplus=invest_external_surplus,
+            )
             rent_withdrawal = min(remaining_cost, investment_balance)
             investment_balance -= rent_withdrawal
             remaining_before_return = investment_balance
@@ -940,16 +1006,18 @@ def simulate_invest_then_buy_scenario(
                 external_surplus_invested = monthly_external_savings
 
         # Apply investment growth AFTER contributions (and potential rent withdrawal)
-        monthly_rate = get_monthly_investment_rate(investment_returns, month)
-        investment_return_gross = investment_balance * monthly_rate
-        investment_tax_paid = 0.0
-        if investment_tax and investment_tax.enabled and investment_return_gross > 0:
-            investment_tax_paid = investment_return_gross * (
-                investment_tax.effective_tax_rate / 100.0
-            )
-        investment_return_net = investment_return_gross - investment_tax_paid
+        (
+            investment_balance,
+            investment_return_gross,
+            investment_tax_paid,
+            investment_return_net,
+        ) = _apply_investment_return_with_tax(
+            investment_balance,
+            investment_returns=investment_returns,
+            month=month,
+            investment_tax=investment_tax,
+        )
         investment_return = investment_return_net
-        investment_balance += investment_return_net
 
         withdrawal_for_ratio = rent_withdrawal if rent_reduces_investment else 0.0
         sustainable_withdrawal_ratio = (
@@ -1107,13 +1175,10 @@ def simulate_invest_then_buy_scenario(
                 property_value, month, 1, property_appreciation_rate, inflation_rate
             )
             costs = calculate_additional_costs(current_property_value, additional_costs)
-            monthly_hoa = apply_inflation(
-                costs["monthly_hoa"], month, 1, inflation_rate
+            _, _, monthly_additional = _inflated_monthly_additional_costs(
+                costs, month=month, inflation_rate=inflation_rate
             )
-            monthly_property_tax = apply_inflation(
-                costs["monthly_property_tax"], month, 1, inflation_rate
-            )
-            total_monthly_additional_costs += monthly_hoa + monthly_property_tax
+            total_monthly_additional_costs += monthly_additional
 
             # Add fixed investments after purchase
             if fixed_monthly_investment and month >= fixed_investment_start_month:
@@ -1215,20 +1280,20 @@ def compare_scenarios(
     monthly_interest_rate: float,
     loan_type: str,
     rent_value: float,
-    investment_returns: List[InvestmentReturnInput],
-    amortizations: Optional[List[AmortizationInput]] = None,
-    additional_costs: Optional[AdditionalCostsInput] = None,
-    inflation_rate: Optional[float] = None,
-    rent_inflation_rate: Optional[float] = None,
-    property_appreciation_rate: Optional[float] = None,
+    investment_returns: list[InvestmentReturnInput],
+    amortizations: list[AmortizationInput] | None = None,
+    additional_costs: AdditionalCostsInput | None = None,
+    inflation_rate: float | None = None,
+    rent_inflation_rate: float | None = None,
+    property_appreciation_rate: float | None = None,
     invest_loan_difference: bool = False,
-    fixed_monthly_investment: Optional[float] = None,
+    fixed_monthly_investment: float | None = None,
     fixed_investment_start_month: int = 1,
     rent_reduces_investment: bool = False,
-    monthly_external_savings: Optional[float] = None,
+    monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
-    investment_tax: Optional[InvestmentTaxInput] = None,
-    fgts: Optional[FGTSInput] = None,
+    investment_tax: InvestmentTaxInput | None = None,
+    fgts: FGTSInput | None = None,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     term_months = loan_term_years * 12
@@ -1305,20 +1370,20 @@ def enhanced_compare_scenarios(
     monthly_interest_rate: float,
     loan_type: str,
     rent_value: float,
-    investment_returns: List[InvestmentReturnInput],
-    amortizations: Optional[List[AmortizationInput]] = None,
-    additional_costs: Optional[AdditionalCostsInput] = None,
-    inflation_rate: Optional[float] = None,
-    rent_inflation_rate: Optional[float] = None,
-    property_appreciation_rate: Optional[float] = None,
+    investment_returns: list[InvestmentReturnInput],
+    amortizations: list[AmortizationInput] | None = None,
+    additional_costs: AdditionalCostsInput | None = None,
+    inflation_rate: float | None = None,
+    rent_inflation_rate: float | None = None,
+    property_appreciation_rate: float | None = None,
     invest_loan_difference: bool = False,
-    fixed_monthly_investment: Optional[float] = None,
+    fixed_monthly_investment: float | None = None,
     fixed_investment_start_month: int = 1,
     rent_reduces_investment: bool = False,
-    monthly_external_savings: Optional[float] = None,
+    monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
-    investment_tax: Optional[InvestmentTaxInput] = None,
-    fgts: Optional[FGTSInput] = None,
+    investment_tax: InvestmentTaxInput | None = None,
+    fgts: FGTSInput | None = None,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
 
@@ -1455,9 +1520,9 @@ def enhanced_compare_scenarios(
     max_months = max(len(s.monthly_data) for s in basic_comparison.scenarios)
 
     for month in range(1, max_months + 1):
-        month_comparison: Dict[str, object] = {"month": month}
+        month_comparison: dict[str, object] = {"month": month}
 
-        def _v(row: Optional[MonthlyRecord], attr: str, default: float = 0.0) -> float:
+        def _v(row: MonthlyRecord | None, attr: str, default: float = 0.0) -> float:
             if row is None:
                 return default
             val = getattr(row, attr, None)

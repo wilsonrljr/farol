@@ -1,7 +1,9 @@
 """Regression-style assertions derived from former script `test_fixed_calculations.py`.
 Ensures prior discovered issues remain fixed.
 """
+
 from fastapi.testclient import TestClient
+
 from backend.app.main import app
 
 client = TestClient(app)

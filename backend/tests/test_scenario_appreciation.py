@@ -1,5 +1,7 @@
 """Scenario-specific appreciation assertions (from `test_scenario_specific_appreciation.py`)."""
+
 from fastapi.testclient import TestClient
+
 from backend.app.main import app
 
 client = TestClient(app)
@@ -22,7 +24,11 @@ def test_appreciation_behaviour_per_scenario():
     assert r.status_code == 200
     data = r.json()
     names = {s["name"] for s in data["scenarios"]}
-    assert {"Comprar com financiamento", "Alugar e investir", "Investir e comprar à vista"}.issubset(names)
+    assert {
+        "Comprar com financiamento",
+        "Alugar e investir",
+        "Investir e comprar à vista",
+    }.issubset(names)
     for scenario in data["scenarios"]:
         monthly = scenario["monthly_data"]
         if not monthly:

@@ -16,31 +16,31 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import json
+import os
+from io import BytesIO, StringIO
+
+import pandas as pd
+import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-import uvicorn
-import os
-from io import StringIO, BytesIO
-import json
 
-import pandas as pd
-
+from .finance import (
+    compare_scenarios,
+    convert_interest_rate,
+    enhanced_compare_scenarios,
+    simulate_price_loan,
+    simulate_sac_loan,
+)
 from .models import (
-    LoanSimulationInput,
     ComparisonInput,
-    LoanSimulationResult,
     ComparisonResult,
     EnhancedComparisonResult,
-    ScenariosMetricsResult,
+    LoanSimulationInput,
+    LoanSimulationResult,
     ScenarioMetricsSummary,
-)
-from .finance import (
-    convert_interest_rate,
-    simulate_sac_loan,
-    simulate_price_loan,
-    compare_scenarios,
-    enhanced_compare_scenarios,
+    ScenariosMetricsResult,
 )
 
 APP_NAME = os.getenv("APP_NAME", "Farol")
@@ -450,7 +450,9 @@ async def export_compare_scenarios(
         if wide_parts:
             from functools import reduce
 
-            wide = reduce(lambda l, r: l.join(r, how="outer"), wide_parts).reset_index()
+            wide = reduce(
+                lambda left, right: left.join(right, how="outer"), wide_parts
+            ).reset_index()
 
     if format == "csv":
         buff = StringIO()
@@ -569,7 +571,9 @@ async def export_compare_scenarios_enhanced(
         if wide_parts:
             from functools import reduce
 
-            wide = reduce(lambda l, r: l.join(r, how="outer"), wide_parts).reset_index()
+            wide = reduce(
+                lambda left, right: left.join(right, how="outer"), wide_parts
+            ).reset_index()
 
     if format == "csv":
         buff = StringIO()
@@ -611,7 +615,9 @@ async def export_compare_scenarios_enhanced(
                     comp_df["__m"] = (
                         comp_df["key"].str.extract(r"month_(\d+)").astype(float)
                     )
-                    comp_df = comp_df.sort_values("__m", na_position="last").drop(columns=["__m"])  # type: ignore
+                    comp_df = comp_df.sort_values("__m", na_position="last").drop(
+                        columns=["__m"]
+                    )  # type: ignore
                 except Exception:
                     pass
             comp_df.to_excel(writer, index=False, sheet_name="comparative_summary")

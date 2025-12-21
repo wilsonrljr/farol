@@ -1,5 +1,4 @@
 import pytest
-
 from app.finance import compare_scenarios, convert_interest_rate
 from app.models import InvestmentReturnInput
 
@@ -18,7 +17,9 @@ def test_compare_scenarios_new_fields():
         monthly_interest_rate=0.8,
         loan_type="PRICE",
         rent_value=1500,
-        investment_returns=[InvestmentReturnInput(start_month=1, end_month=None, annual_rate=8.0)],
+        investment_returns=[
+            InvestmentReturnInput(start_month=1, end_month=None, annual_rate=8.0)
+        ],
     )
     for scenario in result.scenarios:
         assert scenario.total_outflows is not None

@@ -1,36 +1,32 @@
-import pytest
-import sys, os
+from __future__ import annotations
 
-# Ensure project root backend path is available when running pytest from repo root
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+from typing import Any
 
-from app.finance import compare_scenarios  # type: ignore
-from app.models import InvestmentReturnInput  # type: ignore
+from app.finance import compare_scenarios
+from app.models import InvestmentReturnInput
 
 
-def base_params():
-    return dict(
-        property_value=300000.0,
-        down_payment=60000.0,
-        loan_term_years=2,
-        monthly_interest_rate=0.8,
-        loan_type="PRICE",
-        rent_value=1500.0,
-        investment_returns=[
+def base_params() -> dict[str, Any]:
+    return {
+        "property_value": 300000.0,
+        "down_payment": 60000.0,
+        "loan_term_years": 2,
+        "monthly_interest_rate": 0.8,
+        "loan_type": "PRICE",
+        "rent_value": 1500.0,
+        "investment_returns": [
             InvestmentReturnInput(start_month=1, end_month=None, annual_rate=8.0)
         ],
-        amortizations=None,
-        additional_costs=None,
-        inflation_rate=None,
-        rent_inflation_rate=None,
-        property_appreciation_rate=None,
-        invest_loan_difference=False,
-        fixed_monthly_investment=None,
-        fixed_investment_start_month=1,
-        rent_reduces_investment=True,
-    )
+        "amortizations": None,
+        "additional_costs": None,
+        "inflation_rate": None,
+        "rent_inflation_rate": None,
+        "property_appreciation_rate": None,
+        "invest_loan_difference": False,
+        "fixed_monthly_investment": None,
+        "fixed_investment_start_month": 1,
+        "rent_reduces_investment": True,
+    }
 
 
 def get_scenario(result, name):

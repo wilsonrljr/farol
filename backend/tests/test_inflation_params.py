@@ -1,5 +1,7 @@
 """Integration test validating inflation + appreciation handling (from prior `test_inflation.py`)."""
+
 from fastapi.testclient import TestClient
+
 from backend.app.main import app
 
 client = TestClient(app)

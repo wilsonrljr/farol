@@ -1,7 +1,9 @@
 """Condensed version of prior demonstration `test_functionality_demo.py`.
 Validates deltas in total cost across scenarios with different additional cost inputs.
 """
+
 from fastapi.testclient import TestClient
+
 from backend.app.main import app
 
 client = TestClient(app)
