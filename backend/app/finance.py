@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import math
 from collections import defaultdict
+from dataclasses import dataclass, field
 
 from .models import (
     AdditionalCostsInput,
@@ -802,6 +803,591 @@ def simulate_rent_and_invest_scenario(
     )
 
 
+@dataclass
+class InvestThenBuySimulator:
+    property_value: float
+    down_payment: float
+    term_months: int
+    investment_returns: list[InvestmentReturnInput]
+    rent_value: float
+    additional_costs: AdditionalCostsInput | None
+    inflation_rate: float | None
+    rent_inflation_rate: float | None
+    property_appreciation_rate: float | None
+    invest_loan_difference: bool
+    fixed_monthly_investment: float | None
+    fixed_investment_start_month: int
+    loan_type: str
+    monthly_interest_rate: float
+    amortizations: list[AmortizationInput] | None
+    rent_reduces_investment: bool
+    monthly_external_savings: float | None
+    invest_external_surplus: bool
+    investment_tax: InvestmentTaxInput | None
+    fgts: FGTSInput | None
+
+    investment_balance: float = field(init=False)
+    fgts_balance: float = field(init=False)
+    fgts_monthly_rate: float = field(init=False)
+    loan_installments: list[LoanInstallment] = field(init=False, default_factory=list)
+    upfront_baseline: float = field(init=False, default=0.0)
+    fixed_contrib_by_month: dict[int, float] = field(init=False, default_factory=dict)
+    percent_contrib_by_month: dict[int, list[float]] = field(
+        init=False, default_factory=dict
+    )
+    total_rent_paid: float = field(init=False, default=0.0)
+    total_scheduled_contributions: float = field(init=False, default=0.0)
+    total_additional_investments: float = field(init=False, default=0.0)
+    total_monthly_additional_costs: float = field(init=False, default=0.0)
+    purchase_month: int | None = field(init=False, default=None)
+    monthly_data: list[MonthlyRecord] = field(init=False, default_factory=list)
+    milestone_thresholds: set[int] = field(
+        init=False, default_factory=lambda: {25, 50, 75, 90, 100}
+    )
+    last_progress_bucket: int = field(init=False, default=0)
+
+    def __post_init__(self) -> None:
+        self.investment_balance = self.down_payment
+        self.fgts_balance = self.fgts.initial_balance if self.fgts else 0.0
+        self.fgts_monthly_rate = _compute_fgts_monthly_rate(self.fgts)
+        (
+            self.loan_installments,
+            self.upfront_baseline,
+        ) = self._prepare_loan_baseline()
+        (
+            self.fixed_contrib_by_month,
+            self.percent_contrib_by_month,
+        ) = self._preprocess_contributions()
+
+    def simulate(self) -> ComparisonScenario:
+        for month in range(1, self.term_months + 1):
+            self.fgts_balance = _accumulate_fgts_balance(
+                self.fgts_balance,
+                fgts=self.fgts,
+                fgts_monthly_rate=self.fgts_monthly_rate,
+            )
+            (
+                current_property_value,
+                costs,
+                total_purchase_cost,
+            ) = self._compute_purchase_cost(month)
+
+            if self.purchase_month is not None:
+                self._handle_post_purchase_month(month, current_property_value, costs)
+                continue
+
+            self._handle_pre_purchase_month(
+                month, current_property_value, costs, total_purchase_cost
+            )
+
+        self._annotate_metadata()
+        final_equity, total_outflows, net_cost = self._calculate_totals()
+
+        # Ensure chronological ordering (defensive in case of future insertions)
+        self.monthly_data.sort(key=lambda d: d.month)
+
+        return ComparisonScenario(
+            name="Investir e comprar à vista",
+            total_cost=net_cost,
+            final_equity=final_equity,
+            monthly_data=self.monthly_data,
+            total_outflows=total_outflows,
+            net_cost=net_cost,
+        )
+
+    def _prepare_loan_baseline(
+        self,
+    ) -> tuple[list[LoanInstallment], float]:
+        if not self.invest_loan_difference:
+            return [], 0.0
+
+        costs = calculate_additional_costs(self.property_value, self.additional_costs)
+        upfront_costs_for_baseline = costs["total_upfront"]
+        loan_value = self.property_value - self.down_payment
+
+        if self.loan_type == "SAC":
+            loan_result = simulate_sac_loan(
+                loan_value,
+                self.term_months,
+                self.monthly_interest_rate,
+                self.amortizations,
+                self.inflation_rate,
+            )
+        else:
+            loan_result = simulate_price_loan(
+                loan_value,
+                self.term_months,
+                self.monthly_interest_rate,
+                self.amortizations,
+                self.inflation_rate,
+            )
+
+        return loan_result.installments, upfront_costs_for_baseline
+
+    def _preprocess_contributions(
+        self,
+    ) -> tuple[dict[int, float], dict[int, list[float]]]:
+        if not self.amortizations:
+            return {}, {}
+        return preprocess_amortizations(
+            amortizations=self.amortizations,
+            term_months=self.term_months,
+            annual_inflation_rate=self.inflation_rate,
+        )
+
+    def _compute_purchase_cost(
+        self, month: int
+    ) -> tuple[float, dict[str, float], float]:
+        current_property_value = apply_property_appreciation(
+            self.property_value,
+            month,
+            1,
+            self.property_appreciation_rate,
+            self.inflation_rate,
+        )
+        costs = calculate_additional_costs(
+            current_property_value, self.additional_costs
+        )
+        total_purchase_cost = current_property_value + costs["total_upfront"]
+        return current_property_value, costs, total_purchase_cost
+
+    def _apply_scheduled_contributions(self, month: int) -> tuple[float, float, float]:
+        extra_contribution_fixed = 0.0
+        extra_contribution_pct = 0.0
+
+        if month in self.fixed_contrib_by_month:
+            val = self.fixed_contrib_by_month[month]
+            extra_contribution_fixed += val
+            self.investment_balance += val
+
+        if month in self.percent_contrib_by_month:
+            pct_total = sum(self.percent_contrib_by_month[month])
+            if pct_total > 0 and self.investment_balance > 0:
+                pct_amount = self.investment_balance * (pct_total / 100.0)
+                extra_contribution_pct += pct_amount
+                self.investment_balance += pct_amount
+
+        extra_contribution_total = extra_contribution_fixed + extra_contribution_pct
+        if extra_contribution_total > 0:
+            self.total_scheduled_contributions += extra_contribution_total
+
+        return (
+            extra_contribution_fixed,
+            extra_contribution_pct,
+            extra_contribution_total,
+        )
+
+    def _compute_rent_costs(
+        self, month: int, costs: dict[str, float]
+    ) -> tuple[float, float, float, float, float]:
+        current_rent = _current_rent_value(
+            self.rent_value,
+            month=month,
+            inflation_rate=self.inflation_rate,
+            rent_inflation_rate=self.rent_inflation_rate,
+        )
+        monthly_hoa, monthly_property_tax, monthly_additional = (
+            _inflated_monthly_additional_costs(
+                costs, month=month, inflation_rate=self.inflation_rate
+            )
+        )
+        total_rent_cost = current_rent + monthly_hoa + monthly_property_tax
+        self.total_rent_paid += total_rent_cost
+        return (
+            current_rent,
+            monthly_hoa,
+            monthly_property_tax,
+            monthly_additional,
+            total_rent_cost,
+        )
+
+    def _apply_rent_cashflows(
+        self, total_rent_cost: float
+    ) -> tuple[float, float, float, float]:
+        rent_withdrawal = 0.0
+        external_cover = 0.0
+        external_surplus_invested = 0.0
+        remaining_before_return = self.investment_balance
+
+        if self.rent_reduces_investment:
+            remaining_cost = total_rent_cost
+            (
+                self.investment_balance,
+                remaining_cost,
+                external_cover,
+                external_surplus_invested,
+            ) = _apply_external_savings_to_cost(
+                self.investment_balance,
+                remaining_cost=remaining_cost,
+                monthly_external_savings=self.monthly_external_savings,
+                invest_external_surplus=self.invest_external_surplus,
+            )
+            rent_withdrawal = min(remaining_cost, self.investment_balance)
+            self.investment_balance -= rent_withdrawal
+            remaining_before_return = self.investment_balance
+        elif self.invest_external_surplus and self.monthly_external_savings:
+            self.investment_balance += self.monthly_external_savings
+            external_surplus_invested = self.monthly_external_savings
+
+        return (
+            rent_withdrawal,
+            external_cover,
+            external_surplus_invested,
+            remaining_before_return,
+        )
+
+    def _apply_investment_growth(self, month: int) -> tuple[float, float, float]:
+        (
+            self.investment_balance,
+            investment_return_gross,
+            investment_tax_paid,
+            investment_return_net,
+        ) = _apply_investment_return_with_tax(
+            self.investment_balance,
+            investment_returns=self.investment_returns,
+            month=month,
+            investment_tax=self.investment_tax,
+        )
+        return investment_return_gross, investment_tax_paid, investment_return_net
+
+    @staticmethod
+    def _sustainable_withdrawal_metrics(
+        rent_withdrawal: float, investment_return: float
+    ) -> tuple[float | None, bool]:
+        if rent_withdrawal <= 0:
+            return None, False
+        ratio = investment_return / rent_withdrawal
+        return ratio, investment_return < rent_withdrawal
+
+    def _maybe_invest_loan_difference(
+        self, month: int, total_rent_cost: float, costs: dict[str, float]
+    ) -> float:
+        if not self.invest_loan_difference or month > len(self.loan_installments):
+            return 0.0
+
+        additional_investment = 0.0
+        if month == 1 and self.upfront_baseline > 0:
+            additional_investment += self.upfront_baseline
+            self.investment_balance += self.upfront_baseline
+
+        loan_installment = self.loan_installments[month - 1]
+        loan_monthly_hoa = apply_inflation(
+            costs["monthly_hoa"], month, 1, self.inflation_rate
+        )
+        loan_monthly_property_tax = apply_inflation(
+            costs["monthly_property_tax"], month, 1, self.inflation_rate
+        )
+        total_loan_payment = (
+            loan_installment.installment + loan_monthly_hoa + loan_monthly_property_tax
+        )
+
+        if total_loan_payment > total_rent_cost:
+            loan_difference = total_loan_payment - total_rent_cost
+            additional_investment += loan_difference
+            self.investment_balance += loan_difference
+
+        return additional_investment
+
+    def _apply_fixed_monthly_investment(
+        self, month: int, additional_investment: float
+    ) -> float:
+        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
+            additional_investment += self.fixed_monthly_investment
+            self.investment_balance += self.fixed_monthly_investment
+        return additional_investment
+
+    def _update_progress(
+        self, month: int, total_purchase_cost: float
+    ) -> tuple[float, float, bool]:
+        progress_percent = (
+            (self.investment_balance / total_purchase_cost) * 100
+            if total_purchase_cost > 0
+            else 0.0
+        )
+        shortfall = max(0.0, total_purchase_cost - self.investment_balance)
+
+        progress_bucket = 0
+        for threshold in sorted(self.milestone_thresholds):
+            if progress_percent >= threshold:
+                progress_bucket = threshold
+
+        crossed_bucket = progress_bucket > self.last_progress_bucket
+        if crossed_bucket:
+            self.last_progress_bucket = progress_bucket
+
+        is_milestone = month <= 12 or month % 12 == 0 or crossed_bucket
+        return progress_percent, shortfall, is_milestone
+
+    def _use_fgts_for_purchase(self, total_purchase_cost: float) -> float:
+        if not self.fgts or not self.fgts.use_at_purchase or self.fgts_balance <= 0:
+            return 0.0
+
+        needed_from_fgts = max(0.0, total_purchase_cost - self.investment_balance)
+        allowed = min(self.fgts_balance, needed_from_fgts)
+        if self.fgts.max_withdrawal_at_purchase is not None:
+            allowed = min(allowed, self.fgts.max_withdrawal_at_purchase)
+        self.fgts_balance -= allowed
+        return allowed
+
+    def _handle_pre_purchase_month(
+        self,
+        month: int,
+        current_property_value: float,
+        costs: dict[str, float],
+        total_purchase_cost: float,
+    ) -> None:
+        (
+            extra_contribution_fixed,
+            extra_contribution_pct,
+            extra_contribution_total,
+        ) = self._apply_scheduled_contributions(month)
+
+        (
+            current_rent,
+            monthly_hoa,
+            monthly_property_tax,
+            _monthly_additional,
+            total_rent_cost,
+        ) = self._compute_rent_costs(month, costs)
+
+        (
+            rent_withdrawal,
+            external_cover,
+            external_surplus_invested,
+            remaining_before_return,
+        ) = self._apply_rent_cashflows(total_rent_cost)
+
+        (
+            investment_return_gross,
+            investment_tax_paid,
+            investment_return_net,
+        ) = self._apply_investment_growth(month)
+
+        investment_return = investment_return_net
+        sustainable_withdrawal_ratio, burn_month = self._sustainable_withdrawal_metrics(
+            rent_withdrawal if self.rent_reduces_investment else 0.0,
+            investment_return,
+        )
+
+        additional_investment = self._maybe_invest_loan_difference(
+            month, total_rent_cost, costs
+        )
+        additional_investment = self._apply_fixed_monthly_investment(
+            month, additional_investment
+        )
+
+        progress_percent, shortfall, is_milestone = self._update_progress(
+            month, total_purchase_cost
+        )
+
+        fgts_used_this_month = 0.0
+        status = "Aguardando compra"
+        equity = 0.0
+
+        total_available_for_purchase = self.investment_balance
+        if self.fgts and self.fgts.use_at_purchase:
+            total_available_for_purchase += self.fgts_balance
+
+        if total_available_for_purchase >= total_purchase_cost:
+            fgts_used_this_month = self._use_fgts_for_purchase(total_purchase_cost)
+            self.investment_balance -= total_purchase_cost - fgts_used_this_month
+            self.purchase_month = month
+            status = "Imóvel comprado"
+            equity = current_property_value
+            progress_percent = 100.0
+            shortfall = 0.0
+            is_milestone = True
+
+        cash_flow = -(total_rent_cost + additional_investment)
+        if additional_investment > 0:
+            self.total_additional_investments += additional_investment
+
+        self.monthly_data.append(
+            MonthlyRecord(
+                month=month,
+                cash_flow=cash_flow,
+                investment_balance=self.investment_balance,
+                investment_return=investment_return,
+                rent_paid=current_rent,
+                monthly_hoa=monthly_hoa,
+                monthly_property_tax=monthly_property_tax,
+                monthly_additional_costs=monthly_hoa + monthly_property_tax,
+                total_monthly_cost=total_rent_cost,
+                status=status,
+                equity=equity,
+                property_value=current_property_value,
+                additional_investment=additional_investment,
+                extra_contribution_fixed=extra_contribution_fixed,
+                extra_contribution_percentage=extra_contribution_pct,
+                extra_contribution_total=extra_contribution_total,
+                target_purchase_cost=total_purchase_cost,
+                progress_percent=progress_percent,
+                shortfall=shortfall,
+                is_milestone=is_milestone,
+                scenario_type="invest_buy",
+                phase=(
+                    "post_purchase" if status == "Imóvel comprado" else "pre_purchase"
+                ),
+                rent_withdrawal_from_investment=(
+                    rent_withdrawal if self.rent_reduces_investment else 0.0
+                ),
+                remaining_investment_before_return=(
+                    remaining_before_return
+                    if self.rent_reduces_investment
+                    else self.investment_balance
+                ),
+                external_cover=external_cover,
+                external_surplus_invested=external_surplus_invested,
+                sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
+                burn_month=burn_month,
+                investment_return_gross=investment_return_gross,
+                investment_tax_paid=investment_tax_paid,
+                investment_return_net=investment_return_net,
+                fgts_balance=self.fgts_balance if self.fgts else None,
+                fgts_used=fgts_used_this_month if self.fgts else 0.0,
+            )
+        )
+
+    def _handle_post_purchase_month(
+        self, month: int, current_property_value: float, costs: dict[str, float]
+    ) -> None:
+        (
+            monthly_hoa,
+            monthly_property_tax,
+            monthly_additional,
+        ) = _inflated_monthly_additional_costs(
+            costs, month=month, inflation_rate=self.inflation_rate
+        )
+
+        (
+            investment_return_gross,
+            investment_tax_paid,
+            investment_return_net,
+        ) = self._apply_investment_growth(month)
+
+        additional_investment = 0.0
+        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
+            additional_investment = self.fixed_monthly_investment
+            self.investment_balance += additional_investment
+            self.total_additional_investments += additional_investment
+
+        cash_flow = -(monthly_additional + additional_investment)
+        self.total_monthly_additional_costs += monthly_additional
+
+        self.monthly_data.append(
+            MonthlyRecord(
+                month=month,
+                cash_flow=cash_flow,
+                investment_balance=self.investment_balance,
+                equity=current_property_value,
+                status="Imóvel comprado",
+                monthly_additional_costs=monthly_additional,
+                property_value=current_property_value,
+                investment_return=investment_return_net,
+                investment_return_gross=investment_return_gross,
+                investment_tax_paid=investment_tax_paid,
+                investment_return_net=investment_return_net,
+                additional_investment=additional_investment,
+                scenario_type="invest_buy",
+                progress_percent=100.0,
+                shortfall=0.0,
+                is_milestone=True,
+                phase="post_purchase",
+                fgts_balance=self.fgts_balance if self.fgts else None,
+                fgts_used=0.0,
+            )
+        )
+
+    def _annotate_metadata(self) -> None:
+        if not self.monthly_data:
+            return
+
+        if self.purchase_month is not None:
+            purchase_price = next(
+                (
+                    d.property_value
+                    for d in self.monthly_data
+                    if d.month == self.purchase_month and d.property_value is not None
+                ),
+                self.property_value,
+            )
+            self.monthly_data[0].purchase_month = self.purchase_month
+            self.monthly_data[0].purchase_price = float(purchase_price)
+            return
+
+        milestone_rows = [d for d in self.monthly_data if d.is_milestone]
+        window = (milestone_rows or self.monthly_data)[-6:]
+        avg_growth = 0.0
+        if len(window) >= 2:
+            deltas = [
+                (window[i].investment_balance or 0.0)
+                - (window[i - 1].investment_balance or 0.0)
+                for i in range(1, len(window))
+            ]
+            avg_growth = sum(deltas) / len(deltas) if deltas else 0.0
+
+        latest = self.monthly_data[-1]
+        target_cost_latest = latest.target_purchase_cost or self.property_value
+        balance_latest = latest.investment_balance or 0.0
+        est_months_remaining = None
+        if avg_growth > 0 and balance_latest < target_cost_latest:
+            est_months_remaining = max(
+                0, math.ceil((target_cost_latest - balance_latest) / avg_growth)
+            )
+
+        self.monthly_data[0].projected_purchase_month = (
+            (latest.month + est_months_remaining)
+            if est_months_remaining is not None
+            else None
+        )
+        self.monthly_data[0].estimated_months_remaining = est_months_remaining
+
+    def _calculate_totals(self) -> tuple[float, float, float]:
+        final_month = self.term_months
+        final_property_value = apply_property_appreciation(
+            self.property_value,
+            final_month,
+            1,
+            self.property_appreciation_rate,
+            self.inflation_rate,
+        )
+        final_equity = (
+            (final_property_value if self.purchase_month else 0.0)
+            + self.investment_balance
+            + (self.fgts_balance if self.fgts else 0.0)
+        )
+
+        if self.purchase_month:
+            purchase_property_value = apply_property_appreciation(
+                self.property_value,
+                self.purchase_month,
+                1,
+                self.property_appreciation_rate,
+                self.inflation_rate,
+            )
+            purchase_upfront = calculate_additional_costs(
+                purchase_property_value, self.additional_costs
+            )["total_upfront"]
+            purchase_cost = purchase_property_value + purchase_upfront
+
+            total_outflows = (
+                self.total_rent_paid
+                + purchase_cost
+                + self.total_monthly_additional_costs
+                + self.total_additional_investments
+                + self.total_scheduled_contributions
+            )
+        else:
+            total_outflows = (
+                self.total_rent_paid
+                + self.total_additional_investments
+                + self.total_scheduled_contributions
+            )
+
+        net_cost = total_outflows - final_equity
+        return final_equity, total_outflows, net_cost
+
+
 def simulate_invest_then_buy_scenario(
     property_value: float,
     down_payment: float,
@@ -825,452 +1411,30 @@ def simulate_invest_then_buy_scenario(
     fgts: FGTSInput | None = None,
 ) -> ComparisonScenario:
     """Simulate investing until having enough to buy the property outright."""
-    # Initialize variables
-    monthly_data: list[MonthlyRecord] = []
-    investment_balance = down_payment
-    fgts_balance = fgts.initial_balance if fgts else 0.0
-    fgts_monthly_rate = _compute_fgts_monthly_rate(fgts)
-    total_rent_paid = 0.0
-    purchase_month: int | None = None
-    milestone_thresholds = {25, 50, 75, 90, 100}
-    last_progress_bucket = 0
 
-    # Calculate loan simulation for comparison if invest_loan_difference is True
-    loan_installments = []
-    upfront_costs_for_baseline = 0.0
-    if invest_loan_difference:
-        # Calculate additional costs for loan scenario
-        costs = calculate_additional_costs(property_value, additional_costs)
-        upfront_costs_for_baseline = costs["total_upfront"]
-        loan_value = property_value - down_payment
-
-        # Simulate loan to get installment amounts
-        if loan_type == "SAC":
-            loan_result = simulate_sac_loan(
-                loan_value,
-                term_months,
-                monthly_interest_rate,
-                amortizations,
-                inflation_rate,
-            )
-        else:  # PRICE
-            loan_result = simulate_price_loan(
-                loan_value,
-                term_months,
-                monthly_interest_rate,
-                amortizations,
-                inflation_rate,
-            )
-
-        loan_installments = loan_result.installments
-
-    # Preprocess amortizations as scheduled additional contributions (aportes)
-    fixed_contrib_by_month: dict[int, float] = {}
-    percent_contrib_by_month: dict[int, list[float]] = {}
-    if amortizations:
-        fixed_contrib_by_month, percent_contrib_by_month = preprocess_amortizations(
-            amortizations=amortizations,
-            term_months=term_months,
-            annual_inflation_rate=inflation_rate,
-        )
-
-    total_scheduled_contributions = 0.0  # track for total_outflows
-
-    # Calculate monthly data
-    for month in range(1, term_months + 1):
-        fgts_balance = _accumulate_fgts_balance(
-            fgts_balance, fgts=fgts, fgts_monthly_rate=fgts_monthly_rate
-        )
-
-        fgts_used_this_month = 0.0
-        # Current target purchase cost (property + upfront) with appreciation
-        current_property_value = apply_property_appreciation(
-            property_value, month, 1, property_appreciation_rate, inflation_rate
-        )
-        costs = calculate_additional_costs(current_property_value, additional_costs)
-        total_purchase_cost = current_property_value + costs["total_upfront"]
-
-        # If already purchased, handle post-purchase scenario
-        if purchase_month is not None:
-            monthly_hoa, monthly_property_tax, monthly_additional = (
-                _inflated_monthly_additional_costs(
-                    costs, month=month, inflation_rate=inflation_rate
-                )
-            )
-
-            # Calculate investment after purchase
-            (
-                investment_balance,
-                investment_return_gross,
-                investment_tax_paid,
-                investment_return_net,
-            ) = _apply_investment_return_with_tax(
-                investment_balance,
-                investment_returns=investment_returns,
-                month=month,
-                investment_tax=investment_tax,
-            )
-            investment_return = investment_return_net
-
-            # Add fixed monthly investment if applicable
-            additional_investment = 0.0
-            if fixed_monthly_investment and month >= fixed_investment_start_month:
-                additional_investment += fixed_monthly_investment
-                investment_balance += additional_investment
-
-            # Calculate cash flow (negative = outgoing, positive = saved)
-            cash_flow = -monthly_additional - additional_investment
-
-            monthly_data.append(
-                MonthlyRecord(
-                    month=month,
-                    cash_flow=cash_flow,
-                    investment_balance=investment_balance,
-                    equity=current_property_value,
-                    status="Imóvel comprado",
-                    monthly_additional_costs=monthly_additional,
-                    property_value=current_property_value,
-                    investment_return=investment_return,
-                    investment_return_gross=investment_return_gross,
-                    investment_tax_paid=investment_tax_paid,
-                    investment_return_net=investment_return_net,
-                    additional_investment=additional_investment,
-                    scenario_type="invest_buy",
-                    progress_percent=100.0,
-                    shortfall=0.0,
-                    is_milestone=True,
-                    phase="post_purchase",
-                    fgts_balance=fgts_balance if fgts else None,
-                    fgts_used=0.0,
-                )
-            )
-            continue
-
-        # Before purchase: apply scheduled contributions BEFORE return so they also earn this month's yield
-        extra_contribution_fixed = 0.0
-        extra_contribution_pct = 0.0
-        if month in fixed_contrib_by_month:
-            val = fixed_contrib_by_month[month]
-            extra_contribution_fixed += val
-            investment_balance += val
-        if month in percent_contrib_by_month:
-            pct_total = sum(percent_contrib_by_month[month])
-            if pct_total > 0 and investment_balance > 0:
-                pct_amount = investment_balance * (pct_total / 100.0)
-                extra_contribution_pct += pct_amount
-                investment_balance += pct_amount
-        extra_contribution_total = extra_contribution_fixed + extra_contribution_pct
-        if extra_contribution_total > 0:
-            total_scheduled_contributions += extra_contribution_total
-
-        # Apply rent inflation if applicable (use rent_inflation_rate if provided, otherwise fall back to inflation_rate)
-        current_rent = _current_rent_value(
-            rent_value,
-            month=month,
-            inflation_rate=inflation_rate,
-            rent_inflation_rate=rent_inflation_rate,
-        )
-
-        # Add monthly additional costs to rent (HOA and property tax that tenant pays)
-        monthly_hoa, monthly_property_tax, _monthly_additional = (
-            _inflated_monthly_additional_costs(
-                costs, month=month, inflation_rate=inflation_rate
-            )
-        )
-        total_rent_cost = current_rent + monthly_hoa + monthly_property_tax
-        total_rent_paid += total_rent_cost
-
-        rent_withdrawal = 0.0
-        remaining_before_return = investment_balance
-        external_cover = 0.0
-        external_surplus_invested = 0.0
-        if rent_reduces_investment:
-            remaining_cost = total_rent_cost
-            (
-                investment_balance,
-                remaining_cost,
-                external_cover,
-                external_surplus_invested,
-            ) = _apply_external_savings_to_cost(
-                investment_balance,
-                remaining_cost=remaining_cost,
-                monthly_external_savings=monthly_external_savings,
-                invest_external_surplus=invest_external_surplus,
-            )
-            rent_withdrawal = min(remaining_cost, investment_balance)
-            investment_balance -= rent_withdrawal
-            remaining_before_return = investment_balance
-        else:
-            if invest_external_surplus and monthly_external_savings:
-                investment_balance += monthly_external_savings
-                external_surplus_invested = monthly_external_savings
-
-        # Apply investment growth AFTER contributions (and potential rent withdrawal)
-        (
-            investment_balance,
-            investment_return_gross,
-            investment_tax_paid,
-            investment_return_net,
-        ) = _apply_investment_return_with_tax(
-            investment_balance,
-            investment_returns=investment_returns,
-            month=month,
-            investment_tax=investment_tax,
-        )
-        investment_return = investment_return_net
-
-        withdrawal_for_ratio = rent_withdrawal if rent_reduces_investment else 0.0
-        sustainable_withdrawal_ratio = (
-            (investment_return / withdrawal_for_ratio)
-            if withdrawal_for_ratio > 0
-            else None
-        )
-        burn_month = (
-            withdrawal_for_ratio > 0 and investment_return < withdrawal_for_ratio
-        )
-
-        # Calculate additional investments
-        additional_investment = 0.0
-
-        # Add loan difference investment if enabled
-        if invest_loan_difference and month <= len(loan_installments):
-            # Upfront costs (ITBI/escritura) are assumed paid in cash by the buyer.
-            # For a fair "invest the difference" baseline, invest that upfront amount in month 1.
-            if month == 1 and upfront_costs_for_baseline > 0:
-                additional_investment += upfront_costs_for_baseline
-                investment_balance += upfront_costs_for_baseline
-
-            loan_installment = loan_installments[month - 1]
-            # Add HOA and property tax to loan scenario for fair comparison
-            loan_monthly_hoa = apply_inflation(
-                costs["monthly_hoa"], month, 1, inflation_rate
-            )
-            loan_monthly_property_tax = apply_inflation(
-                costs["monthly_property_tax"], month, 1, inflation_rate
-            )
-            total_loan_payment = (
-                loan_installment.installment
-                + loan_monthly_hoa
-                + loan_monthly_property_tax
-            )
-
-            if total_loan_payment > total_rent_cost:
-                loan_difference = total_loan_payment - total_rent_cost
-                additional_investment += loan_difference
-                investment_balance += loan_difference
-
-        # Add fixed monthly investment if applicable (treated as part of "additional_investment" not scheduled amortization)
-        if fixed_monthly_investment and month >= fixed_investment_start_month:
-            additional_investment += fixed_monthly_investment
-            investment_balance += fixed_monthly_investment
-
-        # Progress metrics
-        progress_percent = (
-            (investment_balance / total_purchase_cost) * 100
-            if total_purchase_cost > 0
-            else 0
-        )
-        shortfall = max(0.0, total_purchase_cost - investment_balance)
-        progress_bucket = 0
-        for t in sorted(milestone_thresholds):
-            if progress_percent >= t:
-                progress_bucket = t
-        crossed_bucket = progress_bucket > last_progress_bucket
-        if crossed_bucket:
-            last_progress_bucket = progress_bucket
-        is_milestone = month <= 12 or month % 12 == 0 or crossed_bucket
-
-        # Check if purchase occurs this month
-        total_available_for_purchase = investment_balance
-        if fgts and fgts.use_at_purchase:
-            total_available_for_purchase += fgts_balance
-
-        if total_available_for_purchase >= total_purchase_cost:
-            # Use FGTS to reduce the amount withdrawn from investments (MVP: use only at purchase)
-            if fgts and fgts.use_at_purchase and fgts_balance > 0:
-                needed_from_fgts = max(0.0, total_purchase_cost - investment_balance)
-                allowed = min(fgts_balance, needed_from_fgts)
-                if fgts.max_withdrawal_at_purchase is not None:
-                    allowed = min(allowed, fgts.max_withdrawal_at_purchase)
-                fgts_used_this_month = allowed
-                fgts_balance -= fgts_used_this_month
-
-            investment_balance -= total_purchase_cost - fgts_used_this_month
-            purchase_month = month
-            status = "Imóvel comprado"
-            equity = current_property_value
-            progress_percent = 100.0
-            shortfall = 0.0
-        else:
-            status = "Aguardando compra"
-            equity = 0
-
-        # Cash flow: negative outflow of rent + all additional investments (including loan diff if any)
-        cash_flow = -(total_rent_cost + additional_investment)
-
-        monthly_data.append(
-            MonthlyRecord(
-                month=month,
-                cash_flow=cash_flow,
-                investment_balance=investment_balance,
-                investment_return=investment_return,
-                rent_paid=current_rent,
-                monthly_hoa=monthly_hoa,
-                monthly_property_tax=monthly_property_tax,
-                monthly_additional_costs=monthly_hoa + monthly_property_tax,
-                total_monthly_cost=total_rent_cost,
-                status=status,
-                equity=equity,
-                property_value=current_property_value,
-                additional_investment=additional_investment,
-                extra_contribution_fixed=extra_contribution_fixed,
-                extra_contribution_percentage=extra_contribution_pct,
-                extra_contribution_total=extra_contribution_total,
-                target_purchase_cost=total_purchase_cost,
-                progress_percent=progress_percent,
-                shortfall=shortfall,
-                is_milestone=is_milestone or status == "Imóvel comprado",
-                scenario_type="invest_buy",
-                phase=(
-                    "post_purchase" if status == "Imóvel comprado" else "pre_purchase"
-                ),
-                rent_withdrawal_from_investment=(
-                    rent_withdrawal if rent_reduces_investment else 0.0
-                ),
-                remaining_investment_before_return=(
-                    remaining_before_return
-                    if rent_reduces_investment
-                    else investment_balance
-                ),
-                external_cover=external_cover,
-                external_surplus_invested=external_surplus_invested,
-                sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
-                burn_month=burn_month,
-                investment_return_gross=investment_return_gross,
-                investment_tax_paid=investment_tax_paid,
-                investment_return_net=investment_return_net,
-                fgts_balance=fgts_balance if fgts else None,
-                fgts_used=fgts_used_this_month if fgts else 0.0,
-            )
-        )
-
-    # Calculate final equity and property value with appreciation
-    final_month = term_months
-    final_property_value = apply_property_appreciation(
-        property_value, final_month, 1, property_appreciation_rate, inflation_rate
+    simulator = InvestThenBuySimulator(
+        property_value=property_value,
+        down_payment=down_payment,
+        term_months=term_months,
+        investment_returns=investment_returns,
+        rent_value=rent_value,
+        additional_costs=additional_costs,
+        inflation_rate=inflation_rate,
+        rent_inflation_rate=rent_inflation_rate,
+        property_appreciation_rate=property_appreciation_rate,
+        invest_loan_difference=invest_loan_difference,
+        fixed_monthly_investment=fixed_monthly_investment,
+        fixed_investment_start_month=fixed_investment_start_month,
+        loan_type=loan_type,
+        monthly_interest_rate=monthly_interest_rate,
+        amortizations=amortizations,
+        rent_reduces_investment=rent_reduces_investment,
+        monthly_external_savings=monthly_external_savings,
+        invest_external_surplus=invest_external_surplus,
+        investment_tax=investment_tax,
+        fgts=fgts,
     )
-    final_equity = (
-        (final_property_value if purchase_month else 0.0)
-        + investment_balance
-        + (fgts_balance if fgts else 0.0)
-    )
-
-    # Calculate total additional monthly costs after purchase
-    total_monthly_additional_costs = 0.0
-    total_additional_investments = 0.0
-
-    if purchase_month:
-        for month in range(purchase_month + 1, term_months + 1):
-            current_property_value = apply_property_appreciation(
-                property_value, month, 1, property_appreciation_rate, inflation_rate
-            )
-            costs = calculate_additional_costs(current_property_value, additional_costs)
-            _, _, monthly_additional = _inflated_monthly_additional_costs(
-                costs, month=month, inflation_rate=inflation_rate
-            )
-            total_monthly_additional_costs += monthly_additional
-
-            # Add fixed investments after purchase
-            if fixed_monthly_investment and month >= fixed_investment_start_month:
-                total_additional_investments += fixed_monthly_investment
-
-    # Accumulate additional investments made during investment phase directly
-    for data in monthly_data:
-        # All rows prior to purchase contribute their recorded additional_investment
-        if data.additional_investment:
-            total_additional_investments += float(data.additional_investment)
-
-    # Calculate total cost
-    if purchase_month:
-        purchase_property_value = apply_property_appreciation(
-            property_value,
-            purchase_month,
-            1,
-            property_appreciation_rate,
-            inflation_rate,
-        )
-        purchase_upfront = calculate_additional_costs(
-            purchase_property_value, additional_costs
-        )["total_upfront"]
-        purchase_cost = purchase_property_value + purchase_upfront
-
-        total_outflows = (
-            total_rent_paid
-            + purchase_cost
-            + total_monthly_additional_costs
-            + total_additional_investments
-            + total_scheduled_contributions
-        )
-    else:
-        total_outflows = (
-            total_rent_paid
-            + total_additional_investments
-            + total_scheduled_contributions
-        )
-
-    net_cost = total_outflows - final_equity
-
-    # Scenario-level purchase or projection metadata inserted into first row for convenience
-    if monthly_data:
-        if purchase_month is not None:
-            purchase_price = next(
-                (
-                    d.property_value
-                    for d in monthly_data
-                    if d.month == purchase_month and d.property_value is not None
-                ),
-                property_value,
-            )
-            monthly_data[0].purchase_month = purchase_month
-            monthly_data[0].purchase_price = float(purchase_price)
-        else:
-            # Projection: average growth of last milestone window
-            milestone_rows = [d for d in monthly_data if d.is_milestone]
-            window = (milestone_rows or monthly_data)[-6:]
-            avg_growth = 0.0
-            if len(window) >= 2:
-                deltas = [
-                    (window[i].investment_balance or 0.0)
-                    - (window[i - 1].investment_balance or 0.0)
-                    for i in range(1, len(window))
-                ]
-                avg_growth = sum(deltas) / len(deltas) if deltas else 0.0
-            latest = monthly_data[-1]
-            target_cost_latest = latest.target_purchase_cost or property_value
-            balance_latest = latest.investment_balance or 0.0
-            est_months_remaining = None
-            if avg_growth > 0 and balance_latest < target_cost_latest:
-                est_months_remaining = max(
-                    0, math.ceil((target_cost_latest - balance_latest) / avg_growth)
-                )
-            monthly_data[0].projected_purchase_month = (
-                (latest.month + est_months_remaining)
-                if est_months_remaining is not None
-                else None
-            )
-            monthly_data[0].estimated_months_remaining = est_months_remaining
-
-    # Ensure chronological ordering (defensive in case of future insertions)
-    monthly_data.sort(key=lambda d: d.month)
-
-    return ComparisonScenario(
-        name="Investir e comprar à vista",
-        total_cost=net_cost,
-        final_equity=final_equity,
-        monthly_data=monthly_data,
-        total_outflows=total_outflows,
-        net_cost=net_cost,
-    )
+    return simulator.simulate()
 
 
 def compare_scenarios(
