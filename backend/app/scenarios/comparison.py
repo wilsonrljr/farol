@@ -18,17 +18,13 @@ from ..core.protocols import (
     InvestmentReturnLike,
     InvestmentTaxLike,
 )
-from ..models import (
-    ComparisonMetrics,
-    ComparisonResult,
-    ComparisonScenario,
-    EnhancedComparisonResult,
-    EnhancedComparisonScenario,
-    MonthlyRecord,
-)
-from .buy import simulate_buy_scenario
-from .invest_then_buy import simulate_invest_then_buy_scenario
-from .rent_and_invest import simulate_rent_and_invest_scenario
+from ..domain import models as domain
+from ..domain.models import ComparisonScenario as DomainComparisonScenario
+from ..domain.mappers import comparison_result_to_api, enhanced_comparison_result_to_api
+from ..models import ComparisonResult, EnhancedComparisonResult
+from .buy import BuyScenarioSimulator
+from .invest_then_buy import InvestThenBuyScenarioSimulator
+from .rent_and_invest import RentAndInvestScenarioSimulator
 
 
 def compare_scenarios(
@@ -54,67 +50,112 @@ def compare_scenarios(
     fgts: FGTSLike | None = None,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
+    result = _compare_scenarios_domain(
+        property_value=property_value,
+        down_payment=down_payment,
+        loan_term_years=loan_term_years,
+        monthly_interest_rate=monthly_interest_rate,
+        loan_type=loan_type,
+        rent_value=rent_value,
+        investment_returns=investment_returns,
+        amortizations=amortizations,
+        additional_costs=additional_costs,
+        inflation_rate=inflation_rate,
+        rent_inflation_rate=rent_inflation_rate,
+        property_appreciation_rate=property_appreciation_rate,
+        invest_loan_difference=invest_loan_difference,
+        fixed_monthly_investment=fixed_monthly_investment,
+        fixed_investment_start_month=fixed_investment_start_month,
+        rent_reduces_investment=rent_reduces_investment,
+        monthly_external_savings=monthly_external_savings,
+        invest_external_surplus=invest_external_surplus,
+        investment_tax=investment_tax,
+        fgts=fgts,
+    )
+    return comparison_result_to_api(result)
+
+
+def _compare_scenarios_domain(
+    *,
+    property_value: float,
+    down_payment: float,
+    loan_term_years: int,
+    monthly_interest_rate: float,
+    loan_type: str,
+    rent_value: float,
+    investment_returns: Sequence[InvestmentReturnLike],
+    amortizations: Sequence[AmortizationLike] | None = None,
+    additional_costs: AdditionalCostsLike | None = None,
+    inflation_rate: float | None = None,
+    rent_inflation_rate: float | None = None,
+    property_appreciation_rate: float | None = None,
+    invest_loan_difference: bool = False,
+    fixed_monthly_investment: float | None = None,
+    fixed_investment_start_month: int = 1,
+    rent_reduces_investment: bool = False,
+    monthly_external_savings: float | None = None,
+    invest_external_surplus: bool = False,
+    investment_tax: InvestmentTaxLike | None = None,
+    fgts: FGTSLike | None = None,
+) -> domain.ComparisonResult:
     term_months = loan_term_years * 12
 
-    buy_scenario = simulate_buy_scenario(
-        property_value,
-        down_payment,
-        loan_term_years,
-        monthly_interest_rate,
-        loan_type,
-        list(amortizations) if amortizations else None,
-        investment_returns,
-        additional_costs,
-        inflation_rate,
-        property_appreciation_rate,
-        investment_tax,
-        fgts,
-    )
+    buy = BuyScenarioSimulator(
+        property_value=property_value,
+        down_payment=down_payment,
+        loan_term_years=loan_term_years,
+        monthly_interest_rate=monthly_interest_rate,
+        loan_type=loan_type,
+        amortizations=list(amortizations) if amortizations else None,
+        property_appreciation_rate=property_appreciation_rate,
+        additional_costs=additional_costs,
+        inflation_rate=inflation_rate,
+        fgts=fgts,
+    ).simulate_domain()
 
-    rent_scenario = simulate_rent_and_invest_scenario(
-        property_value,
-        down_payment,
-        term_months,
-        rent_value,
-        investment_returns,
-        additional_costs,
-        inflation_rate,
-        rent_inflation_rate,
-        property_appreciation_rate,
-        rent_reduces_investment,
-        monthly_external_savings,
-        invest_external_surplus,
-        investment_tax,
-        fgts,
-    )
+    rent = RentAndInvestScenarioSimulator(
+        property_value=property_value,
+        down_payment=down_payment,
+        term_months=term_months,
+        rent_value=rent_value,
+        investment_returns=investment_returns,
+        additional_costs=additional_costs,
+        inflation_rate=inflation_rate,
+        rent_inflation_rate=rent_inflation_rate,
+        property_appreciation_rate=property_appreciation_rate,
+        rent_reduces_investment=rent_reduces_investment,
+        monthly_external_savings=monthly_external_savings,
+        invest_external_surplus=invest_external_surplus,
+        investment_tax=investment_tax,
+        fgts=fgts,
+    ).simulate_domain()
 
-    invest_buy_scenario = simulate_invest_then_buy_scenario(
-        property_value,
-        down_payment,
-        term_months,
-        investment_returns,
-        rent_value,
-        additional_costs,
-        inflation_rate,
-        rent_inflation_rate,
-        property_appreciation_rate,
-        invest_loan_difference,
-        fixed_monthly_investment,
-        fixed_investment_start_month,
-        loan_type,
-        monthly_interest_rate,
-        amortizations,
-        rent_reduces_investment,
-        monthly_external_savings,
-        invest_external_surplus,
-        investment_tax,
-        fgts,
-    )
+    invest_buy = InvestThenBuyScenarioSimulator(
+        property_value=property_value,
+        down_payment=down_payment,
+        term_months=term_months,
+        rent_value=rent_value,
+        investment_returns=investment_returns,
+        additional_costs=additional_costs,
+        inflation_rate=inflation_rate,
+        rent_inflation_rate=rent_inflation_rate,
+        property_appreciation_rate=property_appreciation_rate,
+        invest_loan_difference=invest_loan_difference,
+        fixed_monthly_investment=fixed_monthly_investment,
+        fixed_investment_start_month=fixed_investment_start_month,
+        loan_type=loan_type,
+        monthly_interest_rate=monthly_interest_rate,
+        amortizations=amortizations,
+        rent_reduces_investment=rent_reduces_investment,
+        monthly_external_savings=monthly_external_savings,
+        invest_external_surplus=invest_external_surplus,
+        investment_tax=investment_tax,
+        fgts=fgts,
+    ).simulate_domain()
 
-    scenarios = [buy_scenario, rent_scenario, invest_buy_scenario]
+    scenarios = [buy, rent, invest_buy]
     best_scenario = min(scenarios, key=lambda x: x.total_cost).name
-
-    return ComparisonResult(best_scenario=best_scenario, scenarios=scenarios)
+    return domain.ComparisonResult(best_scenario=best_scenario, scenarios=scenarios)
 
 
 def enhanced_compare_scenarios(
@@ -140,7 +181,55 @@ def enhanced_compare_scenarios(
     fgts: FGTSLike | None = None,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
-    basic_comparison = compare_scenarios(
+    result = _enhanced_compare_scenarios_domain(
+        property_value=property_value,
+        down_payment=down_payment,
+        loan_term_years=loan_term_years,
+        monthly_interest_rate=monthly_interest_rate,
+        loan_type=loan_type,
+        rent_value=rent_value,
+        investment_returns=investment_returns,
+        amortizations=amortizations,
+        additional_costs=additional_costs,
+        inflation_rate=inflation_rate,
+        rent_inflation_rate=rent_inflation_rate,
+        property_appreciation_rate=property_appreciation_rate,
+        invest_loan_difference=invest_loan_difference,
+        fixed_monthly_investment=fixed_monthly_investment,
+        fixed_investment_start_month=fixed_investment_start_month,
+        rent_reduces_investment=rent_reduces_investment,
+        monthly_external_savings=monthly_external_savings,
+        invest_external_surplus=invest_external_surplus,
+        investment_tax=investment_tax,
+        fgts=fgts,
+    )
+    return enhanced_comparison_result_to_api(result)
+
+
+def _enhanced_compare_scenarios_domain(
+    *,
+    property_value: float,
+    down_payment: float,
+    loan_term_years: int,
+    monthly_interest_rate: float,
+    loan_type: str,
+    rent_value: float,
+    investment_returns: Sequence[InvestmentReturnLike],
+    amortizations: Sequence[AmortizationLike] | None = None,
+    additional_costs: AdditionalCostsLike | None = None,
+    inflation_rate: float | None = None,
+    rent_inflation_rate: float | None = None,
+    property_appreciation_rate: float | None = None,
+    invest_loan_difference: bool = False,
+    fixed_monthly_investment: float | None = None,
+    fixed_investment_start_month: int = 1,
+    rent_reduces_investment: bool = False,
+    monthly_external_savings: float | None = None,
+    invest_external_surplus: bool = False,
+    investment_tax: InvestmentTaxLike | None = None,
+    fgts: FGTSLike | None = None,
+) -> domain.EnhancedComparisonResult:
+    basic = _compare_scenarios_domain(
         property_value=property_value,
         down_payment=down_payment,
         loan_term_years=loan_term_years,
@@ -163,37 +252,35 @@ def enhanced_compare_scenarios(
         fgts=fgts,
     )
 
-    buy_scenario = basic_comparison.scenarios[0]
-    rent_scenario = basic_comparison.scenarios[1]
-    invest_buy_scenario = basic_comparison.scenarios[2]
-
-    best_cost = min(s.total_cost for s in basic_comparison.scenarios)
-
-    metrics_calculator = _MetricsCalculator(
+    best_cost = min(s.total_cost for s in basic.scenarios)
+    metrics_calculator = _DomainMetricsCalculator(
         down_payment=down_payment,
         fgts=fgts,
         best_cost=best_cost,
     )
 
     enhanced_scenarios = [
-        EnhancedComparisonScenario(
-            name=scenario.name,
-            total_cost=scenario.total_cost,
-            final_equity=scenario.final_equity,
-            total_outflows=scenario.total_outflows,
-            net_cost=scenario.net_cost,
-            monthly_data=scenario.monthly_data,
-            metrics=metrics_calculator.calculate(scenario),
+        domain.EnhancedComparisonScenario(
+            name=sc.name,
+            total_cost=sc.total_cost,
+            final_equity=sc.final_equity,
+            total_outflows=sc.total_outflows,
+            net_cost=sc.net_cost,
+            monthly_data=sc.monthly_data,
+            metrics=metrics_calculator.calculate(sc),
         )
-        for scenario in basic_comparison.scenarios
+        for sc in basic.scenarios
     ]
 
+    buy_scenario = basic.scenarios[0]
+    rent_scenario = basic.scenarios[1]
+    invest_buy_scenario = basic.scenarios[2]
     comparative_summary = _build_comparative_summary(
         buy_scenario, rent_scenario, invest_buy_scenario
     )
 
-    return EnhancedComparisonResult(
-        best_scenario=basic_comparison.best_scenario,
+    return domain.EnhancedComparisonResult(
+        best_scenario=basic.best_scenario,
         scenarios=enhanced_scenarios,
         comparative_summary=comparative_summary,
     )
@@ -205,8 +292,8 @@ class _SustainabilityMetrics(TypedDict):
     months_with_burn: int | None
 
 
-class _MetricsCalculator:
-    """Calculator for comparison metrics."""
+class _DomainMetricsCalculator:
+    """Calculator for comparison metrics (domain layer)."""
 
     def __init__(
         self,
@@ -219,23 +306,28 @@ class _MetricsCalculator:
         self.fgts = fgts
         self.best_cost = best_cost
 
-    def calculate(self, scenario: ComparisonScenario) -> ComparisonMetrics:
+    def calculate(
+        self, scenario: domain.ComparisonScenario
+    ) -> domain.ComparisonMetrics:
         """Calculate metrics for a scenario."""
         total_cost_diff = scenario.total_cost - self.best_cost
         total_cost_pct_diff = (
             (total_cost_diff / self.best_cost * 100) if self.best_cost else 0
         )
 
-        monthly_costs = [data.cash_flow for data in scenario.monthly_data]
+        monthly_costs = [_get_monthly_cost(d) for d in scenario.monthly_data]
         avg_monthly_cost = (
-            sum(monthly_costs) / len(monthly_costs) if monthly_costs else 0
+            (sum(monthly_costs) / len(monthly_costs)) if monthly_costs else 0.0
         )
 
         initial_investment = self._calculate_initial_investment(scenario)
         roi_pct = self._calculate_roi(scenario.final_equity, initial_investment)
 
         total_interest_rent = self._calculate_total_interest_or_rent(scenario)
-        break_even_month = self._calculate_break_even_month(scenario)
+        break_even_month = self._calculate_break_even_month(
+            scenario,
+            initial_investment=initial_investment,
+        )
         sustainability = self._calculate_sustainability_metrics(scenario)
 
         total_withdrawn = sustainability["total_withdrawn"]
@@ -248,7 +340,7 @@ class _MetricsCalculator:
             total_withdrawn,
         )
 
-        return ComparisonMetrics(
+        return domain.ComparisonMetrics(
             total_cost_difference=total_cost_diff,
             total_cost_percentage_difference=total_cost_pct_diff,
             break_even_month=break_even_month,
@@ -266,7 +358,9 @@ class _MetricsCalculator:
             average_sustainable_withdrawal_ratio=avg_ratio,
         )
 
-    def _calculate_initial_investment(self, scenario: ComparisonScenario) -> float:
+    def _calculate_initial_investment(
+        self, scenario: domain.ComparisonScenario
+    ) -> float:
         """Calculate initial investment for ROI calculation."""
         initial = self.down_payment + (self.fgts.initial_balance if self.fgts else 0.0)
         if scenario.scenario_type == "buy" and scenario.monthly_data:
@@ -280,26 +374,42 @@ class _MetricsCalculator:
             return 0.0
         return (final_value - initial_investment) / initial_investment * 100
 
-    def _calculate_total_interest_or_rent(self, scenario: ComparisonScenario) -> float:
+    def _calculate_total_interest_or_rent(
+        self, scenario: domain.ComparisonScenario
+    ) -> float:
         """Calculate total interest or rent paid."""
         if scenario.scenario_type == "buy":
             return sum((d.interest_payment or 0.0) for d in scenario.monthly_data)
         return sum((d.rent_paid or 0.0) for d in scenario.monthly_data)
 
-    def _calculate_break_even_month(self, scenario: ComparisonScenario) -> int | None:
-        """Calculate break-even month."""
-        if scenario.total_cost == self.best_cost:
+    def _calculate_break_even_month(
+        self,
+        scenario: domain.ComparisonScenario,
+        *,
+        initial_investment: float,
+    ) -> int | None:
+        """Calculate break-even month.
+
+        Defined as the first month where accumulated wealth is at least the
+        accumulated outflows (initial + monthly costs).
+
+        This is designed to be robust even when MonthlyRecord.cash_flow is stored
+        as negative outflows.
+        """
+        if not scenario.monthly_data:
             return None
 
-        cumulative = 0.0
-        for data in scenario.monthly_data:
-            cumulative += data.cash_flow
-            if cumulative >= 0:
-                return data.month
+        cumulative_outflows = float(initial_investment)
+
+        for d in scenario.monthly_data:
+            cumulative_outflows += _get_monthly_cost(d)
+            if _get_total_wealth(d) >= cumulative_outflows:
+                return d.month
+
         return None
 
     def _calculate_sustainability_metrics(
-        self, scenario: ComparisonScenario
+        self, scenario: domain.ComparisonScenario
     ) -> _SustainabilityMetrics:
         """Calculate sustainability metrics."""
         withdrawals = [
@@ -333,9 +443,9 @@ class _MetricsCalculator:
 
 
 def _build_comparative_summary(
-    buy_scenario: ComparisonScenario,
-    rent_scenario: ComparisonScenario,
-    invest_buy_scenario: ComparisonScenario,
+    buy_scenario: DomainComparisonScenario,
+    rent_scenario: DomainComparisonScenario,
+    invest_buy_scenario: DomainComparisonScenario,
 ) -> dict[str, dict[str, object]]:
     """Build month-by-month comparative summary."""
     max_months = max(
@@ -351,9 +461,9 @@ def _build_comparative_summary(
         rent_data = _find_month_data(rent_scenario.monthly_data, month)
         invest_data = _find_month_data(invest_buy_scenario.monthly_data, month)
 
-        buy_cost = _get_value(buy_data, "cash_flow")
-        rent_cost = _get_value(rent_data, "cash_flow")
-        invest_cost = _get_value(invest_data, "cash_flow")
+        buy_cost = _get_monthly_cost(buy_data)
+        rent_cost = _get_monthly_cost(rent_data)
+        invest_cost = _get_monthly_cost(invest_data)
 
         month_comparison: dict[str, object] = {
             "month": month,
@@ -381,16 +491,35 @@ def _build_comparative_summary(
     return comparative_summary
 
 
+def _get_monthly_cost(row: object | None) -> float:
+    """Get a positive monthly cost value for comparisons.
+
+    Prefer total_monthly_cost (already positive). Fall back to -cash_flow.
+    """
+    if row is None:
+        return 0.0
+
+    total = getattr(row, "total_monthly_cost", None)
+    if isinstance(total, (int, float)):
+        return float(total)
+
+    cash_flow = getattr(row, "cash_flow", None)
+    if isinstance(cash_flow, (int, float)):
+        return float(-cash_flow)
+
+    return 0.0
+
+
 def _find_month_data(
-    monthly_data: list[MonthlyRecord],
+    monthly_data: list[domain.MonthlyRecord],
     month: int,
-) -> MonthlyRecord | None:
+) -> domain.MonthlyRecord | None:
     """Find monthly data for a specific month."""
     return next((d for d in monthly_data if d.month == month), None)
 
 
 def _get_value(
-    row: MonthlyRecord | None,
+    row: object | None,
     attr: str,
     default: float = 0.0,
 ) -> float:
@@ -399,3 +528,17 @@ def _get_value(
         return default
     val = getattr(row, attr, None)
     return float(val) if isinstance(val, (int, float)) else default
+
+
+def _get_total_wealth(row: object | None) -> float:
+    """Compute total wealth for a month (best-effort).
+
+    Wealth is treated as equity + investment balance + FGTS balance (if present).
+    """
+    if row is None:
+        return 0.0
+
+    equity = _get_value(row, "equity")
+    investment_balance = _get_value(row, "investment_balance")
+    fgts_balance = _get_value(row, "fgts_balance")
+    return equity + investment_balance + fgts_balance

@@ -8,8 +8,8 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 """
 
-from dataclasses import dataclass, field
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 
 from ..core.investment import InvestmentCalculator, InvestmentResult
 from ..core.protocols import (
@@ -18,9 +18,11 @@ from ..core.protocols import (
     InvestmentReturnLike,
     InvestmentTaxLike,
 )
+from ..domain.mappers import comparison_scenario_to_api
+from ..domain.models import ComparisonScenario as DomainComparisonScenario
+from ..domain.models import MonthlyRecord as DomainMonthlyRecord
 from ..models import (
     ComparisonScenario,
-    MonthlyRecord,
 )
 from .base import RentalScenarioMixin, ScenarioSimulator
 
@@ -65,7 +67,11 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
 
     def simulate(self) -> ComparisonScenario:
-        """Run the rent and invest simulation."""
+        """Run the rent and invest simulation (API model)."""
+        return comparison_scenario_to_api(self.simulate_domain())
+
+    def simulate_domain(self) -> DomainComparisonScenario:
+        """Run the rent and invest simulation (domain model)."""
         self._monthly_data = []
 
         for month in range(1, self.term_months + 1):
@@ -73,9 +79,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             record = self._simulate_month(month)
             self._monthly_data.append(record)
 
-        return self._build_result()
+        return self._build_domain_result()
 
-    def _simulate_month(self, month: int) -> MonthlyRecord:
+    def _simulate_month(self, month: int) -> DomainMonthlyRecord:
         """Simulate a single month."""
         current_rent = self.get_current_rent(month)
         monthly_hoa, monthly_property_tax, monthly_additional = (
@@ -127,7 +133,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_monthly_cost: float,
         cashflow_result: dict[str, float],
         investment_result: InvestmentResult,
-    ) -> MonthlyRecord:
+    ) -> DomainMonthlyRecord:
         """Create a monthly record."""
         withdrawal = (
             cashflow_result["rent_withdrawal"] if self.rent_reduces_investment else 0.0
@@ -139,7 +145,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         burn_month = withdrawal > 0 and investment_return < withdrawal
 
-        return MonthlyRecord(
+        return DomainMonthlyRecord(
             month=month,
             cash_flow=-total_monthly_cost,
             investment_balance=self._investment_balance,
@@ -178,8 +184,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             fgts_balance=self.fgts_balance if self.fgts else None,
         )
 
-    def _build_result(self) -> ComparisonScenario:
-        """Build the final comparison scenario result."""
+    def _build_domain_result(self) -> DomainComparisonScenario:
+        """Build the final comparison scenario result (domain)."""
         final_equity = self._investment_balance + self.fgts_balance
         initial_capital = self.down_payment + (
             self.fgts.initial_balance if self.fgts else 0.0
@@ -187,7 +193,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_outflows = self._total_rent_paid + initial_capital
         net_cost = total_outflows - final_equity
 
-        return ComparisonScenario(
+        return DomainComparisonScenario(
             name=self.scenario_name,
             scenario_type="rent_invest",
             total_cost=net_cost,

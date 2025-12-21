@@ -8,16 +8,18 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 """
 
-from dataclasses import dataclass, field
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 
 from ..core.inflation import apply_property_appreciation
 from ..core.protocols import AdditionalCostsLike, AmortizationLike, FGTSLike
+from ..domain.mappers import comparison_scenario_to_api
+from ..domain.models import ComparisonScenario as DomainComparisonScenario
+from ..domain.models import MonthlyRecord as DomainMonthlyRecord
 from ..loans import LoanSimulator, PriceLoanSimulator, SACLoanSimulator
 from ..models import (
     ComparisonScenario,
     LoanSimulationResult,
-    MonthlyRecord,
 )
 from .base import ScenarioSimulator
 
@@ -56,11 +58,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
             raise ValueError("loan_term_years must be > 0")
 
     def simulate(self) -> ComparisonScenario:
-        """Run the buy scenario simulation."""
+        """Run the buy scenario simulation (API model)."""
+        return comparison_scenario_to_api(self.simulate_domain())
+
+    def simulate_domain(self) -> DomainComparisonScenario:
+        """Run the buy scenario simulation (domain model)."""
         self._prepare_simulation()
         self._simulate_loan()
         self._generate_monthly_data()
-        return self._build_result()
+        return self._build_domain_result()
 
     def _prepare_simulation(self) -> None:
         """Prepare simulation parameters."""
@@ -183,12 +189,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
         amortization_value: float,
         interest_value: float,
         outstanding_balance: float,
-    ) -> MonthlyRecord:
+    ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment."""
         equity = property_value - outstanding_balance
         total_monthly_cost = installment_value + monthly_additional
 
-        return MonthlyRecord(
+        return DomainMonthlyRecord(
             month=month,
             cash_flow=-total_monthly_cost,
             equity=equity,
@@ -214,8 +220,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
             ),
         )
 
-    def _build_result(self) -> ComparisonScenario:
-        """Build the final comparison scenario result."""
+    def _build_domain_result(self) -> DomainComparisonScenario:
+        """Build the final comparison scenario result (domain)."""
         if self._loan_result is None:
             raise ValueError("Loan simulation not completed")
 
@@ -235,7 +241,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         )
         net_cost = total_outflows - final_equity
 
-        return ComparisonScenario(
+        return DomainComparisonScenario(
             name=self.scenario_name,
             scenario_type="buy",
             total_cost=net_cost,

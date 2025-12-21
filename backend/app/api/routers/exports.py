@@ -8,8 +8,8 @@ import pandas as pd  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from ..input_normalization import resolve_monthly_interest_rate, resolve_rent_value
 from ...finance import (
-    convert_interest_rate,
     simulate_price_loan,
     simulate_sac_loan,
 )
@@ -68,14 +68,10 @@ def export_simulate_loan(
     """Export loan simulation (SAC/PRICE) to CSV or XLSX."""
     loan_value = input_data.property_value - input_data.down_payment
 
-    annual_rate = input_data.annual_interest_rate
-    monthly_rate = input_data.monthly_interest_rate
-    if annual_rate is None and monthly_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
-        )
-
-    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
+    monthly_rate = resolve_monthly_interest_rate(
+        annual_interest_rate=input_data.annual_interest_rate,
+        monthly_interest_rate=input_data.monthly_interest_rate,
+    )
     term_months = input_data.loan_term_years * 12
 
     if input_data.loan_type == "SAC":
@@ -125,22 +121,18 @@ def export_compare_scenarios(
     shape: str = Query("long", pattern="^(long|wide)$"),
 ) -> StreamingResponse:
     """Export basic scenario comparison."""
-    annual_rate = input_data.annual_interest_rate
-    monthly_rate = input_data.monthly_interest_rate
-    if annual_rate is None and monthly_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
-        )
+    monthly_rate = resolve_monthly_interest_rate(
+        annual_interest_rate=input_data.annual_interest_rate,
+        monthly_interest_rate=input_data.monthly_interest_rate,
+    )
 
-    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
+    rent_value = resolve_rent_value(
+        property_value=input_data.property_value,
+        rent_value=input_data.rent_value,
+        rent_percentage=input_data.rent_percentage,
+    )
 
-    rent_value = input_data.rent_value
-    if rent_value is None and input_data.rent_percentage is not None:
-        rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
-    if rent_value is None:
-        raise ValueError("Either rent_value or rent_percentage must be provided")
-
-    amortizations = cast("Any", input_data.amortizations)
+    amortizations = cast(Any, input_data.amortizations)
     result = compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,
@@ -272,22 +264,18 @@ def export_compare_scenarios_enhanced(
     shape: str = Query("long", pattern="^(long|wide)$"),
 ) -> StreamingResponse:
     """Export enhanced scenario comparison (metrics + monthly data)."""
-    annual_rate = input_data.annual_interest_rate
-    monthly_rate = input_data.monthly_interest_rate
-    if annual_rate is None and monthly_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
-        )
+    monthly_rate = resolve_monthly_interest_rate(
+        annual_interest_rate=input_data.annual_interest_rate,
+        monthly_interest_rate=input_data.monthly_interest_rate,
+    )
 
-    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
+    rent_value = resolve_rent_value(
+        property_value=input_data.property_value,
+        rent_value=input_data.rent_value,
+        rent_percentage=input_data.rent_percentage,
+    )
 
-    rent_value = input_data.rent_value
-    if rent_value is None and input_data.rent_percentage is not None:
-        rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
-    if rent_value is None:
-        raise ValueError("Either rent_value or rent_percentage must be provided")
-
-    amortizations = cast("Any", input_data.amortizations)
+    amortizations = cast(Any, input_data.amortizations)
     result = enhanced_compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,

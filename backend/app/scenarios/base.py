@@ -10,6 +10,7 @@ the Free Software Foundation, either version 3 of the License, or
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from ..core.costs import AdditionalCostsCalculator, CostsBreakdown
 from ..core.fgts import FGTSManager
@@ -17,13 +18,19 @@ from ..core.inflation import apply_inflation
 from ..core.protocols import (
     AdditionalCostsLike,
     FGTSLike,
-    InvestmentReturnLike,
-    InvestmentTaxLike,
 )
-from ..models import (
-    ComparisonScenario,
-    MonthlyRecord,
-)
+from ..domain.models import MonthlyRecord
+from ..models import ComparisonScenario
+
+
+class _HasRentFields(Protocol):
+    rent_value: float
+    rent_inflation_rate: float | None
+    inflation_rate: float | None
+
+
+class _HasInvestmentBalance(Protocol):
+    _investment_balance: float
 
 
 @dataclass
@@ -111,7 +118,14 @@ class RentalScenarioMixin:
     with duplicated dataclass fields.
     """
 
-    def get_current_rent(self, month: int) -> float:
+    # Type-only attributes expected from concrete scenario simulators.
+    # They are intentionally not declared as dataclass fields here.
+    rent_value: float
+    rent_inflation_rate: float | None
+    inflation_rate: float | None
+    _investment_balance: float
+
+    def get_current_rent(self: _HasRentFields, month: int) -> float:
         """Get inflation-adjusted rent for a month."""
         effective_rate = (
             self.rent_inflation_rate
@@ -121,7 +135,7 @@ class RentalScenarioMixin:
         return apply_inflation(self.rent_value, month, 1, effective_rate)
 
     def _apply_rent_cashflows(
-        self,
+        self: _HasInvestmentBalance,
         *,
         total_monthly_cost: float,
         rent_reduces_investment: bool,
@@ -135,7 +149,9 @@ class RentalScenarioMixin:
         rent_withdrawal = 0.0
         external_cover = 0.0
         external_surplus_invested = 0.0
-        remaining_before_return = getattr(self, "_investment_balance", 0.0)
+
+        investment_balance = float(getattr(self, "_investment_balance", 0.0))
+        remaining_before_return = investment_balance
 
         if rent_reduces_investment:
             cost_remaining = total_monthly_cost
@@ -146,16 +162,18 @@ class RentalScenarioMixin:
                 surplus = monthly_external_savings - external_cover
 
                 if surplus > 0 and invest_external_surplus:
-                    self._investment_balance += surplus
+                    investment_balance += surplus
                     external_surplus_invested = surplus
 
-            rent_withdrawal = min(cost_remaining, self._investment_balance)
-            self._investment_balance -= rent_withdrawal
-            remaining_before_return = self._investment_balance
+            rent_withdrawal = min(cost_remaining, investment_balance)
+            investment_balance -= rent_withdrawal
+            remaining_before_return = investment_balance
         elif invest_external_surplus and monthly_external_savings:
-            self._investment_balance += monthly_external_savings
+            investment_balance += monthly_external_savings
             external_surplus_invested = monthly_external_savings
-            remaining_before_return = self._investment_balance
+            remaining_before_return = investment_balance
+
+        setattr(self, "_investment_balance", investment_balance)
 
         return {
             "rent_withdrawal": rent_withdrawal,

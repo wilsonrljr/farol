@@ -7,8 +7,8 @@ from typing import Any, cast
 
 from fastapi import APIRouter
 
+from ..input_normalization import resolve_monthly_interest_rate, resolve_rent_value
 from ...finance import (
-    convert_interest_rate,
     simulate_price_loan,
     simulate_sac_loan,
 )
@@ -31,15 +31,10 @@ def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult:
     """Simulate a loan with either SAC or PRICE method."""
     loan_value = input_data.property_value - input_data.down_payment
 
-    annual_rate = input_data.annual_interest_rate
-    monthly_rate = input_data.monthly_interest_rate
-
-    if annual_rate is None and monthly_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
-        )
-
-    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
+    monthly_rate = resolve_monthly_interest_rate(
+        annual_interest_rate=input_data.annual_interest_rate,
+        monthly_interest_rate=input_data.monthly_interest_rate,
+    )
 
     term_months = input_data.loan_term_years * 12
 
@@ -64,22 +59,16 @@ def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult:
 @router.post("/api/compare-scenarios", response_model=ComparisonResult)
 def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
     """Compare buy vs rent+invest vs invest-then-buy."""
-    annual_rate = input_data.annual_interest_rate
-    monthly_rate = input_data.monthly_interest_rate
+    monthly_rate = resolve_monthly_interest_rate(
+        annual_interest_rate=input_data.annual_interest_rate,
+        monthly_interest_rate=input_data.monthly_interest_rate,
+    )
 
-    if annual_rate is None and monthly_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
-        )
-
-    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
-
-    rent_value = input_data.rent_value
-    if rent_value is None and input_data.rent_percentage is not None:
-        rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
-
-    if rent_value is None:
-        raise ValueError("Either rent_value or rent_percentage must be provided")
+    rent_value = resolve_rent_value(
+        property_value=input_data.property_value,
+        rent_value=input_data.rent_value,
+        rent_percentage=input_data.rent_percentage,
+    )
 
     amortizations = cast(Any, input_data.amortizations)
     return compare_scenarios(
@@ -109,22 +98,16 @@ def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
 @router.post("/api/scenario-metrics", response_model=ScenariosMetricsResult)
 def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
     """Lightweight metrics summary without detailed monthly_data."""
-    annual_rate = input_data.annual_interest_rate
-    monthly_rate = input_data.monthly_interest_rate
+    monthly_rate = resolve_monthly_interest_rate(
+        annual_interest_rate=input_data.annual_interest_rate,
+        monthly_interest_rate=input_data.monthly_interest_rate,
+    )
 
-    if annual_rate is None and monthly_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
-        )
-
-    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
-
-    rent_value = input_data.rent_value
-    if rent_value is None and input_data.rent_percentage is not None:
-        rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
-
-    if rent_value is None:
-        raise ValueError("Either rent_value or rent_percentage must be provided")
+    rent_value = resolve_rent_value(
+        property_value=input_data.property_value,
+        rent_value=input_data.rent_value,
+        rent_percentage=input_data.rent_percentage,
+    )
 
     amortizations = cast(Any, input_data.amortizations)
     enhanced = enhanced_compare_scenarios(
@@ -179,22 +162,16 @@ def compare_housing_scenarios_enhanced(
     input_data: ComparisonInput,
 ) -> EnhancedComparisonResult:
     """Compare scenarios + compute extra metrics."""
-    annual_rate = input_data.annual_interest_rate
-    monthly_rate = input_data.monthly_interest_rate
+    monthly_rate = resolve_monthly_interest_rate(
+        annual_interest_rate=input_data.annual_interest_rate,
+        monthly_interest_rate=input_data.monthly_interest_rate,
+    )
 
-    if annual_rate is None and monthly_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
-        )
-
-    _, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
-
-    rent_value = input_data.rent_value
-    if rent_value is None and input_data.rent_percentage is not None:
-        rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
-
-    if rent_value is None:
-        raise ValueError("Either rent_value or rent_percentage must be provided")
+    rent_value = resolve_rent_value(
+        property_value=input_data.property_value,
+        rent_value=input_data.rent_value,
+        rent_percentage=input_data.rent_percentage,
+    )
 
     amortizations = cast(Any, input_data.amortizations)
     return enhanced_compare_scenarios(

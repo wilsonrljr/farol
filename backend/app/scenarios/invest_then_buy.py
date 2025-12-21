@@ -9,12 +9,12 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 import math
-from dataclasses import dataclass, field
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
 from ..core.costs import CostsBreakdown, calculate_additional_costs
-from ..core.inflation import apply_inflation, apply_property_appreciation
+from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentCalculator, InvestmentResult
 from ..core.protocols import (
     AdditionalCostsLike,
@@ -23,11 +23,13 @@ from ..core.protocols import (
     InvestmentReturnLike,
     InvestmentTaxLike,
 )
+from ..domain.mappers import comparison_scenario_to_api
+from ..domain.models import ComparisonScenario as DomainComparisonScenario
+from ..domain.models import MonthlyRecord as DomainMonthlyRecord
 from ..loans import LoanSimulator, PriceLoanSimulator, SACLoanSimulator
 from ..models import (
     ComparisonScenario,
     LoanInstallment,
-    MonthlyRecord,
 )
 from .base import RentalScenarioMixin, ScenarioSimulator
 
@@ -139,7 +141,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         self._percent_contrib_by_month = percent
 
     def simulate(self) -> ComparisonScenario:
-        """Run the invest then buy simulation."""
+        """Run the invest then buy simulation (API model)."""
+        return comparison_scenario_to_api(self.simulate_domain())
+
+    def simulate_domain(self) -> DomainComparisonScenario:
+        """Run the invest then buy simulation (domain model)."""
         self._monthly_data = []
 
         for month in range(1, self.term_months + 1):
@@ -156,7 +162,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 )
 
         self._annotate_metadata()
-        return self._build_result()
+        return self._build_domain_result()
 
     def _compute_purchase_cost(
         self,
@@ -268,7 +274,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def _compute_rent_costs(
         self,
         month: int,
-        costs: CostsBreakdown,
+        _costs: CostsBreakdown,
     ) -> dict[str, float]:
         """Compute rent and additional costs for a month."""
         current_rent = self.get_current_rent(month)
@@ -290,7 +296,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         self,
         month: int,
         total_rent_cost: float,
-        costs: CostsBreakdown,
+        _costs: CostsBreakdown,
     ) -> float:
         """Invest the difference between loan payment and rent."""
         if not self.invest_loan_difference or month > len(self._loan_installments):
@@ -303,9 +309,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             self._investment_balance += self._upfront_baseline
 
         loan_installment = self._loan_installments[month - 1]
-        loan_monthly_hoa, loan_monthly_property_tax, loan_monthly_additional = (
-            self.get_inflated_monthly_costs(month)
-        )
+        _, _, loan_monthly_additional = self.get_inflated_monthly_costs(month)
         total_loan_payment = loan_installment.installment + loan_monthly_additional
 
         if total_loan_payment > total_rent_cost:
@@ -369,7 +373,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         contrib_fixed: float,
         contrib_pct: float,
         contrib_total: float,
-    ) -> MonthlyRecord:
+    ) -> DomainMonthlyRecord:
         """Check for purchase and create monthly record."""
         fgts_used_this_month = 0.0
         status = "Aguardando compra"
@@ -411,7 +415,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         burn_month = withdrawal > 0 and investment_return < withdrawal
 
-        return MonthlyRecord(
+        return DomainMonthlyRecord(
             month=month,
             cash_flow=cash_flow,
             investment_balance=self._investment_balance,
@@ -453,12 +457,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         self,
         month: int,
         current_property_value: float,
-        costs: CostsBreakdown,
+        _costs: CostsBreakdown,
     ) -> None:
         """Handle simulation for months after purchase."""
-        monthly_hoa, monthly_property_tax, monthly_additional = (
-            self.get_inflated_monthly_costs(month)
-        )
+        _, _, monthly_additional = self.get_inflated_monthly_costs(month)
 
         # Apply investment returns
         investment_result: InvestmentResult = (
@@ -478,7 +480,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         cash_flow = -(monthly_additional + additional_investment)
         self._total_monthly_additional_costs += monthly_additional
 
-        record = MonthlyRecord(
+        record = DomainMonthlyRecord(
             month=month,
             cash_flow=cash_flow,
             investment_balance=self._investment_balance,
@@ -549,8 +551,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         self._monthly_data[0].estimated_months_remaining = est_months_remaining
 
-    def _build_result(self) -> ComparisonScenario:
-        """Build the final comparison scenario result."""
+    def _build_domain_result(self) -> DomainComparisonScenario:
+        """Build the final comparison scenario result (domain)."""
         final_month = self.term_months
         final_property_value = apply_property_appreciation(
             self.property_value,
@@ -602,7 +604,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         # Ensure chronological ordering
         self._monthly_data.sort(key=lambda d: d.month)
 
-        return ComparisonScenario(
+        return DomainComparisonScenario(
             name=self.scenario_name,
             scenario_type="invest_buy",
             total_cost=net_cost,
