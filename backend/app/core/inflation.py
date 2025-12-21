@@ -57,7 +57,12 @@ def apply_property_appreciation(
     Returns:
         The appreciation-adjusted property value.
     """
-    appreciation_rate = property_appreciation_rate or fallback_inflation_rate
+    # NOTE: must treat 0.0 as a valid explicit value (no appreciation).
+    appreciation_rate = (
+        property_appreciation_rate
+        if property_appreciation_rate is not None
+        else fallback_inflation_rate
+    )
 
     if appreciation_rate is None or appreciation_rate == 0:
         return property_value

@@ -8,17 +8,21 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 """
 
+from typing import TypedDict
+
+from ..core.protocols import (
+    AdditionalCostsLike,
+    AmortizationLike,
+    FGTSLike,
+    InvestmentReturnLike,
+    InvestmentTaxLike,
+)
 from ..models import (
-    AdditionalCostsInput,
-    AmortizationInput,
     ComparisonMetrics,
     ComparisonResult,
     ComparisonScenario,
     EnhancedComparisonResult,
     EnhancedComparisonScenario,
-    FGTSInput,
-    InvestmentReturnInput,
-    InvestmentTaxInput,
     MonthlyRecord,
 )
 from .buy import simulate_buy_scenario
@@ -33,9 +37,9 @@ def compare_scenarios(
     monthly_interest_rate: float,
     loan_type: str,
     rent_value: float,
-    investment_returns: list[InvestmentReturnInput],
-    amortizations: list[AmortizationInput] | None = None,
-    additional_costs: AdditionalCostsInput | None = None,
+    investment_returns: list[InvestmentReturnLike],
+    amortizations: list[AmortizationLike] | None = None,
+    additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
     property_appreciation_rate: float | None = None,
@@ -45,8 +49,8 @@ def compare_scenarios(
     rent_reduces_investment: bool = False,
     monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
-    investment_tax: InvestmentTaxInput | None = None,
-    fgts: FGTSInput | None = None,
+    investment_tax: InvestmentTaxLike | None = None,
+    fgts: FGTSLike | None = None,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     term_months = loan_term_years * 12
@@ -119,9 +123,9 @@ def enhanced_compare_scenarios(
     monthly_interest_rate: float,
     loan_type: str,
     rent_value: float,
-    investment_returns: list[InvestmentReturnInput],
-    amortizations: list[AmortizationInput] | None = None,
-    additional_costs: AdditionalCostsInput | None = None,
+    investment_returns: list[InvestmentReturnLike],
+    amortizations: list[AmortizationLike] | None = None,
+    additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
     property_appreciation_rate: float | None = None,
@@ -131,8 +135,8 @@ def enhanced_compare_scenarios(
     rent_reduces_investment: bool = False,
     monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
-    investment_tax: InvestmentTaxInput | None = None,
-    fgts: FGTSInput | None = None,
+    investment_tax: InvestmentTaxLike | None = None,
+    fgts: FGTSLike | None = None,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
     basic_comparison = compare_scenarios(
@@ -192,6 +196,12 @@ def enhanced_compare_scenarios(
     )
 
 
+class _SustainabilityMetrics(TypedDict):
+    total_withdrawn: float
+    avg_ratio: float | None
+    months_with_burn: int | None
+
+
 class _MetricsCalculator:
     """Calculator for comparison metrics."""
 
@@ -199,7 +209,7 @@ class _MetricsCalculator:
         self,
         *,
         down_payment: float,
-        fgts: FGTSInput | None,
+        fgts: FGTSLike | None,
         best_cost: float,
     ) -> None:
         self.down_payment = down_payment
@@ -224,10 +234,15 @@ class _MetricsCalculator:
         total_interest_rent = self._calculate_total_interest_or_rent(scenario)
         break_even_month = self._calculate_break_even_month(scenario)
         sustainability = self._calculate_sustainability_metrics(scenario)
+
+        total_withdrawn = sustainability["total_withdrawn"]
+        avg_ratio = sustainability["avg_ratio"]
+        months_with_burn = sustainability["months_with_burn"]
+
         roi_adjusted = self._calculate_adjusted_roi(
             scenario.final_equity,
             initial_investment,
-            sustainability["total_withdrawn"],
+            total_withdrawn,
         )
 
         return ComparisonMetrics(
@@ -239,19 +254,19 @@ class _MetricsCalculator:
             average_monthly_cost=avg_monthly_cost,
             total_interest_or_rent_paid=total_interest_rent,
             wealth_accumulation=scenario.final_equity,
-            total_rent_withdrawn_from_investment=sustainability["total_withdrawn"]
-            if sustainability["total_withdrawn"] > 0
-            else None,
-            months_with_burn=sustainability["months_with_burn"]
-            if sustainability["months_with_burn"]
-            else None,
-            average_sustainable_withdrawal_ratio=sustainability["avg_ratio"],
+            total_rent_withdrawn_from_investment=(
+                total_withdrawn if total_withdrawn > 0 else None
+            ),
+            months_with_burn=(
+                months_with_burn if (months_with_burn or 0) > 0 else None
+            ),
+            average_sustainable_withdrawal_ratio=avg_ratio,
         )
 
     def _calculate_initial_investment(self, scenario: ComparisonScenario) -> float:
         """Calculate initial investment for ROI calculation."""
         initial = self.down_payment + (self.fgts.initial_balance if self.fgts else 0.0)
-        if scenario.name == "Comprar com financiamento" and scenario.monthly_data:
+        if scenario.scenario_type == "buy" and scenario.monthly_data:
             upfront = scenario.monthly_data[0].upfront_additional_costs or 0
             initial += upfront
         return initial
@@ -264,7 +279,7 @@ class _MetricsCalculator:
 
     def _calculate_total_interest_or_rent(self, scenario: ComparisonScenario) -> float:
         """Calculate total interest or rent paid."""
-        if scenario.name == "Comprar com financiamento":
+        if scenario.scenario_type == "buy":
             return sum((d.interest_payment or 0.0) for d in scenario.monthly_data)
         return sum((d.rent_paid or 0.0) for d in scenario.monthly_data)
 
@@ -282,7 +297,7 @@ class _MetricsCalculator:
 
     def _calculate_sustainability_metrics(
         self, scenario: ComparisonScenario
-    ) -> dict[str, float | int | None]:
+    ) -> _SustainabilityMetrics:
         """Calculate sustainability metrics."""
         withdrawals = [
             (d.rent_withdrawal_from_investment or 0.0) for d in scenario.monthly_data

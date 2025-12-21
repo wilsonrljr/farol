@@ -348,6 +348,10 @@ class LoanSimulationResult(BaseModel):
 
 class ComparisonScenario(BaseModel):
     name: str
+    scenario_type: Literal["buy", "rent_invest", "invest_buy"] | None = Field(
+        None,
+        description="Stable identifier for the scenario (used for metrics and comparisons)",
+    )
     total_cost: float
     final_equity: float
     monthly_data: list[MonthlyRecord]

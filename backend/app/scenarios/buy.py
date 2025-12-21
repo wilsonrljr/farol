@@ -10,13 +10,12 @@ the Free Software Foundation, either version 3 of the License, or
 
 from dataclasses import dataclass, field
 
-from ..core.inflation import apply_inflation
-from ..loans import PriceLoanSimulator, SACLoanSimulator
+from ..core.inflation import apply_property_appreciation
+from ..core.protocols import AdditionalCostsLike, AmortizationLike, FGTSLike
+from ..loans import LoanSimulator, PriceLoanSimulator, SACLoanSimulator
 from ..models import (
-    AdditionalCostsInput,
-    AmortizationInput,
     ComparisonScenario,
-    FGTSInput,
+    LoanInstallment,
     LoanSimulationResult,
     MonthlyRecord,
 )
@@ -34,7 +33,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
     loan_term_years: int = field(default=0)
     monthly_interest_rate: float = field(default=0.0)
     loan_type: str = field(default="SAC")
-    amortizations: list[AmortizationInput] | None = field(default=None)
+    amortizations: list[AmortizationLike] | None = field(default=None)
 
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
@@ -48,15 +47,10 @@ class BuyScenarioSimulator(ScenarioSimulator):
         """Name of the scenario in Portuguese."""
         return "Comprar com financiamento"
 
-    @property
-    def term_months(self) -> int:
-        """Total term in months."""
-        return self.loan_term_years * 12
-
-    @term_months.setter
-    def term_months(self, value: int) -> None:
-        """Set term_months (required for dataclass)."""
-        self.loan_term_years = value // 12
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # Keep the base field `term_months` as the single source of truth.
+        self.term_months = self.loan_term_years * 12
 
     def simulate(self) -> ComparisonScenario:
         """Run the buy scenario simulation."""
@@ -92,12 +86,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
     def _simulate_loan(self) -> None:
         """Simulate the loan using appropriate method."""
-        term_months = self.loan_term_years * 12
-
+        simulator: LoanSimulator
         if self.loan_type == "SAC":
             simulator = SACLoanSimulator(
                 loan_value=self._loan_value,
-                term_months=term_months,
+                term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
                 amortizations=self.amortizations,
                 annual_inflation_rate=self.inflation_rate,
@@ -105,7 +98,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         else:
             simulator = PriceLoanSimulator(
                 loan_value=self._loan_value,
-                term_months=term_months,
+                term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
                 amortizations=self.amortizations,
                 annual_inflation_rate=self.inflation_rate,
@@ -121,40 +114,62 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self._monthly_data = []
         self._total_monthly_additional_costs = 0.0
 
+        cumulative_payments = 0.0
+        cumulative_interest = 0.0
+
         for inst in self._loan_result.installments:
             month = inst.month
             self.accumulate_fgts()
+
+            property_value = apply_property_appreciation(
+                self.property_value,
+                month,
+                1,
+                None,
+                self.inflation_rate,
+            )
 
             monthly_hoa, monthly_property_tax, monthly_additional = (
                 self.get_inflated_monthly_costs(month)
             )
             self._total_monthly_additional_costs += monthly_additional
 
+            # Running totals (kept consistent with the legacy implementation):
+            # - Includes loan installments + monthly additional costs
+            # - Includes upfront additional costs once (month 1)
+            if month == 1:
+                cumulative_payments += self._total_upfront_costs
+            cumulative_payments += inst.installment + monthly_additional  # type: ignore[attr-defined]
+            cumulative_interest += inst.interest  # type: ignore[attr-defined]
+
             record = self._create_monthly_record(
                 inst,
                 month,
+                property_value,
                 monthly_hoa,
                 monthly_property_tax,
                 monthly_additional,
+                cumulative_payments,
+                cumulative_interest,
             )
             self._monthly_data.append(record)
 
     def _create_monthly_record(
         self,
-        inst: object,  # LoanInstallment
+        inst: LoanInstallment,
         month: int,
+        property_value: float,
         monthly_hoa: float,
         monthly_property_tax: float,
         monthly_additional: float,
+        cumulative_payments: float,
+        cumulative_interest: float,
     ) -> MonthlyRecord:
         """Create a monthly record from loan installment."""
-        cumulative_payments = self._calculate_cumulative_payments(month)
-        cumulative_interest = self._calculate_cumulative_interest(month)
-
         return MonthlyRecord(
             month=month,
             cash_flow=-(inst.installment + monthly_additional),  # type: ignore[attr-defined]
-            equity=self.property_value - inst.outstanding_balance,  # type: ignore[attr-defined]
+            equity=property_value - inst.outstanding_balance,  # type: ignore[attr-defined]
             installment=inst.installment,  # type: ignore[attr-defined]
             principal_payment=inst.amortization,  # type: ignore[attr-defined]
             interest_payment=inst.interest,  # type: ignore[attr-defined]
@@ -162,15 +177,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
-            property_value=self.property_value,
+            property_value=property_value,
             total_monthly_cost=inst.installment + monthly_additional,  # type: ignore[attr-defined]
             cumulative_payments=cumulative_payments,
             cumulative_interest=cumulative_interest,
             equity_percentage=(
-                (self.property_value - inst.outstanding_balance)
-                / self.property_value
+                (property_value - inst.outstanding_balance)
+                / property_value
                 * 100  # type: ignore[attr-defined]
-                if self.property_value > 0
+                if property_value > 0
                 else 0
             ),
             scenario_type="buy",
@@ -181,35 +196,19 @@ class BuyScenarioSimulator(ScenarioSimulator):
             ),
         )
 
-    def _calculate_cumulative_payments(self, month: int) -> float:
-        """Calculate cumulative payments up to a month."""
-        if self._loan_result is None:
-            return 0.0
-
-        loan_payments = sum(
-            i.installment for i in self._loan_result.installments[:month]
-        )
-        additional_costs = sum(
-            apply_inflation(self._costs["monthly_hoa"], m, 1, self.inflation_rate)
-            + apply_inflation(
-                self._costs["monthly_property_tax"], m, 1, self.inflation_rate
-            )
-            for m in range(1, month + 1)
-        )
-        return loan_payments + additional_costs + self._total_upfront_costs
-
-    def _calculate_cumulative_interest(self, month: int) -> float:
-        """Calculate cumulative interest up to a month."""
-        if self._loan_result is None:
-            return 0.0
-        return sum(i.interest for i in self._loan_result.installments[:month])
-
     def _build_result(self) -> ComparisonScenario:
         """Build the final comparison scenario result."""
         if self._loan_result is None:
             raise ValueError("Loan simulation not completed")
 
-        final_equity = self.property_value + self.fgts_balance
+        final_property_value = apply_property_appreciation(
+            self.property_value,
+            self.term_months,
+            1,
+            None,
+            self.inflation_rate,
+        )
+        final_equity = final_property_value + self.fgts_balance
         total_outflows = (
             self._loan_result.total_paid
             + self.down_payment
@@ -220,6 +219,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
         return ComparisonScenario(
             name=self.scenario_name,
+            scenario_type="buy",
             total_cost=net_cost,
             final_equity=final_equity,
             monthly_data=self._monthly_data,
@@ -234,13 +234,13 @@ def simulate_buy_scenario(
     loan_term_years: int,
     monthly_interest_rate: float,
     loan_type: str,
-    amortizations: list[AmortizationInput] | None = None,
+    amortizations: list[AmortizationLike] | None = None,
     _investment_returns: object = None,  # Not used, kept for API compatibility
-    additional_costs: AdditionalCostsInput | None = None,
+    additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     _property_appreciation_rate: float | None = None,  # Not used
     _investment_tax: object = None,  # Not used
-    fgts: FGTSInput | None = None,
+    fgts: FGTSLike | None = None,
 ) -> ComparisonScenario:
     """Simulate buying a property with a loan.
 

@@ -10,12 +10,12 @@ the Free Software Foundation, either version 3 of the License, or
 
 from collections import defaultdict
 
-from ..models import AmortizationInput
 from .inflation import apply_inflation
+from .protocols import AmortizationLike
 
 
 def preprocess_amortizations(
-    amortizations: list[AmortizationInput] | None,
+    amortizations: list[AmortizationLike] | None,
     term_months: int,
     annual_inflation_rate: float | None = None,
 ) -> tuple[dict[int, float], dict[int, list[float]]]:
@@ -57,7 +57,7 @@ def preprocess_amortizations(
 
 
 def _get_amortization_months(
-    amort: AmortizationInput,
+    amort: AmortizationLike,
     term_months: int,
 ) -> list[int]:
     """Determine which months an amortization applies to.
@@ -79,7 +79,7 @@ def _get_amortization_months(
 
 
 def _get_recurring_months(
-    amort: AmortizationInput,
+    amort: AmortizationLike,
     term_months: int,
 ) -> list[int]:
     """Get months for recurring amortization.
@@ -102,7 +102,7 @@ def _get_recurring_months(
 
 
 def _distribute_amortization(
-    amort: AmortizationInput,
+    amort: AmortizationLike,
     months: list[int],
     base_month: int,
     term_months: int,

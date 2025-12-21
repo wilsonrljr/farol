@@ -8,9 +8,10 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
-from ..models import InvestmentReturnInput, InvestmentTaxInput
+from .protocols import InvestmentReturnLike, InvestmentTaxLike
 from .rates import get_monthly_investment_rate
 
 PERCENTAGE_BASE = 100
@@ -33,8 +34,8 @@ class InvestmentCalculator:
     Uses composition to encapsulate investment calculation logic.
     """
 
-    investment_returns: list[InvestmentReturnInput]
-    investment_tax: InvestmentTaxInput | None = None
+    investment_returns: Sequence[InvestmentReturnLike]
+    investment_tax: InvestmentTaxLike | None = None
 
     def calculate_monthly_return(
         self,
@@ -78,9 +79,9 @@ class InvestmentCalculator:
 def apply_investment_return_with_tax(
     investment_balance: float,
     *,
-    investment_returns: list[InvestmentReturnInput],
+    investment_returns: Sequence[InvestmentReturnLike],
     month: int,
-    investment_tax: InvestmentTaxInput | None,
+    investment_tax: InvestmentTaxLike | None,
 ) -> tuple[float, float, float, float]:
     """Apply investment return with optional taxation.
 

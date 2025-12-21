@@ -14,12 +14,14 @@ from dataclasses import dataclass, field
 from ..core.costs import AdditionalCostsCalculator, CostsBreakdown
 from ..core.fgts import FGTSManager
 from ..core.inflation import apply_inflation
+from ..core.protocols import (
+    AdditionalCostsLike,
+    FGTSLike,
+    InvestmentReturnLike,
+    InvestmentTaxLike,
+)
 from ..models import (
-    AdditionalCostsInput,
     ComparisonScenario,
-    FGTSInput,
-    InvestmentReturnInput,
-    InvestmentTaxInput,
     MonthlyRecord,
 )
 
@@ -40,9 +42,9 @@ class ScenarioSimulator(ABC):
     term_months: int = field(default=0)
 
     # Optional fields
-    additional_costs: AdditionalCostsInput | None = field(default=None)
+    additional_costs: AdditionalCostsLike | None = field(default=None)
     inflation_rate: float | None = field(default=None)
-    fgts: FGTSInput | None = field(default=None)
+    fgts: FGTSLike | None = field(default=None)
 
     # Computed fields
     _costs_calculator: AdditionalCostsCalculator = field(init=False)
@@ -99,6 +101,9 @@ class RentalScenarioMixin:
     rent_inflation_rate: float | None = field(default=None)
     inflation_rate: float | None = field(default=None)
 
+    # Expected to be provided by classes that mix this in.
+    _investment_balance: float = field(init=False, default=0.0)
+
     def get_current_rent(self, month: int) -> float:
         """Get inflation-adjusted rent for a month."""
         effective_rate = (
@@ -108,6 +113,50 @@ class RentalScenarioMixin:
         )
         return apply_inflation(self.rent_value, month, 1, effective_rate)
 
+    def _apply_rent_cashflows(
+        self,
+        *,
+        total_monthly_cost: float,
+        rent_reduces_investment: bool,
+        monthly_external_savings: float | None,
+        invest_external_surplus: bool,
+    ) -> dict[str, float]:
+        """Process rent-related cashflows and update investment balance.
+
+        Expects subclasses to define and manage self._investment_balance.
+        """
+        rent_withdrawal = 0.0
+        external_cover = 0.0
+        external_surplus_invested = 0.0
+        remaining_before_return = getattr(self, "_investment_balance", 0.0)
+
+        if rent_reduces_investment:
+            cost_remaining = total_monthly_cost
+
+            if monthly_external_savings and monthly_external_savings > 0:
+                external_cover = min(cost_remaining, monthly_external_savings)
+                cost_remaining -= external_cover
+                surplus = monthly_external_savings - external_cover
+
+                if surplus > 0 and invest_external_surplus:
+                    self._investment_balance += surplus
+                    external_surplus_invested = surplus
+
+            rent_withdrawal = min(cost_remaining, self._investment_balance)
+            self._investment_balance -= rent_withdrawal
+            remaining_before_return = self._investment_balance
+        elif invest_external_surplus and monthly_external_savings:
+            self._investment_balance += monthly_external_savings
+            external_surplus_invested = monthly_external_savings
+            remaining_before_return = self._investment_balance
+
+        return {
+            "rent_withdrawal": rent_withdrawal,
+            "external_cover": external_cover,
+            "external_surplus_invested": external_surplus_invested,
+            "remaining_before_return": remaining_before_return,
+        }
+
 
 @dataclass
 class InvestmentScenarioMixin:
@@ -116,8 +165,8 @@ class InvestmentScenarioMixin:
     Provides common investment calculation functionality.
     """
 
-    investment_returns: list[InvestmentReturnInput] = field(default_factory=list)
-    investment_tax: InvestmentTaxInput | None = field(default=None)
+    investment_returns: list[InvestmentReturnLike] = field(default_factory=list)
+    investment_tax: InvestmentTaxLike | None = field(default=None)
 
     _investment_balance: float = field(init=False, default=0.0)
 

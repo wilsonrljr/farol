@@ -8,7 +8,9 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 """
 
-from ..models import InvestmentReturnInput
+from collections.abc import Sequence
+
+from .protocols import InvestmentReturnLike
 
 # Constants for rate conversions
 MONTHS_PER_YEAR = 12
@@ -77,7 +79,7 @@ def _validate_rate_consistency(annual_rate: float, monthly_rate: float) -> None:
 
 
 def get_monthly_investment_rate(
-    investment_returns: list[InvestmentReturnInput],
+    investment_returns: Sequence[InvestmentReturnLike],
     month: int,
 ) -> float:
     """Get the monthly investment rate for a specific month.
@@ -89,11 +91,15 @@ def get_monthly_investment_rate(
     Returns:
         Monthly investment rate as a decimal (not percentage).
     """
-    for ret in investment_returns:
+    # Sort by start_month to ensure deterministic selection when ranges overlap.
+    ordered_returns = sorted(investment_returns, key=lambda r: r.start_month)
+
+    applicable_rate = None
+    for ret in ordered_returns:
         if ret.start_month <= month and (
             ret.end_month is None or month <= ret.end_month
         ):
             _, monthly_rate = convert_interest_rate(annual_rate=ret.annual_rate)
-            return monthly_rate / PERCENTAGE_BASE
+            applicable_rate = monthly_rate / PERCENTAGE_BASE
 
-    return 0.0
+    return applicable_rate if applicable_rate is not None else 0.0

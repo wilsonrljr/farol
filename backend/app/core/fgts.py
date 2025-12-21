@@ -10,7 +10,7 @@ the Free Software Foundation, either version 3 of the License, or
 
 from dataclasses import dataclass, field
 
-from ..models import FGTSInput
+from .protocols import FGTSLike
 
 MONTHS_PER_YEAR = 12
 PERCENTAGE_BASE = 100
@@ -38,7 +38,7 @@ class FGTSManager:
         self._monthly_rate = self._compute_monthly_rate()
 
     @classmethod
-    def from_input(cls, fgts_input: FGTSInput | None) -> "FGTSManager | None":
+    def from_input(cls, fgts_input: FGTSLike | None) -> "FGTSManager | None":
         """Create manager from API input model.
 
         Returns None if no FGTS input provided.
@@ -105,7 +105,7 @@ class FGTSManager:
         self._balance = new_balance
 
 
-def compute_fgts_monthly_rate(fgts: FGTSInput | None) -> float:
+def compute_fgts_monthly_rate(fgts: FGTSLike | None) -> float:
     """Compute monthly FGTS yield rate.
 
     Legacy function for backward compatibility.
@@ -120,7 +120,7 @@ def compute_fgts_monthly_rate(fgts: FGTSInput | None) -> float:
 def accumulate_fgts_balance(
     fgts_balance: float,
     *,
-    fgts: FGTSInput | None,
+    fgts: FGTSLike | None,
     fgts_monthly_rate: float,
 ) -> float:
     """Accumulate FGTS balance for one month.

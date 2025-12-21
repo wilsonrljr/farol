@@ -12,7 +12,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
-from ..models import AmortizationInput, LoanInstallment, LoanSimulationResult
+from ..core.protocols import AmortizationLike
+from ..models import LoanInstallment, LoanSimulationResult
 
 PERCENTAGE_BASE = 100
 
@@ -28,7 +29,7 @@ class LoanSimulator(ABC):
     loan_value: float
     term_months: int
     monthly_interest_rate: float
-    amortizations: list[AmortizationInput] | None = None
+    amortizations: list[AmortizationLike] | None = None
     annual_inflation_rate: float | None = None
 
     # Internal state
@@ -44,6 +45,12 @@ class LoanSimulator(ABC):
 
     def __post_init__(self) -> None:
         """Initialize computed fields."""
+        if self.term_months <= 0:
+            raise ValueError("term_months must be > 0")
+        if self.loan_value < 0:
+            raise ValueError("loan_value must be >= 0")
+        if self.monthly_interest_rate < 0:
+            raise ValueError("monthly_interest_rate must be >= 0")
         self._outstanding_balance = self.loan_value
         self._preprocess_amortizations()
 

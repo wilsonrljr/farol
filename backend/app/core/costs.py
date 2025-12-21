@@ -11,8 +11,8 @@ the Free Software Foundation, either version 3 of the License, or
 from dataclasses import dataclass
 from typing import TypedDict
 
-from ..models import AdditionalCostsInput
 from .inflation import apply_inflation
+from .protocols import AdditionalCostsLike
 
 PERCENTAGE_BASE = 100
 
@@ -42,7 +42,7 @@ class AdditionalCostsCalculator:
 
     @classmethod
     def from_input(
-        cls, costs_input: AdditionalCostsInput | None
+        cls, costs_input: AdditionalCostsLike | None
     ) -> "AdditionalCostsCalculator":
         """Create calculator from API input model."""
         if costs_input is None:
@@ -99,7 +99,7 @@ class AdditionalCostsCalculator:
 
 def calculate_additional_costs(
     property_value: float,
-    additional_costs: AdditionalCostsInput | None = None,
+    additional_costs: AdditionalCostsLike | None = None,
 ) -> CostsBreakdown:
     """Calculate additional costs associated with property purchase.
 

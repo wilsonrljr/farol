@@ -11,12 +11,14 @@ the Free Software Foundation, either version 3 of the License, or
 from dataclasses import dataclass, field
 
 from ..core.investment import InvestmentCalculator, InvestmentResult
+from ..core.protocols import (
+    AdditionalCostsLike,
+    FGTSLike,
+    InvestmentReturnLike,
+    InvestmentTaxLike,
+)
 from ..models import (
-    AdditionalCostsInput,
     ComparisonScenario,
-    FGTSInput,
-    InvestmentReturnInput,
-    InvestmentTaxInput,
     MonthlyRecord,
 )
 from .base import RentalScenarioMixin, ScenarioSimulator
@@ -31,13 +33,13 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     """
 
     rent_value: float = field(default=0.0)
-    investment_returns: list[InvestmentReturnInput] = field(default_factory=list)
+    investment_returns: list[InvestmentReturnLike] = field(default_factory=list)
     rent_inflation_rate: float | None = field(default=None)
     property_appreciation_rate: float | None = field(default=None)
     rent_reduces_investment: bool = field(default=False)
     monthly_external_savings: float | None = field(default=None)
     invest_external_surplus: bool = field(default=False)
-    investment_tax: InvestmentTaxInput | None = field(default=None)
+    investment_tax: InvestmentTaxLike | None = field(default=None)
 
     # Internal state
     _investment_balance: float = field(init=False)
@@ -104,53 +106,12 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_monthly_cost: float,
     ) -> dict[str, float]:
         """Process monthly cashflows including external savings and rent withdrawal."""
-        rent_withdrawal = 0.0
-        external_cover = 0.0
-        external_surplus_invested = 0.0
-        remaining_before_return = self._investment_balance
-
-        if self.rent_reduces_investment:
-            cost_remaining = total_monthly_cost
-
-            # Apply external savings first
-            external_cover, cost_remaining, external_surplus_invested = (
-                self._apply_external_savings(cost_remaining)
-            )
-
-            # Then withdraw from investment
-            rent_withdrawal = min(cost_remaining, self._investment_balance)
-            self._investment_balance -= rent_withdrawal
-            remaining_before_return = self._investment_balance
-        elif self.invest_external_surplus and self.monthly_external_savings:
-            self._investment_balance += self.monthly_external_savings
-            external_surplus_invested = self.monthly_external_savings
-            remaining_before_return = self._investment_balance
-
-        return {
-            "rent_withdrawal": rent_withdrawal,
-            "external_cover": external_cover,
-            "external_surplus_invested": external_surplus_invested,
-            "remaining_before_return": remaining_before_return,
-        }
-
-    def _apply_external_savings(
-        self,
-        cost_remaining: float,
-    ) -> tuple[float, float, float]:
-        """Apply external savings to cover costs."""
-        external_cover = 0.0
-        external_surplus_invested = 0.0
-
-        if self.monthly_external_savings and self.monthly_external_savings > 0:
-            external_cover = min(cost_remaining, self.monthly_external_savings)
-            cost_remaining -= external_cover
-            surplus = self.monthly_external_savings - external_cover
-
-            if surplus > 0 and self.invest_external_surplus:
-                self._investment_balance += surplus
-                external_surplus_invested = surplus
-
-        return external_cover, cost_remaining, external_surplus_invested
+        return self._apply_rent_cashflows(
+            total_monthly_cost=total_monthly_cost,
+            rent_reduces_investment=self.rent_reduces_investment,
+            monthly_external_savings=self.monthly_external_savings,
+            invest_external_surplus=self.invest_external_surplus,
+        )
 
     def _create_monthly_record(
         self,
@@ -217,11 +178,15 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def _build_result(self) -> ComparisonScenario:
         """Build the final comparison scenario result."""
         final_equity = self._investment_balance + self.fgts_balance
-        total_outflows = self._total_rent_paid
+        initial_capital = self.down_payment + (
+            self.fgts.initial_balance if self.fgts else 0.0
+        )
+        total_outflows = self._total_rent_paid + initial_capital
         net_cost = total_outflows - final_equity
 
         return ComparisonScenario(
             name=self.scenario_name,
+            scenario_type="rent_invest",
             total_cost=net_cost,
             final_equity=final_equity,
             monthly_data=self._monthly_data,
@@ -235,16 +200,16 @@ def simulate_rent_and_invest_scenario(
     down_payment: float,
     term_months: int,
     rent_value: float,
-    investment_returns: list[InvestmentReturnInput],
-    additional_costs: AdditionalCostsInput | None = None,
+    investment_returns: list[InvestmentReturnLike],
+    additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
     rent_inflation_rate: float | None = None,
     property_appreciation_rate: float | None = None,
     rent_reduces_investment: bool = False,
     monthly_external_savings: float | None = None,
     invest_external_surplus: bool = False,
-    investment_tax: InvestmentTaxInput | None = None,
-    fgts: FGTSInput | None = None,
+    investment_tax: InvestmentTaxLike | None = None,
+    fgts: FGTSLike | None = None,
 ) -> ComparisonScenario:
     """Simulate renting and investing the down payment.
 
