@@ -19,6 +19,8 @@ import {
   rem,
   ThemeIcon,
   Divider,
+  Tooltip,
+  ActionIcon,
 } from '@mantine/core';
 import { EnhancedComparisonResult } from '../api/types';
 import { money, percent } from '../utils/format';
@@ -33,6 +35,7 @@ import {
   IconTable,
   IconChartArea,
   IconPigMoney,
+  IconHelpCircle,
 } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 
@@ -51,6 +54,14 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
   
   const wealthDelta = s.metrics.wealth_accumulation - bestScenario.metrics.wealth_accumulation;
   const costDelta = s.total_cost - bestScenario.total_cost;
+
+  const Help = ({ label, help }: { label: string; help: React.ReactNode }) => (
+    <Tooltip label={help} multiline w={320} withArrow position="top-start">
+      <ActionIcon variant="subtle" color="gray" size="xs" aria-label={`Ajuda: ${label}`}>
+        <IconHelpCircle size={14} />
+      </ActionIcon>
+    </Tooltip>
+  );
 
   return (
     <Paper
@@ -111,9 +122,15 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           borderRadius: rem(10),
         }}
       >
-        <Text size="xs" c="sage.6" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
-          Patrimônio Final
-        </Text>
+        <Group gap={6} align="center" wrap="nowrap">
+          <Text size="xs" c="sage.6" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
+            Patrimônio Final
+          </Text>
+          <Help
+            label="Patrimônio Final"
+            help="Total acumulado no fim do horizonte da simulação. No comparador, é calculado como (equidade + investimentos + FGTS)."
+          />
+        </Group>
         <Text
           fw={700}
           style={{ fontSize: rem(32), lineHeight: 1.1 }}
@@ -129,7 +146,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
               <IconArrowUpRight size={14} color="var(--mantine-color-sage-7)" />
             )}
             <Text size="xs" c={wealthDelta < 0 ? 'danger.6' : 'sage.7'} fw={500}>
-              {wealthDelta > 0 ? '+' : ''}{money(wealthDelta)} vs melhor
+              {wealthDelta > 0 ? '+' : ''}{money(wealthDelta)} vs melhor (menor custo)
             </Text>
           </Group>
         )}
@@ -138,9 +155,15 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
       {/* Metrics Grid */}
       <SimpleGrid cols={2} spacing="md">
         <Box>
-          <Text size="xs" c="sage.5" mb={2}>
-            Custo Líquido
-          </Text>
+          <Group gap={6} align="center" wrap="nowrap" mb={2}>
+            <Text size="xs" c="sage.5">
+              Custo Líquido
+            </Text>
+            <Help
+              label="Custo Líquido"
+              help="Custo total ao longo do tempo (saídas de caixa), considerando entradas/aportes e regras do cenário. O 'melhor' cenário do backend hoje é o de menor custo líquido."
+            />
+          </Group>
           <Group gap={4} align="center">
             <Text fw={600} size="md" c="sage.8">
               {money(s.total_cost)}
@@ -153,24 +176,45 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           </Group>
         </Box>
         <Box>
-          <Text size="xs" c="sage.5" mb={2}>
-            Equidade
-          </Text>
+          <Group gap={6} align="center" wrap="nowrap" mb={2}>
+            <Text size="xs" c="sage.5">
+              Equidade
+            </Text>
+            <Help
+              label="Equidade"
+              help="Parcela do imóvel que já é sua (valor do imóvel menos o saldo devedor). Para cenários sem financiamento, representa o valor do imóvel após compra."
+            />
+          </Group>
           <Text fw={600} size="md" c="sage.8">
             {money(s.final_equity)}
           </Text>
         </Box>
         <Box>
-          <Text size="xs" c="sage.5" mb={2}>
-            ROI
-          </Text>
+          <Group gap={6} align="center" wrap="nowrap" mb={2}>
+            <Text size="xs" c="sage.5">
+              ROI
+            </Text>
+            <Help
+              label="ROI"
+              help="Retorno percentual estimado. Em geral, compara o que você terminou com o que saiu do seu bolso (varia por cenário e regras)."
+            />
+          </Group>
           <Text fw={600} size="md" c="sage.8">
             {percent(s.metrics.roi_percentage)}
           </Text>
         </Box>
         <Box>
+          <Group gap={6} align="center" wrap="nowrap" mb={2}>
+            <Text size="xs" c="sage.5">
+              Desembolso Mensal Médio
+            </Text>
+            <Help
+              label="Desembolso Mensal Médio"
+              help="Média das saídas mensais ao longo do horizonte (inclui entrada/aportes quando aplicável). Útil para comparar esforço de caixa entre estratégias."
+            />
+          </Group>
           <Text size="xs" c="sage.5" mb={2}>
-            Desembolso Mensal Médio (inclui entrada/aportes)
+            (inclui entrada/aportes)
           </Text>
           <Text fw={600} size="md" c="sage.8">
             {money(s.metrics.average_monthly_cost)}
@@ -201,6 +245,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [milestonesOnly, setMilestonesOnly] = useState(false);
+  const [tableView, setTableView] = useState<'essential' | 'detailed'>('essential');
 
   const months = new Set<number>();
   result.scenarios.forEach((s) => s.monthly_data.forEach((m) => months.add(m.month)));
@@ -222,6 +267,27 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     if (m?.cash_flow != null) return -m.cash_flow;
     return 0;
   };
+
+  const monthToYear = (month: number) => Math.max(1, Math.ceil(month / 12));
+  const horizonLabel = (monthsCount: number | null) => {
+    if (!monthsCount || monthsCount <= 0) return '—';
+    const years = monthsCount / 12;
+    const yearsLabel = Number.isInteger(years)
+      ? `${years} anos`
+      : `${years.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} anos`;
+    return `${monthsCount} meses (${yearsLabel})`;
+  };
+  const signedMoney = (v: number | null | undefined) => {
+    if (v == null || Number.isNaN(v)) return '—';
+    const sign = v > 0 ? '+' : v < 0 ? '−' : '';
+    return `${sign}${money(Math.abs(v))}`;
+  };
+  const signedPercent = (v: number | null | undefined, digits = 1) => {
+    if (v == null || Number.isNaN(v)) return '—';
+    const sign = v > 0 ? '+' : v < 0 ? '−' : '';
+    return `${sign}${Math.abs(v).toFixed(digits)}%`;
+  };
+  const wealthAt = (m: any) => (m?.equity || 0) + (m?.investment_balance || 0) + (m?.fgts_balance || 0);
 
   // Best scenario comes from the backend decision rule (currently: lowest total_cost).
   // Keep UI highlight consistent with `result.best_scenario`.
@@ -266,6 +332,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           <Text size="md" c="sage.6">
             Melhor cenário (critério: menor custo líquido):{' '}
             <Text component="span" fw={600} c="sage.8">{result.best_scenario}</Text>
+          </Text>
+          <Text size="xs" c="sage.6" mt={4}>
+            O critério “melhor” pode diferir do maior patrimônio final.
           </Text>
           {maxWealthScenario?.name && maxWealthScenario.name !== bestScenario.name && (
             <Text size="sm" c="sage.6" mt={4}>
@@ -330,7 +399,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           </Box>
           {lastComparativeMonth != null && (
             <Badge variant="light" color="sage" size="lg">
-              Horizonte: {lastComparativeMonth} meses
+              Horizonte: {horizonLabel(lastComparativeMonth)}
             </Badge>
           )}
         </Group>
@@ -341,8 +410,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Mês</Table.Th>
-                  <Table.Th>Comprar vs Alugar (R$)</Table.Th>
-                  <Table.Th>Comprar vs Alugar (%)</Table.Th>
+                  <Table.Th>Comprar − Alugar (R$)</Table.Th>
+                  <Table.Th>Comprar − Alugar (%)</Table.Th>
                   <Table.Th>Patrimônio (Comprar)</Table.Th>
                   <Table.Th>Patrimônio (Alugar + Investir)</Table.Th>
                   <Table.Th>Patrimônio (Investir p/ Comprar)</Table.Th>
@@ -351,9 +420,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               <Table.Tbody>
                 {comparativeMiniTable.map((r: any) => (
                   <Table.Tr key={r.month}>
-                    <Table.Td fw={600}>Mês {r.month}</Table.Td>
-                    <Table.Td>{moneySafe(r.buy_vs_rent_difference)}</Table.Td>
-                    <Table.Td>{percent(r.buy_vs_rent_percentage, 1)}</Table.Td>
+                    <Table.Td fw={600}>Mês {r.month} (Ano {monthToYear(r.month)})</Table.Td>
+                    <Table.Td c={r.buy_vs_rent_difference > 0 ? 'danger.6' : r.buy_vs_rent_difference < 0 ? 'success.7' : 'sage.6'}>
+                      {signedMoney(r.buy_vs_rent_difference)}
+                    </Table.Td>
+                    <Table.Td c={r.buy_vs_rent_percentage > 0 ? 'danger.6' : r.buy_vs_rent_percentage < 0 ? 'success.7' : 'sage.6'}>
+                      {signedPercent(r.buy_vs_rent_percentage, 1)}
+                    </Table.Td>
                     <Table.Td>{moneySafe(r.buy_total_wealth)}</Table.Td>
                     <Table.Td>{moneySafe(r.rent_total_wealth)}</Table.Td>
                     <Table.Td>{moneySafe(r.invest_total_wealth)}</Table.Td>
@@ -367,6 +440,10 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             Resumo comparativo indisponível.
           </Text>
         )}
+
+        <Text size="xs" c="sage.6" mt="sm">
+          Interpretação: valores positivos em “Comprar − Alugar” significam que comprar foi mais caro no mês (pior para comprar no curto prazo).
+        </Text>
       </Paper>
 
       {/* Charts and Tables */}
@@ -508,6 +585,22 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   )}
                 </Group>
 
+                <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="md">
+                  <SegmentedControl
+                    size="xs"
+                    radius="lg"
+                    value={tableView}
+                    onChange={(v) => setTableView(v as any)}
+                    data={[
+                      { label: 'Essencial', value: 'essential' },
+                      { label: 'Detalhada', value: 'detailed' },
+                    ]}
+                  />
+                  <Text size="xs" c="sage.6">
+                    Essencial = leitura rápida; Detalhada = mais colunas.
+                  </Text>
+                </Group>
+
                 {/* Progress info for invest-buy */}
                 {isInvestBuy && !purchaseMonth && first?.estimated_months_remaining != null && (
                   <Alert color="warning" variant="light" radius="lg" mb="lg">
@@ -524,12 +617,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Mês</Table.Th>
+                        <Table.Th>Ano</Table.Th>
                         <Table.Th>Desembolso</Table.Th>
+                        <Table.Th>Patrimônio</Table.Th>
                         <Table.Th>Equidade</Table.Th>
                         <Table.Th>Investimento</Table.Th>
                         <Table.Th>Valor Imóvel</Table.Th>
-                        {hasCumulativeCost && <Table.Th>Acumulado (custo)</Table.Th>}
-                        {hasCumulativeSecondary && <Table.Th>Acumulado (juros/ganhos)</Table.Th>}
+                        {tableView === 'detailed' && hasCumulativeCost && <Table.Th>Acumulado (custo)</Table.Th>}
+                        {tableView === 'detailed' && hasCumulativeSecondary && <Table.Th>Acumulado (juros/ganhos)</Table.Th>}
                         {isInvestBuy && <Table.Th>Progresso</Table.Th>}
                         {isInvestBuy && <Table.Th>Status</Table.Th>}
                       </Table.Tr>
@@ -558,14 +653,16 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             }}
                           >
                             <Table.Td>{m.month}</Table.Td>
+                            <Table.Td>{monthToYear(m.month)}</Table.Td>
                             <Table.Td>{moneySafe(monthlyOutflow(m))}</Table.Td>
+                            <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
                             <Table.Td>{moneySafe(m.equity)}</Table.Td>
                             <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
                             <Table.Td>{moneySafe(m.property_value)}</Table.Td>
-                            {hasCumulativeCost && (
+                            {tableView === 'detailed' && hasCumulativeCost && (
                               <Table.Td>{cumulativeCost != null ? moneySafe(cumulativeCost) : '—'}</Table.Td>
                             )}
-                            {hasCumulativeSecondary && (
+                            {tableView === 'detailed' && hasCumulativeSecondary && (
                               <Table.Td>{cumulativeSecondary != null ? moneySafe(cumulativeSecondary) : '—'}</Table.Td>
                             )}
                             {isInvestBuy && (

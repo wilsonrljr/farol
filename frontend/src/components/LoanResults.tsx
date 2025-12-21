@@ -6,6 +6,7 @@ import {
   SimpleGrid,
   ScrollArea,
   Tabs,
+  SegmentedControl,
   Badge,
   Button,
   Menu,
@@ -39,6 +40,19 @@ export default function LoanResults({
   inputPayload?: unknown;
 }) {
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
+  const [activeTab, setActiveTab] = useState<string>('fluxo');
+  const [tableView, setTableView] = useState<'essential' | 'detailed'>('essential');
+
+  const formatMonthsYears = (months: number | null | undefined) => {
+    if (!months || months <= 0) return '—';
+    const years = months / 12;
+    const yearsLabel = Number.isInteger(years)
+      ? `${years} anos`
+      : `${years.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} anos`;
+    return `${months} meses (${yearsLabel})`;
+  };
+
+  const monthToYear = (month: number) => Math.max(1, Math.ceil(month / 12));
 
   const dataChart = result.installments.map((i) => ({
     month: i.month,
@@ -60,6 +74,9 @@ export default function LoanResults({
   const installmentCount = result.installments.length;
   const firstInstallment = result.installments[0];
   const lastInstallment = result.installments[result.installments.length - 1];
+
+  const originalTermMonths = result.original_term_months ?? installmentCount;
+  const actualTermMonths = result.actual_term_months ?? installmentCount;
 
   const ChartComponent = chartType === 'area' ? AreaChart : LineChart;
 
@@ -85,22 +102,26 @@ export default function LoanResults({
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
         <MetricCard
           label="Valor Financiado"
+          help="Principal do financiamento (valor do imóvel menos a entrada)."
           value={money(result.loan_value)}
           icon={<IconCash size={18} />}
         />
         <MetricCard
           label="Total Pago"
+          help="Soma de todas as parcelas pagas (principal + juros + amortizações extras, quando aplicável)."
           value={money(totalPaid)}
           icon={<IconTrendingUp size={18} />}
         />
         <MetricCard
           label="Total em Juros"
+          help="Soma dos juros pagos ao longo do tempo (não inclui amortização do principal)."
           value={money(interestPaid)}
           icon={<IconChartBar size={18} />}
           description={`${interestPct.toFixed(1)}% do total`}
         />
         <MetricCard
           label="Parcela Média"
+          help="Média simples das parcelas (pode variar por tipo de sistema e amortizações extras)."
           value={money(avgInstallment)}
           icon={<IconClock size={18} />}
         />
@@ -110,17 +131,30 @@ export default function LoanResults({
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
         <MetricCard
           label="Principal Pago"
+          help="Total do principal amortizado (Total Pago - Total em Juros)."
           value={money(principalPaid)}
           description={`${(100 - interestPct).toFixed(1)}% do total`}
         />
-        <MetricCard label="Número de Parcelas" value={installmentCount.toString()} />
+        <MetricCard
+          label="Prazo Original"
+          help="Prazo planejado antes de amortizações extras."
+          value={formatMonthsYears(originalTermMonths)}
+        />
+        <MetricCard
+          label="Prazo Final"
+          help="Prazo efetivo considerando amortizações extras (se houver)."
+          value={formatMonthsYears(actualTermMonths)}
+          description={result.months_saved ? `-${result.months_saved} meses` : undefined}
+        />
         <MetricCard
           label="Primeira Parcela"
+          help="Valor da parcela no primeiro mês da simulação."
           value={money(firstInstallment.installment)}
           icon={<IconArrowUpRight size={18} />}
         />
         <MetricCard
           label="Última Parcela"
+          help="Valor da parcela no último mês da simulação."
           value={money(lastInstallment.installment)}
           icon={<IconArrowDownRight size={18} />}
         />
@@ -134,7 +168,7 @@ export default function LoanResults({
           overflow: 'hidden',
         }}
       >
-        <Tabs defaultValue="fluxo" variant="default">
+        <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'fluxo')} variant="default">
           <Box
             px="lg"
             pt="md"
@@ -173,6 +207,18 @@ export default function LoanResults({
                 >
                   Linha
                 </Button>
+                {activeTab === 'tabela' && (
+                  <SegmentedControl
+                    size="xs"
+                    radius="lg"
+                    value={tableView}
+                    onChange={(v) => setTableView(v as any)}
+                    data={[
+                      { label: 'Essencial', value: 'essential' },
+                      { label: 'Detalhada', value: 'detailed' },
+                    ]}
+                  />
+                )}
                 <Menu withinPortal position="bottom-end">
                   <Menu.Target>
                     <Button size="xs" variant="light" leftSection={<IconDownload size={14} />}>
@@ -224,6 +270,7 @@ export default function LoanResults({
               gridAxis="xy"
               withLegend
               legendProps={{ verticalAlign: 'bottom', height: 50 }}
+              valueFormatter={(value) => money(value as number)}
             />
           </Tabs.Panel>
 
@@ -237,6 +284,7 @@ export default function LoanResults({
               gridAxis="xy"
               withLegend
               legendProps={{ verticalAlign: 'bottom', height: 50 }}
+              valueFormatter={(value) => money(value as number)}
             />
           </Tabs.Panel>
 
@@ -249,33 +297,43 @@ export default function LoanResults({
                       Mês
                     </Table.Th>
                     <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
-                      Parcela
+                      Ano
                     </Table.Th>
                     <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
-                      Amortização
+                      Parcela
                     </Table.Th>
+                    {tableView === 'detailed' && (
+                      <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                        Amortização
+                      </Table.Th>
+                    )}
                     <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
                       Juros
                     </Table.Th>
                     <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
                       Saldo Devedor
                     </Table.Th>
-                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
-                      Amort. Extra
-                    </Table.Th>
+                    {tableView === 'detailed' && (
+                      <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                        Amort. Extra
+                      </Table.Th>
+                    )}
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   {result.installments.slice(0, 600).map((i) => (
                     <Table.Tr key={i.month}>
                       <Table.Td fw={500}>{i.month}</Table.Td>
+                      <Table.Td>{monthToYear(i.month)}</Table.Td>
                       <Table.Td>{money(i.installment)}</Table.Td>
-                      <Table.Td>{money(i.amortization)}</Table.Td>
+                      {tableView === 'detailed' && <Table.Td>{money(i.amortization)}</Table.Td>}
                       <Table.Td c="danger.6">{money(i.interest)}</Table.Td>
                       <Table.Td>{money(i.outstanding_balance)}</Table.Td>
-                      <Table.Td c={i.extra_amortization > 0 ? 'sage.6' : 'sage.4'}>
-                        {money(i.extra_amortization)}
-                      </Table.Td>
+                      {tableView === 'detailed' && (
+                        <Table.Td c={i.extra_amortization > 0 ? 'sage.6' : 'sage.4'}>
+                          {money(i.extra_amortization)}
+                        </Table.Td>
+                      )}
                     </Table.Tr>
                   ))}
                 </Table.Tbody>

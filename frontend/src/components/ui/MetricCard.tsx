@@ -1,8 +1,10 @@
 import { ReactNode } from 'react';
-import { Box, Text, Group, ThemeIcon, rem, Paper } from '@mantine/core';
+import { Box, Text, Group, ThemeIcon, rem, Paper, Tooltip, ActionIcon } from '@mantine/core';
+import { IconHelpCircle } from '@tabler/icons-react';
 
 interface MetricCardProps {
   label: string;
+  help?: ReactNode;
   value: string | number;
   description?: string;
   icon?: ReactNode;
@@ -16,6 +18,7 @@ interface MetricCardProps {
 
 export function MetricCard({
   label,
+  help,
   value,
   description,
   icon,
@@ -54,15 +57,29 @@ export function MetricCard({
     >
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Box style={{ flex: 1 }}>
-          <Text
-            size="xs"
-            fw={500}
-            c="sage.6"
-            tt="uppercase"
-            style={{ letterSpacing: '0.5px', fontSize: currentSize.label }}
-          >
-            {label}
-          </Text>
+          <Group gap={4} align="center" wrap="nowrap">
+            <Text
+              size="xs"
+              fw={500}
+              c="sage.6"
+              tt="uppercase"
+              style={{ letterSpacing: '0.5px', fontSize: currentSize.label }}
+            >
+              {label}
+            </Text>
+            {help && (
+              <Tooltip label={help} multiline w={320} withArrow position="top-start">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  size="xs"
+                  aria-label={`Ajuda: ${label}`}
+                >
+                  <IconHelpCircle size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
           <Text
             fw={600}
             c={variant === 'highlight' ? 'sage.9' : 'sage.8'}

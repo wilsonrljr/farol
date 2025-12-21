@@ -11,6 +11,9 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
     return 0;
   };
 
+  const monthToYear = (month: number) => Math.max(1, Math.ceil(month / 12));
+  const wealthAt = (m: any) => (m?.equity || 0) + (m?.investment_balance || 0) + (m?.fgts_balance || 0);
+
   return (
     <Stack>
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
@@ -49,7 +52,7 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
         <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={880}>
                   <Table.Thead>
                     <Table.Tr>
-          <Table.Th>Mês</Table.Th><Table.Th>Desembolso</Table.Th><Table.Th>Equidade</Table.Th><Table.Th>Invest.</Table.Th><Table.Th>Valor Imóvel</Table.Th><Table.Th>Status</Table.Th><Table.Th>Prog%</Table.Th><Table.Th>Falta</Table.Th><Table.Th>Aporte Fixo</Table.Th><Table.Th>Aporte %</Table.Th><Table.Th>Aporte Total</Table.Th>
+          <Table.Th>Mês</Table.Th><Table.Th>Ano</Table.Th><Table.Th>Desembolso</Table.Th><Table.Th>Patrimônio</Table.Th><Table.Th>Equidade</Table.Th><Table.Th>Invest.</Table.Th><Table.Th>Valor Imóvel</Table.Th><Table.Th>Status</Table.Th><Table.Th>Prog%</Table.Th><Table.Th>Falta</Table.Th><Table.Th>Aporte Fixo</Table.Th><Table.Th>Aporte %</Table.Th><Table.Th>Aporte Total</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -63,6 +66,8 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
                       return (
                         <Table.Tr key={m.month} style={style}>
                           <Table.Td>{m.month}</Table.Td>
+                          <Table.Td>{monthToYear(m.month)}</Table.Td>
+                          <Table.Td>{money(wealthAt(m))}</Table.Td>
                           <Table.Td>{money(monthlyOutflow(m))}</Table.Td>
                           <Table.Td>{money(m.equity)}</Table.Td>
                           <Table.Td>{money(m.investment_balance)}</Table.Td>
