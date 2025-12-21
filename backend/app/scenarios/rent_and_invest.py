@@ -55,6 +55,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def __post_init__(self) -> None:
         """Initialize computed fields."""
         super().__post_init__()
+        if self.term_months <= 0:
+            raise ValueError("term_months must be > 0")
         self._investment_balance = self.down_payment
         self._total_rent_paid = 0.0
         self._investment_calculator = InvestmentCalculator(

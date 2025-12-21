@@ -81,6 +81,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def __post_init__(self) -> None:
         """Initialize computed fields."""
         super().__post_init__()
+        if self.term_months <= 0:
+            raise ValueError("term_months must be > 0")
         self._investment_balance = self.down_payment
         self._investment_calculator = InvestmentCalculator(
             investment_returns=self.investment_returns,
@@ -270,14 +272,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     ) -> dict[str, float]:
         """Compute rent and additional costs for a month."""
         current_rent = self.get_current_rent(month)
-        monthly_hoa = apply_inflation(
-            costs["monthly_hoa"], month, 1, self.inflation_rate
+        monthly_hoa, monthly_property_tax, monthly_additional = (
+            self.get_inflated_monthly_costs(month)
         )
-        monthly_property_tax = apply_inflation(
-            costs["monthly_property_tax"], month, 1, self.inflation_rate
-        )
-        monthly_additional = monthly_hoa + monthly_property_tax
-        total_rent_cost = current_rent + monthly_hoa + monthly_property_tax
+        total_rent_cost = current_rent + monthly_additional
         self._total_rent_paid += total_rent_cost
 
         return {
@@ -305,15 +303,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             self._investment_balance += self._upfront_baseline
 
         loan_installment = self._loan_installments[month - 1]
-        loan_monthly_hoa = apply_inflation(
-            costs["monthly_hoa"], month, 1, self.inflation_rate
+        loan_monthly_hoa, loan_monthly_property_tax, loan_monthly_additional = (
+            self.get_inflated_monthly_costs(month)
         )
-        loan_monthly_property_tax = apply_inflation(
-            costs["monthly_property_tax"], month, 1, self.inflation_rate
-        )
-        total_loan_payment = (
-            loan_installment.installment + loan_monthly_hoa + loan_monthly_property_tax
-        )
+        total_loan_payment = loan_installment.installment + loan_monthly_additional
 
         if total_loan_payment > total_rent_cost:
             loan_difference = total_loan_payment - total_rent_cost
@@ -463,13 +456,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         costs: CostsBreakdown,
     ) -> None:
         """Handle simulation for months after purchase."""
-        monthly_hoa = apply_inflation(
-            costs["monthly_hoa"], month, 1, self.inflation_rate
+        monthly_hoa, monthly_property_tax, monthly_additional = (
+            self.get_inflated_monthly_costs(month)
         )
-        monthly_property_tax = apply_inflation(
-            costs["monthly_property_tax"], month, 1, self.inflation_rate
-        )
-        monthly_additional = monthly_hoa + monthly_property_tax
 
         # Apply investment returns
         investment_result: InvestmentResult = (

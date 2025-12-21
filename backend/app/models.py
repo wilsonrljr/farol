@@ -194,25 +194,33 @@ class MonthlyRecord(BaseModel):
 
 
 class AdditionalCostsInput(BaseModel):
-    itbi_percentage: float = Field(2.0, description="ITBI tax percentage")
-    deed_percentage: float = Field(1.0, description="Deed cost percentage")
+    itbi_percentage: float = Field(
+        2.0,
+        ge=0.0,
+        description="ITBI tax percentage",
+    )
+    deed_percentage: float = Field(
+        1.0,
+        ge=0.0,
+        description="Deed cost percentage",
+    )
     monthly_hoa: float | None = Field(
-        None, description="Monthly homeowners association fee"
+        None, ge=0.0, description="Monthly homeowners association fee"
     )
     monthly_property_tax: float | None = Field(
-        None, description="Monthly property tax (IPTU)"
+        None, ge=0.0, description="Monthly property tax (IPTU)"
     )
 
 
 class LoanSimulationInput(BaseModel):
-    property_value: float = Field(..., description="Total property value")
-    down_payment: float = Field(..., description="Down payment value")
-    loan_term_years: int = Field(..., description="Loan term in years")
+    property_value: float = Field(..., gt=0.0, description="Total property value")
+    down_payment: float = Field(..., ge=0.0, description="Down payment value")
+    loan_term_years: int = Field(..., gt=0, description="Loan term in years")
     annual_interest_rate: float | None = Field(
-        None, description="Annual interest rate (in percentage)"
+        None, ge=0.0, description="Annual interest rate (in percentage)"
     )
     monthly_interest_rate: float | None = Field(
-        None, description="Monthly interest rate (in percentage)"
+        None, ge=0.0, description="Monthly interest rate (in percentage)"
     )
     loan_type: Literal["SAC", "PRICE"] = Field(
         ..., description="Loan type: SAC or PRICE"
@@ -224,34 +232,44 @@ class LoanSimulationInput(BaseModel):
         None, description="Additional costs like ITBI, deed, HOA, property tax"
     )
     inflation_rate: float | None = Field(
-        None, description="Annual inflation rate for general costs (in percentage)"
+        None,
+        ge=0.0,
+        description="Annual inflation rate for general costs (in percentage)",
     )
     rent_inflation_rate: float | None = Field(
         None,
+        ge=0.0,
         description="Annual rent inflation rate (in percentage) - if not provided, uses inflation_rate",
     )
     property_appreciation_rate: float | None = Field(
         None,
+        ge=0.0,
         description="Annual property appreciation rate (in percentage) - if not provided, uses inflation_rate",
     )
 
+    @model_validator(mode="after")
+    def validate_financing_fields(self) -> "LoanSimulationInput":
+        if self.down_payment > self.property_value:
+            raise ValueError("down_payment must be <= property_value")
+        return self
+
 
 class ComparisonInput(BaseModel):
-    property_value: float = Field(..., description="Total property value")
-    down_payment: float = Field(..., description="Down payment value")
-    loan_term_years: int = Field(..., description="Loan term in years")
+    property_value: float = Field(..., gt=0.0, description="Total property value")
+    down_payment: float = Field(..., ge=0.0, description="Down payment value")
+    loan_term_years: int = Field(..., gt=0, description="Loan term in years")
     annual_interest_rate: float | None = Field(
-        None, description="Annual interest rate (in percentage)"
+        None, ge=0.0, description="Annual interest rate (in percentage)"
     )
     monthly_interest_rate: float | None = Field(
-        None, description="Monthly interest rate (in percentage)"
+        None, ge=0.0, description="Monthly interest rate (in percentage)"
     )
     loan_type: Literal["SAC", "PRICE"] = Field(
         ..., description="Loan type: SAC or PRICE"
     )
     rent_value: float | None = Field(None, description="Monthly rent value")
     rent_percentage: float | None = Field(
-        None, description="Rent as percentage of property value"
+        None, ge=0.0, description="Rent as percentage of property value"
     )
     investment_returns: list[InvestmentReturnInput] = Field(
         ..., description="Investment return rates over time"
@@ -263,14 +281,18 @@ class ComparisonInput(BaseModel):
         None, description="Additional costs like ITBI, deed, HOA, property tax"
     )
     inflation_rate: float | None = Field(
-        None, description="Annual inflation rate for general costs (in percentage)"
+        None,
+        ge=0.0,
+        description="Annual inflation rate for general costs (in percentage)",
     )
     rent_inflation_rate: float | None = Field(
         None,
+        ge=0.0,
         description="Annual rent inflation rate (in percentage) - if not provided, uses inflation_rate",
     )
     property_appreciation_rate: float | None = Field(
         None,
+        ge=0.0,
         description="Annual property appreciation rate (in percentage) - if not provided, uses inflation_rate",
     )
     # New fields for invest then buy scenario
@@ -279,7 +301,7 @@ class ComparisonInput(BaseModel):
         description="Whether to invest the difference between loan payment and rent",
     )
     fixed_monthly_investment: float | None = Field(
-        None, description="Fixed amount to invest monthly"
+        None, ge=0.0, description="Fixed amount to invest monthly"
     )
     fixed_investment_start_month: int | None = Field(
         1,
@@ -291,6 +313,7 @@ class ComparisonInput(BaseModel):
     )
     monthly_external_savings: float | None = Field(
         None,
+        ge=0.0,
         description="External monthly savings/income earmarked to cover rent/costs before touching investment (optional).",
     )
     invest_external_surplus: bool = Field(
@@ -309,6 +332,8 @@ class ComparisonInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_month_fields(self) -> "ComparisonInput":
+        if self.down_payment > self.property_value:
+            raise ValueError("down_payment must be <= property_value")
         if (
             self.fixed_investment_start_month is not None
             and self.fixed_investment_start_month < 1
@@ -408,6 +433,14 @@ class EnhancedComparisonScenario(BaseModel):
     name: str
     total_cost: float
     final_equity: float
+    total_outflows: float | None = Field(
+        None,
+        description="Gross outflows (down payment + payments + rent + costs + investments)",
+    )
+    net_cost: float | None = Field(
+        None,
+        description="Net cost after subtracting remaining equity/assets",
+    )
     monthly_data: list[MonthlyRecord]
     metrics: ComparisonMetrics
 

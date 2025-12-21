@@ -16,7 +16,6 @@ from ..core.protocols import AdditionalCostsLike, AmortizationLike, FGTSLike
 from ..loans import LoanSimulator, PriceLoanSimulator, SACLoanSimulator
 from ..models import (
     ComparisonScenario,
-    LoanInstallment,
     LoanSimulationResult,
     MonthlyRecord,
 )
@@ -35,6 +34,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
     monthly_interest_rate: float = field(default=0.0)
     loan_type: str = field(default="SAC")
     amortizations: Sequence[AmortizationLike] | None = field(default=None)
+    property_appreciation_rate: float | None = field(default=None)
 
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
@@ -52,6 +52,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
         super().__post_init__()
         # Keep the base field `term_months` as the single source of truth.
         self.term_months = self.loan_term_years * 12
+        if self.term_months <= 0:
+            raise ValueError("loan_term_years must be > 0")
 
     def simulate(self) -> ComparisonScenario:
         """Run the buy scenario simulation."""
@@ -118,15 +120,19 @@ class BuyScenarioSimulator(ScenarioSimulator):
         cumulative_payments = 0.0
         cumulative_interest = 0.0
 
-        for inst in self._loan_result.installments:
-            month = inst.month
+        installments = self._loan_result.installments
+        actual_term_months = len(installments)
+
+        for month in range(1, self.term_months + 1):
+            inst = installments[month - 1] if month <= actual_term_months else None
+
             self.accumulate_fgts()
 
             property_value = apply_property_appreciation(
                 self.property_value,
                 month,
                 1,
-                None,
+                self.property_appreciation_rate,
                 self.inflation_rate,
             )
 
@@ -140,11 +146,16 @@ class BuyScenarioSimulator(ScenarioSimulator):
             # - Includes upfront additional costs once (month 1)
             if month == 1:
                 cumulative_payments += self._total_upfront_costs
-            cumulative_payments += inst.installment + monthly_additional
-            cumulative_interest += inst.interest
+
+            installment_value = inst.installment if inst is not None else 0.0
+            amortization_value = inst.amortization if inst is not None else 0.0
+            interest_value = inst.interest if inst is not None else 0.0
+            outstanding_balance = inst.outstanding_balance if inst is not None else 0.0
+
+            cumulative_payments += installment_value + monthly_additional
+            cumulative_interest += interest_value
 
             record = self._create_monthly_record(
-                inst,
                 month,
                 property_value,
                 monthly_hoa,
@@ -152,12 +163,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 monthly_additional,
                 cumulative_payments,
                 cumulative_interest,
+                installment_value,
+                amortization_value,
+                interest_value,
+                outstanding_balance,
             )
             self._monthly_data.append(record)
 
     def _create_monthly_record(
         self,
-        inst: LoanInstallment,
         month: int,
         property_value: float,
         monthly_hoa: float,
@@ -165,27 +179,32 @@ class BuyScenarioSimulator(ScenarioSimulator):
         monthly_additional: float,
         cumulative_payments: float,
         cumulative_interest: float,
+        installment_value: float,
+        amortization_value: float,
+        interest_value: float,
+        outstanding_balance: float,
     ) -> MonthlyRecord:
         """Create a monthly record from loan installment."""
+        equity = property_value - outstanding_balance
+        total_monthly_cost = installment_value + monthly_additional
+
         return MonthlyRecord(
             month=month,
-            cash_flow=-(inst.installment + monthly_additional),
-            equity=property_value - inst.outstanding_balance,
-            installment=inst.installment,
-            principal_payment=inst.amortization,
-            interest_payment=inst.interest,
-            outstanding_balance=inst.outstanding_balance,
+            cash_flow=-total_monthly_cost,
+            equity=equity,
+            installment=installment_value,
+            principal_payment=amortization_value,
+            interest_payment=interest_value,
+            outstanding_balance=outstanding_balance,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
             property_value=property_value,
-            total_monthly_cost=inst.installment + monthly_additional,
+            total_monthly_cost=total_monthly_cost,
             cumulative_payments=cumulative_payments,
             cumulative_interest=cumulative_interest,
             equity_percentage=(
-                (property_value - inst.outstanding_balance) / property_value * 100
-                if property_value > 0
-                else 0
+                (equity / property_value * 100) if property_value > 0 else 0
             ),
             scenario_type="buy",
             upfront_additional_costs=self._total_upfront_costs if month == 1 else 0.0,
@@ -204,7 +223,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
             self.property_value,
             self.term_months,
             1,
-            None,
+            self.property_appreciation_rate,
             self.inflation_rate,
         )
         final_equity = final_property_value + self.fgts_balance
@@ -237,7 +256,7 @@ def simulate_buy_scenario(
     _investment_returns: object = None,  # Not used, kept for API compatibility
     additional_costs: AdditionalCostsLike | None = None,
     inflation_rate: float | None = None,
-    _property_appreciation_rate: float | None = None,  # Not used
+    property_appreciation_rate: float | None = None,
     _investment_tax: object = None,  # Not used
     fgts: FGTSLike | None = None,
 ) -> ComparisonScenario:
@@ -252,6 +271,7 @@ def simulate_buy_scenario(
         monthly_interest_rate=monthly_interest_rate,
         loan_type=loan_type,
         amortizations=amortizations,
+        property_appreciation_rate=property_appreciation_rate,
         additional_costs=additional_costs,
         inflation_rate=inflation_rate,
         fgts=fgts,

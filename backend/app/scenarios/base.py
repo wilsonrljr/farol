@@ -54,6 +54,15 @@ class ScenarioSimulator(ABC):
 
     def __post_init__(self) -> None:
         """Initialize computed fields."""
+        if self.property_value <= 0:
+            raise ValueError("property_value must be > 0")
+        if self.down_payment < 0:
+            raise ValueError("down_payment must be >= 0")
+        if self.down_payment > self.property_value:
+            raise ValueError("down_payment must be <= property_value")
+        if self.term_months < 0:
+            raise ValueError("term_months must be >= 0")
+
         self._costs_calculator = AdditionalCostsCalculator.from_input(
             self.additional_costs
         )
@@ -90,19 +99,17 @@ class ScenarioSimulator(ABC):
         """Run the scenario simulation."""
 
 
-@dataclass
 class RentalScenarioMixin:
     """Mixin for scenarios that involve renting.
 
-    Provides common rental calculation functionality.
+    Important: this mixin intentionally does NOT declare dataclass fields.
+    The concrete scenario dataclasses (e.g. RentAndInvestScenarioSimulator)
+    own the fields like rent_value/rent_inflation_rate, and the base
+    ScenarioSimulator owns inflation_rate.
+
+    Keeping this as a plain class avoids subtle multiple-inheritance issues
+    with duplicated dataclass fields.
     """
-
-    rent_value: float = field(default=0.0)
-    rent_inflation_rate: float | None = field(default=None)
-    inflation_rate: float | None = field(default=None)
-
-    # Expected to be provided by classes that mix this in.
-    _investment_balance: float = field(init=False, default=0.0)
 
     def get_current_rent(self, month: int) -> float:
         """Get inflation-adjusted rent for a month."""
@@ -158,17 +165,11 @@ class RentalScenarioMixin:
         }
 
 
-@dataclass
 class InvestmentScenarioMixin:
     """Mixin for scenarios that involve investing.
 
     Provides common investment calculation functionality.
     """
-
-    investment_returns: list[InvestmentReturnLike] = field(default_factory=list)
-    investment_tax: InvestmentTaxLike | None = field(default=None)
-
-    _investment_balance: float = field(init=False, default=0.0)
 
     def initialize_investment(self, initial_balance: float) -> None:
         """Initialize investment balance."""

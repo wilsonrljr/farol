@@ -180,6 +180,8 @@ def enhanced_compare_scenarios(
             name=scenario.name,
             total_cost=scenario.total_cost,
             final_equity=scenario.final_equity,
+            total_outflows=scenario.total_outflows,
+            net_cost=scenario.net_cost,
             monthly_data=scenario.monthly_data,
             metrics=metrics_calculator.calculate(scenario),
         )
