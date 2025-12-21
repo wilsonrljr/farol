@@ -172,6 +172,8 @@ async def compare_housing_scenarios(input_data: ComparisonInput):
             rent_reduces_investment=input_data.rent_reduces_investment,
             monthly_external_savings=input_data.monthly_external_savings,
             invest_external_surplus=input_data.invest_external_surplus,
+            investment_tax=input_data.investment_tax,
+            fgts=input_data.fgts,
         )
 
         return result
@@ -187,14 +189,22 @@ async def scenario_metrics(input_data: ComparisonInput):
         annual_rate = input_data.annual_interest_rate
         monthly_rate = input_data.monthly_interest_rate
         if annual_rate is None and monthly_rate is None:
-            raise HTTPException(status_code=400, detail="Either annual_interest_rate or monthly_interest_rate must be provided")
+            raise HTTPException(
+                status_code=400,
+                detail="Either annual_interest_rate or monthly_interest_rate must be provided",
+            )
         annual_rate, monthly_rate = convert_interest_rate(annual_rate, monthly_rate)
 
         rent_value = input_data.rent_value
         if rent_value is None and input_data.rent_percentage is not None:
-            rent_value = input_data.property_value * (input_data.rent_percentage / 100) / 12
+            rent_value = (
+                input_data.property_value * (input_data.rent_percentage / 100) / 12
+            )
         if rent_value is None:
-            raise HTTPException(status_code=400, detail="Either rent_value or rent_percentage must be provided")
+            raise HTTPException(
+                status_code=400,
+                detail="Either rent_value or rent_percentage must be provided",
+            )
 
         enhanced = enhanced_compare_scenarios(
             property_value=input_data.property_value,
@@ -215,6 +225,8 @@ async def scenario_metrics(input_data: ComparisonInput):
             rent_reduces_investment=input_data.rent_reduces_investment,
             monthly_external_savings=input_data.monthly_external_savings,
             invest_external_surplus=input_data.invest_external_surplus,
+            investment_tax=input_data.investment_tax,
+            fgts=input_data.fgts,
         )
 
         summaries = []
@@ -225,7 +237,9 @@ async def scenario_metrics(input_data: ComparisonInput):
                     name=sc.name,
                     net_cost=sc.total_cost,
                     final_equity=sc.final_equity,
-                    total_outflows=sc.total_outflows if hasattr(sc, 'total_outflows') else None,
+                    total_outflows=(
+                        sc.total_outflows if hasattr(sc, "total_outflows") else None
+                    ),
                     roi_percentage=m.roi_percentage,
                     roi_adjusted_percentage=m.roi_adjusted_percentage,
                     total_rent_withdrawn_from_investment=m.total_rent_withdrawn_from_investment,
@@ -234,7 +248,9 @@ async def scenario_metrics(input_data: ComparisonInput):
                 )
             )
 
-        return ScenariosMetricsResult(best_scenario=enhanced.best_scenario, metrics=summaries)
+        return ScenariosMetricsResult(
+            best_scenario=enhanced.best_scenario, metrics=summaries
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -291,6 +307,8 @@ async def compare_housing_scenarios_enhanced(input_data: ComparisonInput):
             rent_reduces_investment=input_data.rent_reduces_investment,
             monthly_external_savings=input_data.monthly_external_savings,
             invest_external_surplus=input_data.invest_external_surplus,
+            investment_tax=input_data.investment_tax,
+            fgts=input_data.fgts,
         )
 
         return result
@@ -300,7 +318,9 @@ async def compare_housing_scenarios_enhanced(input_data: ComparisonInput):
 
 
 # --------------------------- EXPORT UTILITIES ---------------------------------
-def _dataframe_to_stream(df: pd.DataFrame, meta: dict, base_filename: str, file_format: str) -> StreamingResponse:
+def _dataframe_to_stream(
+    df: pd.DataFrame, meta: dict, base_filename: str, file_format: str
+) -> StreamingResponse:
     """Serialize DataFrame + optional metadata (meta) to CSV or XLSX streaming response."""
     file_format = file_format.lower()
     if file_format == "csv":
@@ -314,7 +334,9 @@ def _dataframe_to_stream(df: pd.DataFrame, meta: dict, base_filename: str, file_
         return StreamingResponse(
             buff,
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={base_filename}.csv"},
+            headers={
+                "Content-Disposition": f"attachment; filename={base_filename}.csv"
+            },
         )
     elif file_format == "xlsx":
         bio = BytesIO()
@@ -326,26 +348,32 @@ def _dataframe_to_stream(df: pd.DataFrame, meta: dict, base_filename: str, file_
         return StreamingResponse(
             bio,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={base_filename}.xlsx"},
+            headers={
+                "Content-Disposition": f"attachment; filename={base_filename}.xlsx"
+            },
         )
     else:  # pragma: no cover - validation happens earlier
         raise HTTPException(status_code=400, detail="Unsupported format")
 
 
 @app.post("/api/simulate-loan/export")
-async def export_simulate_loan(input_data: LoanSimulationInput, format: str = Query("csv", pattern="^(csv|xlsx)$")):
+async def export_simulate_loan(
+    input_data: LoanSimulationInput, format: str = Query("csv", pattern="^(csv|xlsx)$")
+):
     """Exporta a simulação de financiamento (SAC/PRICE) em CSV ou XLSX."""
     result = await simulate_loan(input_data)  # reutiliza lógica existente
     rows = []
     for inst in result.installments:
-        rows.append({
-            "month": inst.month,
-            "installment": inst.installment,
-            "amortization": inst.amortization,
-            "interest": inst.interest,
-            "extra_amortization": inst.extra_amortization,
-            "outstanding_balance": inst.outstanding_balance,
-        })
+        rows.append(
+            {
+                "month": inst.month,
+                "installment": inst.installment,
+                "amortization": inst.amortization,
+                "interest": inst.interest,
+                "extra_amortization": inst.extra_amortization,
+                "outstanding_balance": inst.outstanding_balance,
+            }
+        )
     df = pd.DataFrame(rows)
     meta = {
         "loan_value": result.loan_value,
@@ -390,16 +418,18 @@ async def export_compare_scenarios(
         raise HTTPException(status_code=400, detail="No data to export")
     monthly_long = pd.DataFrame(long_rows)
     # Summary
-    summary = pd.DataFrame([
-        {
-            "scenario": sc.name,
-            "total_cost": sc.total_cost,
-            "final_equity": sc.final_equity,
-            "total_outflows": getattr(sc, "total_outflows", None),
-            "net_cost": getattr(sc, "net_cost", None),
-        }
-        for sc in result.scenarios
-    ])
+    summary = pd.DataFrame(
+        [
+            {
+                "scenario": sc.name,
+                "total_cost": sc.total_cost,
+                "final_equity": sc.final_equity,
+                "total_outflows": getattr(sc, "total_outflows", None),
+                "net_cost": getattr(sc, "net_cost", None),
+            }
+            for sc in result.scenarios
+        ]
+    )
     # Wide pivot (selected numeric columns)
     wide = None
     base_cols = [
@@ -412,7 +442,9 @@ async def export_compare_scenarios(
     if present_cols:
         wide_parts = []
         for col in present_cols:
-            pivot = monthly_long.pivot_table(index="month", columns="scenario", values=col, aggfunc="first")
+            pivot = monthly_long.pivot_table(
+                index="month", columns="scenario", values=col, aggfunc="first"
+            )
             pivot.columns = [f"{col}__{c}" for c in pivot.columns]
             wide_parts.append(pivot)
         if wide_parts:
@@ -434,7 +466,9 @@ async def export_compare_scenarios(
         return StreamingResponse(
             buff,
             media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=scenarios_comparison.csv"},
+            headers={
+                "Content-Disposition": "attachment; filename=scenarios_comparison.csv"
+            },
         )
     # XLSX multi-sheet
     bio = BytesIO()
@@ -449,7 +483,15 @@ async def export_compare_scenarios(
         for sc in result.scenarios:
             df_sc = pd.DataFrame(sc.monthly_data)
             base = sc.name.strip() or "scenario"
-            base = base.replace("/", "_").replace("\\", "_").replace(":", "_").replace("*", "_").replace("?", "_").replace("[", "(").replace("]", ")")
+            base = (
+                base.replace("/", "_")
+                .replace("\\", "_")
+                .replace(":", "_")
+                .replace("*", "_")
+                .replace("?", "_")
+                .replace("[", "(")
+                .replace("]", ")")
+            )
             # Excel limita 31 chars
             candidate = base[:31]
             idx = 1
@@ -463,7 +505,9 @@ async def export_compare_scenarios(
     return StreamingResponse(
         bio,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=scenarios_comparison.xlsx"},
+        headers={
+            "Content-Disposition": "attachment; filename=scenarios_comparison.xlsx"
+        },
     )
 
 
@@ -482,37 +526,49 @@ async def export_compare_scenarios_enhanced(
             row["scenario"] = sc.name
             long_rows.append(row)
     monthly_long = pd.DataFrame(long_rows)
-    metrics_df = pd.DataFrame([
-        {
-            "scenario": sc.name,
-            "total_cost": sc.total_cost,
-            "final_equity": sc.final_equity,
-            "total_cost_difference": sc.metrics.total_cost_difference,
-            "total_cost_percentage_difference": sc.metrics.total_cost_percentage_difference,
-            "break_even_month": sc.metrics.break_even_month,
-            "roi_percentage": sc.metrics.roi_percentage,
-            "roi_adjusted_percentage": sc.metrics.roi_adjusted_percentage,
-            "average_monthly_cost": sc.metrics.average_monthly_cost,
-            "total_interest_or_rent_paid": sc.metrics.total_interest_or_rent_paid,
-            "wealth_accumulation": sc.metrics.wealth_accumulation,
-            "total_rent_withdrawn_from_investment": sc.metrics.total_rent_withdrawn_from_investment,
-            "months_with_burn": sc.metrics.months_with_burn,
-            "average_sustainable_withdrawal_ratio": sc.metrics.average_sustainable_withdrawal_ratio,
-        }
-        for sc in result.scenarios
-    ])
+    metrics_df = pd.DataFrame(
+        [
+            {
+                "scenario": sc.name,
+                "total_cost": sc.total_cost,
+                "final_equity": sc.final_equity,
+                "total_cost_difference": sc.metrics.total_cost_difference,
+                "total_cost_percentage_difference": sc.metrics.total_cost_percentage_difference,
+                "break_even_month": sc.metrics.break_even_month,
+                "roi_percentage": sc.metrics.roi_percentage,
+                "roi_adjusted_percentage": sc.metrics.roi_adjusted_percentage,
+                "average_monthly_cost": sc.metrics.average_monthly_cost,
+                "total_interest_or_rent_paid": sc.metrics.total_interest_or_rent_paid,
+                "wealth_accumulation": sc.metrics.wealth_accumulation,
+                "total_rent_withdrawn_from_investment": sc.metrics.total_rent_withdrawn_from_investment,
+                "months_with_burn": sc.metrics.months_with_burn,
+                "average_sustainable_withdrawal_ratio": sc.metrics.average_sustainable_withdrawal_ratio,
+            }
+            for sc in result.scenarios
+        ]
+    )
     # Wide
     wide = None
-    base_cols = ["equity", "investment_balance", "property_value", "cash_flow", "progress_percent", "shortfall"]
+    base_cols = [
+        "equity",
+        "investment_balance",
+        "property_value",
+        "cash_flow",
+        "progress_percent",
+        "shortfall",
+    ]
     present_cols = [c for c in base_cols if c in monthly_long.columns]
     if present_cols:
         wide_parts = []
         for col in present_cols:
-            pivot = monthly_long.pivot_table(index="month", columns="scenario", values=col, aggfunc="first")
+            pivot = monthly_long.pivot_table(
+                index="month", columns="scenario", values=col, aggfunc="first"
+            )
             pivot.columns = [f"{col}__{c}" for c in pivot.columns]
             wide_parts.append(pivot)
         if wide_parts:
             from functools import reduce
+
             wide = reduce(lambda l, r: l.join(r, how="outer"), wide_parts).reset_index()
 
     if format == "csv":
@@ -530,7 +586,9 @@ async def export_compare_scenarios_enhanced(
         return StreamingResponse(
             buff,
             media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=scenarios_comparison_enhanced.csv"},
+            headers={
+                "Content-Disposition": "attachment; filename=scenarios_comparison_enhanced.csv"
+            },
         )
     bio = BytesIO()
     with pd.ExcelWriter(bio, engine="openpyxl") as writer:  # type: ignore
@@ -550,18 +608,32 @@ async def export_compare_scenarios_enhanced(
             # Garante ordem por mês se padrão month_<n>
             if "key" in comp_df.columns:
                 try:
-                    comp_df["__m"] = comp_df["key"].str.extract(r"month_(\d+)").astype(float)
+                    comp_df["__m"] = (
+                        comp_df["key"].str.extract(r"month_(\d+)").astype(float)
+                    )
                     comp_df = comp_df.sort_values("__m", na_position="last").drop(columns=["__m"])  # type: ignore
                 except Exception:
                     pass
             comp_df.to_excel(writer, index=False, sheet_name="comparative_summary")
         else:
-            pd.DataFrame([{"comparative_summary_json": json.dumps(comp)}]).to_excel(writer, index=False, sheet_name="comparative_summary")
-        used_sheet_names = set(["metrics", "monthly_long", "monthly_wide", "comparative_summary"]) | {s for s in writer.book.sheetnames}
+            pd.DataFrame([{"comparative_summary_json": json.dumps(comp)}]).to_excel(
+                writer, index=False, sheet_name="comparative_summary"
+            )
+        used_sheet_names = set(
+            ["metrics", "monthly_long", "monthly_wide", "comparative_summary"]
+        ) | {s for s in writer.book.sheetnames}
         for sc in result.scenarios:
             df_sc = pd.DataFrame(sc.monthly_data)
             base = sc.name.strip() or "scenario"
-            base = base.replace("/", "_").replace("\\", "_").replace(":", "_").replace("*", "_").replace("?", "_").replace("[", "(").replace("]", ")")
+            base = (
+                base.replace("/", "_")
+                .replace("\\", "_")
+                .replace(":", "_")
+                .replace("*", "_")
+                .replace("?", "_")
+                .replace("[", "(")
+                .replace("]", ")")
+            )
             candidate = base[:31]
             idx = 1
             while candidate in used_sheet_names:
@@ -574,7 +646,9 @@ async def export_compare_scenarios_enhanced(
     return StreamingResponse(
         bio,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=scenarios_comparison_enhanced.xlsx"},
+        headers={
+            "Content-Disposition": "attachment; filename=scenarios_comparison_enhanced.xlsx"
+        },
     )
 
 

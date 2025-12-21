@@ -16,9 +16,11 @@ def test_rent_does_not_reduce_when_flag_false():
         rent_reduces_investment=False,
     )
     # Investment should only grow (no withdrawals)
-    balances = [m['investment_balance'] for m in scenario.monthly_data]
-    assert all(balances[i] <= balances[i+1] for i in range(len(balances)-1))
-    assert all(m.get('rent_withdrawal_from_investment', 0) == 0 for m in scenario.monthly_data)
+    balances = [m.investment_balance or 0.0 for m in scenario.monthly_data]
+    assert all(balances[i] <= balances[i + 1] for i in range(len(balances) - 1))
+    assert all(
+        (m.rent_withdrawal_from_investment or 0.0) == 0.0 for m in scenario.monthly_data
+    )
 
 
 def test_rent_reduces_when_flag_true():
@@ -34,9 +36,10 @@ def test_rent_reduces_when_flag_true():
         property_appreciation_rate=0,
         rent_reduces_investment=True,
     )
-    withdrawals = [m.get('rent_withdrawal_from_investment', 0) for m in scenario.monthly_data]
+    withdrawals = [
+        (m.rent_withdrawal_from_investment or 0) for m in scenario.monthly_data
+    ]
     assert any(w > 0 for w in withdrawals)
     # Balance after month 1 should be less than starting (minus withdrawal + small return)
-    first = scenario.monthly_data[0]['investment_balance']
-    last = scenario.monthly_data[-1]['investment_balance']
+    last = scenario.monthly_data[-1].investment_balance or 0.0
     assert last < 50000  # consumed part of principal

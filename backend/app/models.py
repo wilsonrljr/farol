@@ -18,7 +18,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional, Literal
-from datetime import date
 
 
 class AmortizationInput(BaseModel):
@@ -40,7 +39,8 @@ class AmortizationInput(BaseModel):
         None, description="Number of occurrences (alternative to end_month)"
     )
     value_type: Optional[Literal["fixed", "percentage"]] = Field(
-        "fixed", description="Whether value is fixed currency or percentage of outstanding balance"
+        "fixed",
+        description="Whether value is fixed currency or percentage of outstanding balance",
     )
     inflation_adjust: Optional[bool] = Field(
         False,
@@ -49,6 +49,10 @@ class AmortizationInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_recurrence(self):  # type: ignore
+        if self.month is not None and self.month < 1:
+            raise ValueError("month must be >= 1")
+        if self.end_month is not None and self.end_month < 1:
+            raise ValueError("end_month must be >= 1")
         if self.occurrences is not None and self.end_month is not None:
             raise ValueError(
                 "Provide either occurrences or end_month for recurring amortization, not both"
@@ -68,6 +72,124 @@ class InvestmentReturnInput(BaseModel):
         None, description="Ending month for this return rate (None means until the end)"
     )
     annual_rate: float = Field(..., description="Annual return rate (in percentage)")
+
+    @model_validator(mode="after")
+    def validate_months(self):  # type: ignore
+        if self.start_month < 1:
+            raise ValueError("start_month must be >= 1")
+        if self.end_month is not None and self.end_month < 1:
+            raise ValueError("end_month must be >= 1")
+        if self.end_month is not None and self.end_month < self.start_month:
+            raise ValueError("end_month must be >= start_month")
+        return self
+
+
+class InvestmentTaxInput(BaseModel):
+    enabled: bool = Field(
+        False,
+        description="If true, applies an effective tax rate over monthly investment returns (approximation).",
+    )
+    effective_tax_rate: float = Field(
+        15.0,
+        ge=0.0,
+        le=100.0,
+        description="Effective tax rate applied to positive monthly investment returns (percentage).",
+    )
+
+
+class FGTSInput(BaseModel):
+    initial_balance: float = Field(
+        0.0, ge=0.0, description="Initial FGTS balance available (R$)."
+    )
+    monthly_contribution: float = Field(
+        0.0, ge=0.0, description="Monthly FGTS contribution (R$)."
+    )
+    annual_yield_rate: float = Field(
+        0.0,
+        ge=0.0,
+        le=100.0,
+        description="Annual FGTS yield rate (percentage). If 0, balance does not grow.",
+    )
+    use_at_purchase: bool = Field(
+        True, description="If true, uses FGTS balance at the purchase event."
+    )
+    max_withdrawal_at_purchase: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Maximum FGTS withdrawal at purchase (R$). None means withdraw up to full balance.",
+    )
+
+
+class MonthlyRecord(BaseModel):
+    month: int
+    cash_flow: float
+
+    scenario_type: Optional[str] = None
+    status: Optional[str] = None
+    phase: Optional[str] = None
+
+    equity: Optional[float] = None
+    investment_balance: Optional[float] = None
+    property_value: Optional[float] = None
+
+    # Loan-related
+    installment: Optional[float] = None
+    principal_payment: Optional[float] = None
+    interest_payment: Optional[float] = None
+    outstanding_balance: Optional[float] = None
+    equity_percentage: Optional[float] = None
+
+    # Rent/invest-related
+    rent_paid: Optional[float] = None
+    investment_return: Optional[float] = None
+    liquid_wealth: Optional[float] = None
+    cumulative_rent_paid: Optional[float] = None
+    cumulative_investment_gains: Optional[float] = None
+    investment_roi_percentage: Optional[float] = None
+
+    # Costs
+    monthly_hoa: Optional[float] = None
+    monthly_property_tax: Optional[float] = None
+    monthly_additional_costs: Optional[float] = None
+    total_monthly_cost: Optional[float] = None
+    cumulative_payments: Optional[float] = None
+    cumulative_interest: Optional[float] = None
+
+    # Invest-then-buy progress
+    additional_investment: Optional[float] = None
+    target_purchase_cost: Optional[float] = None
+    progress_percent: Optional[float] = None
+    shortfall: Optional[float] = None
+    is_milestone: Optional[bool] = None
+    purchase_month: Optional[int] = None
+    purchase_price: Optional[float] = None
+    projected_purchase_month: Optional[int] = None
+    estimated_months_remaining: Optional[int] = None
+
+    # Scheduled contributions (derived from amortizations)
+    extra_contribution_fixed: Optional[float] = None
+    extra_contribution_percentage: Optional[float] = None
+    extra_contribution_total: Optional[float] = None
+
+    # Sustainability & external cover
+    rent_withdrawal_from_investment: Optional[float] = None
+    remaining_investment_before_return: Optional[float] = None
+    external_cover: Optional[float] = None
+    external_surplus_invested: Optional[float] = None
+    sustainable_withdrawal_ratio: Optional[float] = None
+    burn_month: Optional[bool] = None
+
+    # New: Investment tax (approximation)
+    investment_return_gross: Optional[float] = None
+    investment_tax_paid: Optional[float] = None
+    investment_return_net: Optional[float] = None
+
+    # New: FGTS
+    fgts_balance: Optional[float] = None
+    fgts_used: Optional[float] = None
+
+    # New: Upfront costs always paid cash
+    upfront_additional_costs: Optional[float] = None
 
 
 class AdditionalCostsInput(BaseModel):
@@ -175,6 +297,24 @@ class ComparisonInput(BaseModel):
         description="If true, any unused portion of monthly_external_savings (after rent/costs) is invested that month.",
     )
 
+    investment_tax: Optional[InvestmentTaxInput] = Field(
+        None,
+        description="Optional effective taxation over monthly investment returns (approximation).",
+    )
+    fgts: Optional[FGTSInput] = Field(
+        None,
+        description="Optional FGTS balance and usage rules (MVP: use only at purchase).",
+    )
+
+    @model_validator(mode="after")
+    def validate_month_fields(self):  # type: ignore
+        if (
+            self.fixed_investment_start_month is not None
+            and self.fixed_investment_start_month < 1
+        ):
+            raise ValueError("fixed_investment_start_month must be >= 1")
+        return self
+
 
 class LoanInstallment(BaseModel):
     month: int
@@ -209,14 +349,16 @@ class ComparisonScenario(BaseModel):
     name: str
     total_cost: float
     final_equity: float
-    monthly_data: List[dict]
+    monthly_data: List[MonthlyRecord]
     # New fields for clearer cost semantics. total_outflows = sum of all cash out (gross).
     # net_cost = total_outflows - final_equity (net of assets). Kept optional for backward compatibility.
     total_outflows: Optional[float] = Field(
-        None, description="Gross outflows (down payment + payments + rent + costs + investments)"
+        None,
+        description="Gross outflows (down payment + payments + rent + costs + investments)",
     )
     net_cost: Optional[float] = Field(
-        None, description="Net cost after subtracting remaining equity/assets (alias of total_cost if provided)"
+        None,
+        description="Net cost after subtracting remaining equity/assets (alias of total_cost if provided)",
     )
 
 
@@ -232,9 +374,7 @@ class ComparisonMetrics(BaseModel):
     break_even_month: Optional[int] = Field(
         None, description="Month when this scenario becomes profitable"
     )
-    roi_percentage: float = Field(
-        ..., description="Return on investment percentage"
-    )
+    roi_percentage: float = Field(..., description="Return on investment percentage")
     roi_adjusted_percentage: Optional[float] = Field(
         None, description="Adjusted ROI adding back withdrawals used to pay rent/costs"
     )
@@ -250,7 +390,8 @@ class ComparisonMetrics(BaseModel):
         None, description="Sum of rent+costs amount withdrawn from investment principal"
     )
     months_with_burn: Optional[int] = Field(
-        None, description="Number of months where withdrawals exceeded investment returns"
+        None,
+        description="Number of months where withdrawals exceeded investment returns",
     )
     average_sustainable_withdrawal_ratio: Optional[float] = Field(
         None,
@@ -262,7 +403,7 @@ class EnhancedComparisonScenario(BaseModel):
     name: str
     total_cost: float
     final_equity: float
-    monthly_data: List[dict]
+    monthly_data: List[MonthlyRecord]
     metrics: ComparisonMetrics
 
 
@@ -277,6 +418,8 @@ class EnhancedComparisonResult(BaseModel):
     comparative_summary: dict = Field(
         ..., description="Month-by-month comparison between scenarios"
     )
+
+
 class ScenarioMetricsSummary(BaseModel):
     name: str
     net_cost: float

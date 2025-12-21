@@ -1,6 +1,7 @@
 """Unit test focusing on invest-then-buy scenario property appreciation logic.
 Derived from prior verbose script `test_property_appreciation.py`.
 """
+
 from backend.app.finance import simulate_invest_then_buy_scenario
 from backend.app.models import InvestmentReturnInput
 
@@ -24,8 +25,8 @@ def test_invest_then_buy_property_follows_inflation():
 
     purchase_month = None
     for m in result.monthly_data:
-        if m.get("status") == "Imóvel comprado":
-            purchase_month = m["month"]
+        if m.status == "Imóvel comprado":
+            purchase_month = m.month
             break
     assert purchase_month is not None
 
@@ -33,6 +34,10 @@ def test_invest_then_buy_property_follows_inflation():
     months_passed = purchase_month - 1
     monthly_infl = (1 + inflation_rate / 100) ** (1 / 12) - 1
     expected_purchase_value = property_value * (1 + monthly_infl) ** months_passed
-    actual_purchase_value = result.monthly_data[purchase_month - 1]["property_value"]
+    actual_purchase_value = result.monthly_data[purchase_month - 1].property_value
+    assert actual_purchase_value is not None
     # Allow minor floating differences
-    assert abs(actual_purchase_value - expected_purchase_value) / expected_purchase_value < 0.005
+    assert (
+        abs(actual_purchase_value - expected_purchase_value) / expected_purchase_value
+        < 0.005
+    )

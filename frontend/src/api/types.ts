@@ -18,6 +18,19 @@ export interface InvestmentReturnInput {
   annual_rate: number; // percentage
 }
 
+export interface InvestmentTaxInput {
+  enabled?: boolean;
+  effective_tax_rate?: number; // percentage (effective monthly approximation)
+}
+
+export interface FGTSInput {
+  initial_balance?: number; // R$
+  monthly_contribution?: number; // R$
+  annual_yield_rate?: number; // percentage
+  use_at_purchase?: boolean;
+  max_withdrawal_at_purchase?: number | null; // R$
+}
+
 export interface AdditionalCostsInput {
   itbi_percentage?: number; // default 2
   deed_percentage?: number; // default 1
@@ -80,6 +93,79 @@ export interface ComparisonInput {
   rent_reduces_investment?: boolean;
   monthly_external_savings?: number | null;
   invest_external_surplus?: boolean;
+
+  investment_tax?: InvestmentTaxInput | null;
+  fgts?: FGTSInput | null;
+}
+
+export interface MonthlyRecord {
+  month: number;
+  cash_flow: number;
+
+  scenario_type?: string;
+  status?: string;
+  phase?: string;
+
+  equity?: number;
+  investment_balance?: number;
+  property_value?: number;
+
+  // Loan
+  installment?: number;
+  principal_payment?: number;
+  interest_payment?: number;
+  outstanding_balance?: number;
+  equity_percentage?: number;
+
+  // Rent/Invest
+  rent_paid?: number;
+  investment_return?: number;
+  liquid_wealth?: number;
+  cumulative_rent_paid?: number;
+  cumulative_investment_gains?: number;
+  investment_roi_percentage?: number;
+
+  // Costs
+  monthly_hoa?: number;
+  monthly_property_tax?: number;
+  monthly_additional_costs?: number;
+  total_monthly_cost?: number;
+  cumulative_payments?: number;
+  cumulative_interest?: number;
+
+  // Invest-then-buy
+  additional_investment?: number;
+  target_purchase_cost?: number;
+  progress_percent?: number;
+  shortfall?: number;
+  is_milestone?: boolean;
+  purchase_month?: number;
+  purchase_price?: number;
+  projected_purchase_month?: number;
+  estimated_months_remaining?: number;
+
+  extra_contribution_fixed?: number;
+  extra_contribution_percentage?: number;
+  extra_contribution_total?: number;
+
+  rent_withdrawal_from_investment?: number;
+  remaining_investment_before_return?: number;
+  external_cover?: number;
+  external_surplus_invested?: number;
+  sustainable_withdrawal_ratio?: number;
+  burn_month?: boolean;
+
+  // Tax (approximation)
+  investment_return_gross?: number;
+  investment_tax_paid?: number;
+  investment_return_net?: number;
+
+  // FGTS
+  fgts_balance?: number;
+  fgts_used?: number;
+
+  // Upfront costs
+  upfront_additional_costs?: number;
 }
 
 export interface ComparisonScenario {
@@ -88,24 +174,7 @@ export interface ComparisonScenario {
   final_equity: number;
   total_outflows?: number;
   net_cost?: number;
-  monthly_data: Array<{
-    month: number;
-    cash_flow: number;
-    equity?: number;
-    investment_balance?: number;
-    property_value?: number;
-    status?: string;
-    additional_investment?: number;
-    target_purchase_cost?: number;
-    progress_percent?: number;
-    shortfall?: number;
-    is_milestone?: boolean;
-    scenario_type?: string;
-    purchase_month?: number;
-    purchase_price?: number;
-    projected_purchase_month?: number;
-    estimated_months_remaining?: number;
-  }>;
+  monthly_data: MonthlyRecord[];
 }
 
 export interface ComparisonResult {

@@ -37,6 +37,18 @@ export default function ComparisonForm() {
   rent_reduces_investment: false,
   monthly_external_savings: 0,
   invest_external_surplus: false,
+
+      fgts: {
+        initial_balance: 0,
+        monthly_contribution: 0,
+        annual_yield_rate: 0,
+        use_at_purchase: true,
+        max_withdrawal_at_purchase: null,
+      },
+      investment_tax: {
+        enabled: false,
+        effective_tax_rate: 15,
+      },
     }
   });
 
@@ -141,6 +153,75 @@ Se maior que custos, a sobra pode ser investida se marcado 'Investir sobra exter
                 <NumberInput label="Aporte Mensal Fixo" {...form.getInputProps('fixed_monthly_investment')} thousandSeparator />
                 <NumberInput label="Início Aporte (mês)" {...form.getInputProps('fixed_investment_start_month')} />
               </Group>
+
+              <Divider label="FGTS e Tributação" />
+              <Group grow align="flex-end">
+                <div>
+                  <LabelWithHelp
+                    label="Saldo FGTS (R$)"
+                    help={`Saldo disponível de FGTS. Neste MVP, o FGTS é usado apenas no momento da compra (entrada/abatimento do valor necessário).
+Para simular amortizações recorrentes com dinheiro (incluindo FGTS), use a seção de Amortizações.`}
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('fgts.initial_balance')} min={0} thousandSeparator />
+                </div>
+                <div>
+                  <LabelWithHelp
+                    label="Aporte FGTS mensal (R$)"
+                    help="Opcional. Simula aportes mensais ao saldo de FGTS (ex.: depósitos recorrentes)."
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('fgts.monthly_contribution')} min={0} thousandSeparator />
+                </div>
+              </Group>
+              <Group grow align="flex-end">
+                <div>
+                  <LabelWithHelp
+                    label="Rendimento FGTS (% a.a.)"
+                    help="Opcional. Se informado, o saldo FGTS cresce mensalmente por esta taxa anual (aproximação)."
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('fgts.annual_yield_rate')} min={0} />
+                </div>
+                <div>
+                  <LabelWithHelp
+                    label="Limite saque FGTS na compra (R$)"
+                    help="Opcional. Se definido, limita quanto do FGTS pode ser usado no evento de compra."
+                  />
+                  <NumberInput mt={4} {...form.getInputProps('fgts.max_withdrawal_at_purchase')} min={0} thousandSeparator />
+                </div>
+              </Group>
+              <Checkbox
+                mt={4}
+                label="Usar FGTS na compra"
+                {...form.getInputProps('fgts.use_at_purchase', { type: 'checkbox' })}
+              />
+
+              <Group grow align="flex-end">
+                <div style={{ flex: 1 }}>
+                  <LabelWithHelp
+                    label="Tributação sobre rendimentos (aprox.)"
+                    help={`Aproximação simples: aplica uma alíquota efetiva sobre o rendimento positivo de cada mês e reinveste o retorno líquido.
+Na prática, o IR costuma ser cobrado no resgate e depende do produto/prazo. Use apenas para ter uma noção conservadora.`}
+                  />
+                  <Checkbox
+                    mt={6}
+                    label="Aplicar imposto (aproximação)"
+                    {...form.getInputProps('investment_tax.enabled', { type: 'checkbox' })}
+                  />
+                </div>
+                <div>
+                  <LabelWithHelp
+                    label="Alíquota efetiva (%)"
+                    help="Percentual aplicado sobre o rendimento mensal positivo (não é uma simulação tributária completa)."
+                  />
+                  <NumberInput
+                    mt={4}
+                    {...form.getInputProps('investment_tax.effective_tax_rate')}
+                    min={0}
+                    max={100}
+                    disabled={!form.values.investment_tax?.enabled}
+                  />
+                </div>
+              </Group>
+
               <AmortizationsFieldArray
                 value={form.values.amortizations || []}
                 onChange={(v)=>form.setFieldValue('amortizations', v)}
