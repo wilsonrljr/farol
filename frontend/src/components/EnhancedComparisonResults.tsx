@@ -142,7 +142,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
       <SimpleGrid cols={2} spacing="md">
         <Box>
           <Text size="xs" c="sage.5" mb={2}>
-            Custo Total
+            Custo Líquido
           </Text>
           <Group gap={4} align="center">
             <Text fw={600} size="md" c="sage.8">
@@ -173,7 +173,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
         </Box>
         <Box>
           <Text size="xs" c="sage.5" mb={2}>
-            Custo Mensal Médio
+            Desembolso Mensal Médio (inclui entrada/aportes)
           </Text>
           <Text fw={600} size="md" c="sage.8">
             {money(s.metrics.average_monthly_cost)}
@@ -220,6 +220,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     });
 
   const moneySafe = (v: any) => money(v || 0);
+  const monthlyOutflow = (m: any) => {
+    if (m?.total_monthly_cost != null) return m.total_monthly_cost;
+    if (m?.cash_flow != null) return -m.cash_flow;
+    return 0;
+  };
 
   // Find best scenario
   const ranked = [...result.scenarios].sort((a, b) => {
@@ -428,7 +433,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Mês</Table.Th>
-                        <Table.Th>Fluxo</Table.Th>
+                        <Table.Th>Desembolso</Table.Th>
                         <Table.Th>Equidade</Table.Th>
                         <Table.Th>Investimento</Table.Th>
                         <Table.Th>Valor Imóvel</Table.Th>
@@ -448,7 +453,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             }}
                           >
                             <Table.Td>{m.month}</Table.Td>
-                            <Table.Td>{moneySafe(m.cash_flow)}</Table.Td>
+                              <Table.Td>{moneySafe(monthlyOutflow(m))}</Table.Td>
                             <Table.Td>{moneySafe(m.equity)}</Table.Td>
                             <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
                             <Table.Td>{moneySafe(m.property_value)}</Table.Td>

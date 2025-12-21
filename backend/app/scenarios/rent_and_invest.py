@@ -148,6 +148,14 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         burn_month = withdrawal > 0 and investment_return < withdrawal
 
+        # New semantics: total_monthly_cost reflects all outflows/cash allocations in the month.
+        # Month 1 includes the initial capital invested (down payment + initial_investment).
+        initial_deposit = (
+            (self.down_payment + self.initial_investment) if month == 1 else 0.0
+        )
+        invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
+        total_monthly_cost = current_rent + initial_deposit + invested_from_external
+
         return DomainMonthlyRecord(
             month=month,
             cash_flow=-total_monthly_cost,
@@ -196,12 +204,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def _build_domain_result(self) -> DomainComparisonScenario:
         """Build the final comparison scenario result (domain)."""
         final_equity = self._investment_balance + self.fgts_balance
-        initial_capital = (
-            self.down_payment
-            + self.initial_investment
-            + (self.fgts.initial_balance if self.fgts else 0.0)
-        )
-        total_outflows = self._total_rent_paid + initial_capital
+        total_outflows = sum((d.total_monthly_cost or 0.0) for d in self._monthly_data)
         net_cost = total_outflows - final_equity
 
         return DomainComparisonScenario(

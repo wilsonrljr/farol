@@ -332,13 +332,15 @@ class _DomainMetricsCalculator:
             (sum(monthly_costs) / len(monthly_costs)) if monthly_costs else 0.0
         )
 
-        initial_investment = self._calculate_initial_investment(scenario)
-        roi_pct = self._calculate_roi(scenario.final_equity, initial_investment)
+        total_outflows = float(scenario.total_outflows or 0.0)
+        roi_pct = self._calculate_roi_from_outflows(
+            final_value=scenario.final_equity,
+            total_outflows=total_outflows,
+        )
 
         total_interest_rent = self._calculate_total_interest_or_rent(scenario)
         break_even_month = self._calculate_break_even_month(
             scenario,
-            initial_investment=initial_investment,
         )
         sustainability = self._calculate_sustainability_metrics(scenario)
 
@@ -348,7 +350,7 @@ class _DomainMetricsCalculator:
 
         roi_adjusted = self._calculate_adjusted_roi(
             scenario.final_equity,
-            initial_investment,
+            total_outflows,
             total_withdrawn,
         )
 
@@ -370,21 +372,21 @@ class _DomainMetricsCalculator:
             average_sustainable_withdrawal_ratio=avg_ratio,
         )
 
-    def _calculate_initial_investment(
-        self, scenario: domain.ComparisonScenario
+    def _calculate_roi_from_outflows(
+        self,
+        *,
+        final_value: float,
+        total_outflows: float,
     ) -> float:
-        """Calculate initial investment for ROI calculation."""
-        initial = self.down_payment + (self.fgts.initial_balance if self.fgts else 0.0)
-        if scenario.scenario_type == "buy" and scenario.monthly_data:
-            upfront = scenario.monthly_data[0].upfront_additional_costs or 0
-            initial += upfront
-        return initial
+        """Calculate ROI percentage based on total outflows.
 
-    def _calculate_roi(self, final_value: float, initial_investment: float) -> float:
-        """Calculate ROI percentage."""
-        if not initial_investment:
+        With the updated cost semantics, total_outflows already includes any initial
+        capital allocations (down payment, initial investments, upfront costs) as part
+        of month 1 outflows.
+        """
+        if total_outflows <= 0:
             return 0.0
-        return (final_value - initial_investment) / initial_investment * 100
+        return (final_value - total_outflows) / total_outflows * 100
 
     def _calculate_total_interest_or_rent(
         self, scenario: domain.ComparisonScenario
@@ -397,8 +399,6 @@ class _DomainMetricsCalculator:
     def _calculate_break_even_month(
         self,
         scenario: domain.ComparisonScenario,
-        *,
-        initial_investment: float,
     ) -> int | None:
         """Calculate break-even month.
 
@@ -411,7 +411,7 @@ class _DomainMetricsCalculator:
         if not scenario.monthly_data:
             return None
 
-        cumulative_outflows = float(initial_investment)
+        cumulative_outflows = 0.0
 
         for d in scenario.monthly_data:
             cumulative_outflows += _get_monthly_cost(d)
@@ -444,14 +444,14 @@ class _DomainMetricsCalculator:
     def _calculate_adjusted_roi(
         self,
         final_value: float,
-        initial_investment: float,
+        total_outflows: float,
         total_withdrawn: float,
     ) -> float | None:
         """Calculate adjusted ROI including withdrawals."""
-        if total_withdrawn <= 0 or not initial_investment:
+        if total_withdrawn <= 0 or total_outflows <= 0:
             return None
         adjusted_final = final_value + total_withdrawn
-        return (adjusted_final - initial_investment) / initial_investment * 100
+        return (adjusted_final - total_outflows) / total_outflows * 100
 
 
 def _build_comparative_summary(

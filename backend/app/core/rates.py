@@ -91,15 +91,27 @@ def get_monthly_investment_rate(
     Returns:
         Monthly investment rate as a decimal (not percentage).
     """
-    # Sort by start_month to ensure deterministic selection when ranges overlap.
-    ordered_returns = sorted(investment_returns, key=lambda r: r.start_month)
+    applicable = [
+        ret
+        for ret in investment_returns
+        if ret.start_month <= month
+        and (ret.end_month is None or month <= ret.end_month)
+    ]
 
-    applicable_rate = None
-    for ret in ordered_returns:
-        if ret.start_month <= month and (
-            ret.end_month is None or month <= ret.end_month
-        ):
-            _, monthly_rate = convert_interest_rate(annual_rate=ret.annual_rate)
-            applicable_rate = monthly_rate / PERCENTAGE_BASE
+    if not applicable:
+        return 0.0
 
-    return applicable_rate if applicable_rate is not None else 0.0
+    if len(applicable) > 1:
+        ordered = sorted(applicable, key=lambda r: r.start_month)
+        msg = (
+            "Overlapping investment return ranges for the same month are not allowed. "
+            f"Month={month}, matching ranges="
+            + ", ".join(
+                f"[{r.start_month}-{r.end_month or '∞'}]: {r.annual_rate}%"
+                for r in ordered
+            )
+        )
+        raise ValueError(msg)
+
+    _, monthly_rate = convert_interest_rate(annual_rate=applicable[0].annual_rate)
+    return monthly_rate / PERCENTAGE_BASE

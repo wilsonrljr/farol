@@ -194,17 +194,12 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_purchase_cost: float,
     ) -> None:
         """Handle simulation for months before purchase."""
-        # Apply scheduled contributions
-        contrib_fixed, contrib_pct, contrib_total = self._apply_scheduled_contributions(
-            month
-        )
-
-        # Calculate rent and costs
+        # 1) Compute rent for the month.
         rent_result = self._compute_rent_costs(month, costs)
         current_rent = rent_result["current_rent"]
         total_rent_cost = rent_result["total_rent_cost"]
 
-        # Apply rent cashflows
+        # 2) Apply rent cashflows (may invest external surplus / withdraw from investment).
         cashflow_result = self._apply_rent_cashflows(
             total_monthly_cost=total_rent_cost,
             rent_reduces_investment=self.rent_reduces_investment,
@@ -212,21 +207,25 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             invest_external_surplus=self.invest_external_surplus,
         )
 
-        # Apply investment returns
-        investment_result: InvestmentResult = (
-            self._investment_calculator.calculate_monthly_return(
-                self._investment_balance, month
-            )
+        # 3) Apply scheduled contributions and other planned investments BEFORE returns.
+        contrib_fixed, contrib_pct, contrib_total = self._apply_scheduled_contributions(
+            month
         )
-        self._investment_balance = investment_result.new_balance
 
-        # Apply loan difference investment
         additional_investment = self._maybe_invest_loan_difference(
             month, total_rent_cost, costs
         )
         additional_investment = self._apply_fixed_monthly_investment(
             month, additional_investment
         )
+
+        # 4) Apply investment returns at end of month.
+        investment_result: InvestmentResult = (
+            self._investment_calculator.calculate_monthly_return(
+                self._investment_balance, month
+            )
+        )
+        self._investment_balance = investment_result.new_balance
 
         # Update progress
         progress_percent, shortfall, is_milestone = self._update_progress(
@@ -411,15 +410,34 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             shortfall = 0.0
             is_milestone = True
 
+            # Upfront transaction costs (ITBI/escritura) are treated as a cash outflow.
+            purchase_upfront = max(0.0, total_purchase_cost - current_property_value)
+
             # Begin paying ownership monthly costs from the purchase month onward.
             monthly_hoa, monthly_property_tax, monthly_additional = (
                 self.get_inflated_monthly_costs(month)
             )
             self._total_monthly_additional_costs += monthly_additional
+        else:
+            purchase_upfront = 0.0
 
-        cash_flow = -(
-            rent_result["total_rent_cost"] + monthly_additional + additional_investment
+        # New semantics: cash_flow/total_monthly_cost represent all monthly outflows and cash allocations.
+        initial_deposit = (
+            (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
+        invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
+        contributions_outflow = (
+            initial_deposit
+            + invested_from_external
+            + contrib_total
+            + additional_investment
+            + purchase_upfront
+        )
+
+        total_monthly_cost = (
+            rent_result["total_rent_cost"] + monthly_additional + contributions_outflow
+        )
+        cash_flow = -total_monthly_cost
         if additional_investment > 0:
             self._total_additional_investments += additional_investment
 
@@ -442,7 +460,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
-            total_monthly_cost=rent_result["total_rent_cost"] + monthly_additional,
+            total_monthly_cost=total_monthly_cost,
             status=status,
             equity=equity,
             property_value=current_property_value,
@@ -480,6 +498,13 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         """Handle simulation for months after purchase."""
         _, _, monthly_additional = self.get_inflated_monthly_costs(month)
 
+        # Apply fixed investment BEFORE returns (consistent timeline).
+        additional_investment = 0.0
+        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
+            additional_investment = self.fixed_monthly_investment
+            self._investment_balance += additional_investment
+            self._total_additional_investments += additional_investment
+
         # Apply investment returns
         investment_result: InvestmentResult = (
             self._investment_calculator.calculate_monthly_return(
@@ -488,14 +513,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         self._investment_balance = investment_result.new_balance
 
-        # Apply fixed investment
-        additional_investment = 0.0
-        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
-            additional_investment = self.fixed_monthly_investment
-            self._investment_balance += additional_investment
-            self._total_additional_investments += additional_investment
-
-        cash_flow = -(monthly_additional + additional_investment)
+        total_monthly_cost = monthly_additional + additional_investment
+        cash_flow = -total_monthly_cost
         self._total_monthly_additional_costs += monthly_additional
 
         record = DomainMonthlyRecord(
@@ -586,36 +605,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             + self.fgts_balance
         )
 
-        if self._purchase_month:
-            purchase_property_value = apply_property_appreciation(
-                self.property_value,
-                self._purchase_month,
-                1,
-                self.property_appreciation_rate,
-                self.inflation_rate,
-            )
-            purchase_upfront = calculate_additional_costs(
-                purchase_property_value, self.additional_costs
-            )["total_upfront"]
-            purchase_cost = purchase_property_value + purchase_upfront
-
-            total_outflows = (
-                self._total_rent_paid
-                + purchase_cost
-                + self._total_monthly_additional_costs
-                + self._total_additional_investments
-                + self._total_scheduled_contributions
-            )
-        else:
-            total_outflows = (
-                self._total_rent_paid
-                + self._total_additional_investments
-                + self._total_scheduled_contributions
-            )
-            initial_capital = self.down_payment + (
-                self.fgts.initial_balance if self.fgts else 0.0
-            )
-            total_outflows += initial_capital
+        total_outflows = sum((d.total_monthly_cost or 0.0) for d in self._monthly_data)
 
         net_cost = total_outflows - final_equity
 

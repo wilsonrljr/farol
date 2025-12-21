@@ -5,6 +5,12 @@ import { IconDownload } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 
 export default function ComparisonResults({ result, inputPayload }: { result: ComparisonResult, inputPayload?: any }) {
+  const monthlyOutflow = (m: any) => {
+    if (m?.total_monthly_cost != null) return m.total_monthly_cost;
+    if (m?.cash_flow != null) return -m.cash_flow;
+    return 0;
+  };
+
   return (
     <Stack>
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
@@ -27,7 +33,7 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
         {result.scenarios.map((s) => (
           <Paper key={s.name} withBorder p="sm" radius="md" style={{ minWidth: 220 }}>
             <Text fw={600}>{s.name}</Text>
-            <Text size="xs" c="dimmed">Custo total</Text>
+            <Text size="xs" c="dimmed">Custo líquido</Text>
             <Text fw={600}>{money(s.total_cost)}</Text>
             <Text size="xs" c="dimmed">Equidade final</Text>
             <Text fw={600}>{money(s.final_equity)}</Text>
@@ -43,7 +49,7 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
         <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={880}>
                   <Table.Thead>
                     <Table.Tr>
-          <Table.Th>Mês</Table.Th><Table.Th>Fluxo</Table.Th><Table.Th>Equidade</Table.Th><Table.Th>Invest.</Table.Th><Table.Th>Valor Imóvel</Table.Th><Table.Th>Status</Table.Th><Table.Th>Prog%</Table.Th><Table.Th>Falta</Table.Th><Table.Th>Aporte Fixo</Table.Th><Table.Th>Aporte %</Table.Th><Table.Th>Aporte Total</Table.Th>
+          <Table.Th>Mês</Table.Th><Table.Th>Desembolso</Table.Th><Table.Th>Equidade</Table.Th><Table.Th>Invest.</Table.Th><Table.Th>Valor Imóvel</Table.Th><Table.Th>Status</Table.Th><Table.Th>Prog%</Table.Th><Table.Th>Falta</Table.Th><Table.Th>Aporte Fixo</Table.Th><Table.Th>Aporte %</Table.Th><Table.Th>Aporte Total</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -57,7 +63,7 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
                       return (
                         <Table.Tr key={m.month} style={style}>
                           <Table.Td>{m.month}</Table.Td>
-                          <Table.Td>{money(m.cash_flow)}</Table.Td>
+                          <Table.Td>{money(monthlyOutflow(m))}</Table.Td>
                           <Table.Td>{money(m.equity)}</Table.Td>
                           <Table.Td>{money(m.investment_balance)}</Table.Td>
                           <Table.Td>{money(m.property_value)}</Table.Td>

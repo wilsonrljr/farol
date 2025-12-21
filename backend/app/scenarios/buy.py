@@ -172,11 +172,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
             )
             self._total_monthly_additional_costs += monthly_additional
 
-            # Running totals (kept consistent with the legacy implementation):
-            # - Includes loan installments + monthly additional costs
-            # - Includes upfront additional costs once (month 1)
+            # Running totals (new semantics): include all cash allocations/outflows.
+            # Month 1 includes down payment + upfront costs.
             if month == 1:
-                cumulative_payments += self._total_upfront_costs
+                cumulative_payments += self.down_payment + self._total_upfront_costs
+                if self.initial_investment > 0:
+                    cumulative_payments += self.initial_investment
 
             installment_value = inst.installment if inst is not None else 0.0
             amortization_value = inst.amortization if inst is not None else 0.0
@@ -224,7 +225,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
     ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment."""
         equity = property_value - outstanding_balance
-        total_monthly_cost = installment_value + monthly_additional
+        upfront_and_initial = 0.0
+        if month == 1:
+            upfront_and_initial = self.down_payment + self._total_upfront_costs
+            if self.initial_investment > 0:
+                upfront_and_initial += self.initial_investment
+
+        total_monthly_cost = (
+            installment_value + monthly_additional + upfront_and_initial
+        )
 
         # Include investment balance only if tracking opportunity cost
         investment_balance = (
@@ -270,13 +279,17 @@ class BuyScenarioSimulator(ScenarioSimulator):
             self.property_appreciation_rate,
             self.inflation_rate,
         )
-        final_equity = final_property_value + self.fgts_balance
-        total_outflows = (
-            self._loan_result.total_paid
-            + self.down_payment
-            + self._total_upfront_costs
-            + self._total_monthly_additional_costs
+
+        # Final equity should reflect the remaining loan balance (if any).
+        final_outstanding_balance = (
+            self._loan_result.installments[-1].outstanding_balance
+            if self._loan_result.installments
+            else 0.0
         )
+        final_equity = (
+            final_property_value - final_outstanding_balance
+        ) + self.fgts_balance
+        total_outflows = sum((d.total_monthly_cost or 0.0) for d in self._monthly_data)
         net_cost = total_outflows - final_equity
 
         # Calculate opportunity cost (what initial investment would have grown to)

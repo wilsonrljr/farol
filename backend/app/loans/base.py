@@ -86,16 +86,20 @@ class LoanSimulator(ABC):
 
     def _calculate_month(self, month: int) -> LoanInstallment:
         """Calculate a single month's installment."""
+        starting_balance = self._outstanding_balance
         extra_amortization = self._calculate_extra_amortization(month)
-        interest = self._outstanding_balance * self.monthly_rate_decimal
+        interest = starting_balance * self.monthly_rate_decimal
 
         regular_amortization = self._calculate_regular_amortization(month)
-        total_amortization = regular_amortization + extra_amortization
+        if regular_amortization < 0:
+            regular_amortization = 0.0
 
-        # Ensure we don't amortize more than outstanding balance
-        if total_amortization > self._outstanding_balance:
-            total_amortization = self._outstanding_balance
-            extra_amortization = total_amortization - regular_amortization
+        # Cap amortizations so we never amortize more than the outstanding balance.
+        regular_amortization = min(regular_amortization, starting_balance)
+        remaining_for_extra = max(0.0, starting_balance - regular_amortization)
+        extra_amortization = min(max(0.0, extra_amortization), remaining_for_extra)
+
+        total_amortization = regular_amortization + extra_amortization
 
         installment_value = interest + total_amortization
         self._outstanding_balance -= total_amortization
