@@ -18,64 +18,18 @@ import { money } from '../utils/format';
 import { AreaChart, LineChart } from '@mantine/charts';
 import { useState } from 'react';
 import {
+  IconDownload,
+  IconTable,
+  IconChartArea,
+  IconClock,
   IconCash,
   IconTrendingUp,
   IconChartBar,
   IconArrowDownRight,
   IconArrowUpRight,
-  IconDownload,
-  IconTable,
-  IconChartArea,
-  IconClock,
 } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
-
-// Metric Card Component
-function MetricCard({
-  label,
-  value,
-  icon: Icon,
-  color = 'sage',
-  subtitle,
-}: {
-  label: string;
-  value: string;
-  icon?: React.ElementType;
-  color?: string;
-  subtitle?: string;
-}) {
-  return (
-    <Paper
-      p="md"
-      radius="lg"
-      style={{
-        border: '1px solid var(--mantine-color-sage-2)',
-        backgroundColor: 'var(--mantine-color-body)',
-      }}
-    >
-      <Group gap="sm" wrap="nowrap">
-        {Icon && (
-          <ThemeIcon size={40} radius="lg" variant="light" color={color}>
-            <Icon size={20} />
-          </ThemeIcon>
-        )}
-        <Box style={{ flex: 1, minWidth: 0 }}>
-          <Text size="xs" c="sage.5" tt="uppercase" fw={500}>
-            {label}
-          </Text>
-          <Text fw={700} size="lg" c="sage.8" style={{ lineHeight: 1.2 }}>
-            {value}
-          </Text>
-          {subtitle && (
-            <Text size="xs" c="sage.5">
-              {subtitle}
-            </Text>
-          )}
-        </Box>
-      </Group>
-    </Paper>
-  );
-}
+import { MetricCard } from './ui/MetricCard';
 
 export default function LoanResults({
   result,
@@ -132,27 +86,23 @@ export default function LoanResults({
         <MetricCard
           label="Valor Financiado"
           value={money(result.loan_value)}
-          icon={IconCash}
-          color="sage"
+          icon={<IconCash size={18} />}
         />
         <MetricCard
           label="Total Pago"
           value={money(totalPaid)}
-          icon={IconTrendingUp}
-          color="coral"
+          icon={<IconTrendingUp size={18} />}
         />
         <MetricCard
           label="Total em Juros"
           value={money(interestPaid)}
-          icon={IconChartBar}
-          color="danger"
-          subtitle={`${interestPct.toFixed(1)}% do total`}
+          icon={<IconChartBar size={18} />}
+          description={`${interestPct.toFixed(1)}% do total`}
         />
         <MetricCard
           label="Parcela Média"
           value={money(avgInstallment)}
-          icon={IconClock}
-          color="sage"
+          icon={<IconClock size={18} />}
         />
       </SimpleGrid>
 
@@ -161,20 +111,18 @@ export default function LoanResults({
         <MetricCard
           label="Principal Pago"
           value={money(principalPaid)}
-          subtitle={`${(100 - interestPct).toFixed(1)}% do total`}
+          description={`${(100 - interestPct).toFixed(1)}% do total`}
         />
         <MetricCard label="Número de Parcelas" value={installmentCount.toString()} />
         <MetricCard
           label="Primeira Parcela"
           value={money(firstInstallment.installment)}
-          icon={IconArrowUpRight}
-          color="success"
+          icon={<IconArrowUpRight size={18} />}
         />
         <MetricCard
           label="Última Parcela"
           value={money(lastInstallment.installment)}
-          icon={IconArrowDownRight}
-          color="warning"
+          icon={<IconArrowDownRight size={18} />}
         />
       </SimpleGrid>
 

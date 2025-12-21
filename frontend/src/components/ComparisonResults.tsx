@@ -1,6 +1,6 @@
 import { Title, Stack, Group, Paper, Text, Table, Accordion, ScrollArea, Menu, Button } from '@mantine/core';
 import { ComparisonResult } from '../api/types';
-import { money } from '../utils/format';
+import { money, percent } from '../utils/format';
 import { IconDownload } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 
@@ -71,7 +71,7 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
                           <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : ''}</Table.Td>
                           <Table.Td>{m.shortfall != null ? money(m.shortfall) : ''}</Table.Td>
                           <Table.Td>{m.extra_contribution_fixed ? money(m.extra_contribution_fixed) : ''}</Table.Td>
-                          <Table.Td>{m.extra_contribution_percentage ? money(m.extra_contribution_percentage) : ''}</Table.Td>
+                          <Table.Td>{m.extra_contribution_percentage != null ? percent(m.extra_contribution_percentage, 2) : ''}</Table.Td>
                           <Table.Td>{m.extra_contribution_total ? money(m.extra_contribution_total) : ''}</Table.Td>
                         </Table.Tr>
                       );

@@ -24,17 +24,14 @@ import { EnhancedComparisonResult } from '../api/types';
 import { money, percent } from '../utils/format';
 import { AreaChart, LineChart } from '@mantine/charts';
 import {
-  IconTrendingUp,
   IconArrowDownRight,
   IconArrowUpRight,
   IconCrown,
-  IconCash,
   IconChartLine,
   IconBuildingBank,
   IconDownload,
   IconTable,
   IconChartArea,
-  IconHome,
   IconPigMoney,
 } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
@@ -211,7 +208,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
   const wealthData = Array.from(months)
     .sort((a, b) => a - b)
     .map((month) => {
-      const row: any = { month: `Mês ${month}` };
+      const row: any = { month };
       result.scenarios.forEach((s) => {
         const md = s.monthly_data.find((m) => m.month === month);
         if (md) row[s.name] = (md.equity || 0) + (md.investment_balance || 0) + (md.fgts_balance || 0);
@@ -232,6 +229,27 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     result.scenarios.find((s) => s.name === result.best_scenario) ??
     [...result.scenarios].sort((a, b) => a.total_cost - b.total_cost)[0];
 
+  const maxWealthScenario = [...result.scenarios].sort(
+    (a, b) => (b.metrics?.wealth_accumulation ?? 0) - (a.metrics?.wealth_accumulation ?? 0)
+  )[0];
+
+  const comparativeRowsRaw = Object.values(result.comparative_summary || {}).filter(
+    (v: any) => v && typeof v === 'object' && typeof v.month === 'number'
+  ) as any[];
+  const comparativeRows = [...comparativeRowsRaw].sort((a, b) => (a.month ?? 0) - (b.month ?? 0));
+  const lastComparativeMonth = comparativeRows.length ? (comparativeRows[comparativeRows.length - 1].month as number) : null;
+  const monthsToShow = lastComparativeMonth
+    ? Array.from(
+        new Set(
+          [1, 12, 60, 120, lastComparativeMonth]
+            .filter((m) => m >= 1 && m <= lastComparativeMonth)
+        )
+      ).sort((a, b) => a - b)
+    : [];
+  const comparativeMiniTable = monthsToShow
+    .map((m) => comparativeRows.find((r) => r.month === m))
+    .filter(Boolean);
+
   return (
     <Stack gap="xl">
       {/* Header */}
@@ -246,8 +264,15 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             </Title>
           </Group>
           <Text size="md" c="sage.6">
-            Melhor cenário identificado: <Text component="span" fw={600} c="sage.8">{result.best_scenario}</Text>
+            Melhor cenário (critério: menor custo líquido):{' '}
+            <Text component="span" fw={600} c="sage.8">{result.best_scenario}</Text>
           </Text>
+          {maxWealthScenario?.name && maxWealthScenario.name !== bestScenario.name && (
+            <Text size="sm" c="sage.6" mt={4}>
+              Maior patrimônio final:{' '}
+              <Text component="span" fw={600} c="sage.8">{maxWealthScenario.name}</Text>
+            </Text>
+          )}
         </Box>
         <Menu withinPortal position="bottom-end">
           <Menu.Target>
@@ -284,6 +309,65 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           />
         ))}
       </SimpleGrid>
+
+      {/* Comparative Summary */}
+      <Paper
+        p="xl"
+        radius="xl"
+        style={{
+          border: '1px solid var(--mantine-color-sage-2)',
+          backgroundColor: 'var(--mantine-color-body)',
+        }}
+      >
+        <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm" mb="md">
+          <Box>
+            <Text fw={600} size="lg" c="sage.8">
+              Resumo comparativo
+            </Text>
+            <Text size="sm" c="sage.5">
+              Alguns pontos no tempo para facilitar a leitura (mês a mês está no export).
+            </Text>
+          </Box>
+          {lastComparativeMonth != null && (
+            <Badge variant="light" color="sage" size="lg">
+              Horizonte: {lastComparativeMonth} meses
+            </Badge>
+          )}
+        </Group>
+
+        {comparativeMiniTable.length ? (
+          <ScrollArea type="hover" scrollbarSize={8} offsetScrollbars>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Mês</Table.Th>
+                  <Table.Th>Comprar vs Alugar (R$)</Table.Th>
+                  <Table.Th>Comprar vs Alugar (%)</Table.Th>
+                  <Table.Th>Patrimônio (Comprar)</Table.Th>
+                  <Table.Th>Patrimônio (Alugar + Investir)</Table.Th>
+                  <Table.Th>Patrimônio (Investir p/ Comprar)</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {comparativeMiniTable.map((r: any) => (
+                  <Table.Tr key={r.month}>
+                    <Table.Td fw={600}>Mês {r.month}</Table.Td>
+                    <Table.Td>{moneySafe(r.buy_vs_rent_difference)}</Table.Td>
+                    <Table.Td>{percent(r.buy_vs_rent_percentage, 1)}</Table.Td>
+                    <Table.Td>{moneySafe(r.buy_total_wealth)}</Table.Td>
+                    <Table.Td>{moneySafe(r.rent_total_wealth)}</Table.Td>
+                    <Table.Td>{moneySafe(r.invest_total_wealth)}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        ) : (
+          <Text size="sm" c="sage.6">
+            Resumo comparativo indisponível.
+          </Text>
+        )}
+      </Paper>
 
       {/* Charts and Tables */}
       <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'overview')} variant="pills" radius="lg">
@@ -365,6 +449,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 valueFormatter={(value) => money(value)}
               />
             )}
+            <Text size="xs" c="sage.6" mt="sm">
+              Eixo X: mês da simulação (1..N).
+            </Text>
           </Paper>
         </Tabs.Panel>
 
@@ -379,6 +466,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           const progress = latest?.progress_percent ?? (latest?.equity ? 100 : 0);
           const purchaseMonth = first?.purchase_month;
           const projected = first?.projected_purchase_month;
+
+          const hasCumulativeCost = rows.some(
+            (m: any) => m.cumulative_payments != null || m.cumulative_rent_paid != null
+          );
+          const hasCumulativeSecondary = rows.some(
+            (m: any) => m.cumulative_interest != null || m.cumulative_investment_gains != null
+          );
 
           return (
             <Tabs.Panel key={s.name} value={s.name}>
@@ -434,6 +528,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         <Table.Th>Equidade</Table.Th>
                         <Table.Th>Investimento</Table.Th>
                         <Table.Th>Valor Imóvel</Table.Th>
+                        {hasCumulativeCost && <Table.Th>Acumulado (custo)</Table.Th>}
+                        {hasCumulativeSecondary && <Table.Th>Acumulado (juros/ganhos)</Table.Th>}
                         {isInvestBuy && <Table.Th>Progresso</Table.Th>}
                         {isInvestBuy && <Table.Th>Status</Table.Th>}
                       </Table.Tr>
@@ -441,6 +537,18 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     <Table.Tbody>
                       {rows.slice(0, 600).map((m: any) => {
                         const isPurchase = m.status === 'Imóvel comprado';
+                        const cumulativeCost =
+                          m.cumulative_payments != null
+                            ? m.cumulative_payments
+                            : m.cumulative_rent_paid != null
+                              ? m.cumulative_rent_paid
+                              : null;
+                        const cumulativeSecondary =
+                          m.cumulative_interest != null
+                            ? m.cumulative_interest
+                            : m.cumulative_investment_gains != null
+                              ? m.cumulative_investment_gains
+                              : null;
                         return (
                           <Table.Tr
                             key={m.month}
@@ -450,10 +558,16 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             }}
                           >
                             <Table.Td>{m.month}</Table.Td>
-                              <Table.Td>{moneySafe(monthlyOutflow(m))}</Table.Td>
+                            <Table.Td>{moneySafe(monthlyOutflow(m))}</Table.Td>
                             <Table.Td>{moneySafe(m.equity)}</Table.Td>
                             <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
                             <Table.Td>{moneySafe(m.property_value)}</Table.Td>
+                            {hasCumulativeCost && (
+                              <Table.Td>{cumulativeCost != null ? moneySafe(cumulativeCost) : '—'}</Table.Td>
+                            )}
+                            {hasCumulativeSecondary && (
+                              <Table.Td>{cumulativeSecondary != null ? moneySafe(cumulativeSecondary) : '—'}</Table.Td>
+                            )}
                             {isInvestBuy && (
                               <Table.Td>
                                 {m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}
@@ -476,6 +590,45 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     </Table.Tbody>
                   </Table>
                 </ScrollArea>
+
+                <Divider my="md" color="sage.2" />
+                <SimpleGrid cols={{ base: 1, sm: 4 }} spacing="md">
+                  <Box>
+                    <Text size="xs" c="sage.5">Break-even</Text>
+                    <Text fw={600} c="sage.8">
+                      {s.metrics.break_even_month != null ? `Mês ${s.metrics.break_even_month}` : '—'}
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="sage.5">ROI (bruto)</Text>
+                    <Text fw={600} c="sage.8">{percent(s.metrics.roi_percentage)}</Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="sage.5">ROI (ajustado)</Text>
+                    <Text fw={600} c="sage.8">
+                      {s.metrics.roi_adjusted_percentage != null ? percent(s.metrics.roi_adjusted_percentage) : '—'}
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="sage.5">Meses com burn</Text>
+                    <Text fw={600} c="sage.8">{s.metrics.months_with_burn ?? '—'}</Text>
+                  </Box>
+                </SimpleGrid>
+
+                {(s.metrics.total_rent_withdrawn_from_investment != null || s.metrics.average_sustainable_withdrawal_ratio != null) && (
+                  <Group gap="xs" mt="md" wrap="wrap">
+                    {s.metrics.total_rent_withdrawn_from_investment != null && (
+                      <Badge variant="light" color="sage">
+                        Aluguel sacado do investimento: {money(s.metrics.total_rent_withdrawn_from_investment)}
+                      </Badge>
+                    )}
+                    {s.metrics.average_sustainable_withdrawal_ratio != null && (
+                      <Badge variant="light" color="sage">
+                        Retirada sustentável média: {percent(s.metrics.average_sustainable_withdrawal_ratio, 2)}
+                      </Badge>
+                    )}
+                  </Group>
+                )}
               </Paper>
             </Tabs.Panel>
           );
