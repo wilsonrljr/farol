@@ -185,8 +185,13 @@ class InvestmentAccount:
         if mode != "on_withdrawal" or tax_rate <= 0 or gain <= 0:
             gross = min(net_cash_needed, self.balance)
             # Proportional principal reduction (no tax).
-            principal_fraction = (self.principal / self.balance) if self.balance > 0 else 0.0
-            principal_reduction = gross * principal_fraction
+            principal_fraction = (
+                (self.principal / self.balance) if self.balance > 0 else 0.0
+            )
+            # When the account has losses (principal > balance), principal_fraction > 1.
+            # Reducing principal by more than the withdrawn cash would distort cost basis
+            # and could later create artificial gains/taxes.
+            principal_reduction = gross * min(1.0, principal_fraction)
             self.balance -= gross
             self.principal = max(0.0, self.principal - principal_reduction)
             return InvestmentWithdrawalResult(

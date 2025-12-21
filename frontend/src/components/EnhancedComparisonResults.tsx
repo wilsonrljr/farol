@@ -214,7 +214,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
       const row: any = { month: `Mês ${month}` };
       result.scenarios.forEach((s) => {
         const md = s.monthly_data.find((m) => m.month === month);
-        if (md) row[s.name] = (md.equity || 0) + (md.investment_balance || 0);
+        if (md) row[s.name] = (md.equity || 0) + (md.investment_balance || 0) + (md.fgts_balance || 0);
       });
       return row;
     });
@@ -226,14 +226,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     return 0;
   };
 
-  // Find best scenario
-  const ranked = [...result.scenarios].sort((a, b) => {
-    if (b.metrics.wealth_accumulation === a.metrics.wealth_accumulation) {
-      return b.metrics.roi_percentage - a.metrics.roi_percentage;
-    }
-    return b.metrics.wealth_accumulation - a.metrics.wealth_accumulation;
-  });
-  const bestScenario = ranked[0];
+  // Best scenario comes from the backend decision rule (currently: lowest total_cost).
+  // Keep UI highlight consistent with `result.best_scenario`.
+  const bestScenario =
+    result.scenarios.find((s) => s.name === result.best_scenario) ??
+    [...result.scenarios].sort((a, b) => a.total_cost - b.total_cost)[0];
 
   return (
     <Stack gap="xl">

@@ -501,10 +501,9 @@ def _build_comparative_summary(
             "property_value_buy": _get_value(buy_data, "property_value"),
             "property_value_rent": _get_value(rent_data, "property_value"),
             "property_value_invest": _get_value(invest_data, "property_value"),
-            "buy_total_wealth": _get_value(buy_data, "equity"),
-            "rent_total_wealth": _get_value(rent_data, "investment_balance"),
-            "invest_total_wealth": _get_value(invest_data, "equity")
-            + _get_value(invest_data, "investment_balance"),
+            "buy_total_wealth": _get_total_wealth(buy_data),
+            "rent_total_wealth": _get_total_wealth(rent_data),
+            "invest_total_wealth": _get_total_wealth(invest_data),
         }
         comparative_summary[f"month_{month}"] = month_comparison
 

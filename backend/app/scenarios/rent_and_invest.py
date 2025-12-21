@@ -11,6 +11,7 @@ the Free Software Foundation, either version 3 of the License, or
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount, InvestmentResult
 from ..core.protocols import (
     AdditionalCostsLike,
@@ -88,6 +89,15 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def _simulate_month(self, month: int) -> DomainMonthlyRecord:
         """Simulate a single month."""
         current_rent = self.get_current_rent(month)
+
+        # Track the hypothetical property price trajectory for comparison.
+        current_property_value = apply_property_appreciation(
+            self.property_value,
+            month,
+            1,
+            self.property_appreciation_rate,
+            self.inflation_rate,
+        )
         # As a renter, we do not pay ownership costs (HOA/IPTU). Keep them zero here.
         monthly_hoa, monthly_property_tax, monthly_additional = 0.0, 0.0, 0.0
         total_monthly_cost = current_rent
@@ -108,6 +118,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             total_monthly_cost=total_monthly_cost,
             cashflow_result=cashflow_result,
             investment_result=investment_result,
+            property_value=current_property_value,
         )
 
     def _process_monthly_cashflows(
@@ -171,6 +182,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_monthly_cost: float,
         cashflow_result: dict[str, float],
         investment_result: InvestmentResult,
+        property_value: float,
     ) -> DomainMonthlyRecord:
         """Create a monthly record."""
         withdrawal = (
@@ -200,12 +212,18 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
-            property_value=self.property_value,
+            property_value=property_value,
             total_monthly_cost=total_monthly_cost,
             cumulative_rent_paid=self._total_rent_paid,
-            cumulative_investment_gains=(self._account.balance - self._account.principal),
+            cumulative_investment_gains=(
+                self._account.balance - self._account.principal
+            ),
             investment_roi_percentage=(
-                ((self._account.balance - self._account.principal) / self._account.principal * 100)
+                (
+                    (self._account.balance - self._account.principal)
+                    / self._account.principal
+                    * 100
+                )
                 if self._account.principal > 0
                 else 0.0
             ),
@@ -220,8 +238,12 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             external_surplus_invested=cashflow_result["external_surplus_invested"],
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
-            investment_withdrawal_gross=cashflow_result.get("investment_withdrawal_gross") or None,
-            investment_withdrawal_net=cashflow_result.get("investment_withdrawal_net") or None,
+            investment_withdrawal_gross=cashflow_result.get(
+                "investment_withdrawal_gross"
+            )
+            or None,
+            investment_withdrawal_net=cashflow_result.get("investment_withdrawal_net")
+            or None,
             investment_withdrawal_realized_gain=(
                 cashflow_result.get("investment_withdrawal_realized_gain") or None
             ),

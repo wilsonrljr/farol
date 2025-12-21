@@ -452,16 +452,27 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         monthly_property_tax = rent_result["monthly_property_tax"]
         monthly_additional = rent_result["monthly_additional"]
 
-        total_available = self._account.liquidation_net_value()
-        if self._fgts_manager and self._fgts_manager.use_at_purchase:
-            total_available += self.fgts_balance
+        investment_available = self._account.liquidation_net_value()
+        fgts_available = (
+            self.fgts_balance
+            if (self._fgts_manager and self._fgts_manager.use_at_purchase)
+            else 0.0
+        )
 
-        if total_available >= total_purchase_cost:
+        # Business rule: FGTS can help with the property price, but not with
+        # transaction costs like ITBI/escritura. Those must be covered by cash
+        # (investment liquidation here).
+        purchase_upfront = max(0.0, total_purchase_cost - current_property_value)
+
+        can_cover_total = (investment_available + fgts_available) >= total_purchase_cost
+        can_cover_upfront = investment_available >= purchase_upfront
+
+        if can_cover_total and can_cover_upfront:
             # Purchase!
             remaining_needed = total_purchase_cost
             if self._fgts_manager and self._fgts_manager.use_at_purchase:
                 fgts_used_this_month = self._fgts_manager.withdraw_for_purchase(
-                    remaining_needed
+                    current_property_value
                 )
                 remaining_needed -= fgts_used_this_month
 
@@ -490,9 +501,6 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 cashflow_result.get("investment_withdrawal_tax_paid", 0.0)
                 + purchase_withdrawal.tax_paid
             )
-
-            # Upfront transaction costs (ITBI/escritura) are treated as a cash outflow.
-            purchase_upfront = max(0.0, total_purchase_cost - current_property_value)
 
             # Begin paying ownership monthly costs from the purchase month onward.
             monthly_hoa, monthly_property_tax, monthly_additional = (
@@ -563,8 +571,12 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             external_surplus_invested=cashflow_result["external_surplus_invested"],
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
-            investment_withdrawal_gross=cashflow_result.get("investment_withdrawal_gross") or None,
-            investment_withdrawal_net=cashflow_result.get("investment_withdrawal_net") or None,
+            investment_withdrawal_gross=cashflow_result.get(
+                "investment_withdrawal_gross"
+            )
+            or None,
+            investment_withdrawal_net=cashflow_result.get("investment_withdrawal_net")
+            or None,
             investment_withdrawal_realized_gain=(
                 cashflow_result.get("investment_withdrawal_realized_gain") or None
             ),
