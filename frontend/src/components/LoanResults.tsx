@@ -31,6 +31,7 @@ import {
 } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 import { MetricCard } from './ui/MetricCard';
+import { formatMonthsYears, formatYearTickFromMonth, moneyCompact, yearFromMonth } from '../utils/format';
 
 export default function LoanResults({
   result,
@@ -42,17 +43,6 @@ export default function LoanResults({
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
   const [activeTab, setActiveTab] = useState<string>('fluxo');
   const [tableView, setTableView] = useState<'essential' | 'detailed'>('essential');
-
-  const formatMonthsYears = (months: number | null | undefined) => {
-    if (!months || months <= 0) return '—';
-    const years = months / 12;
-    const yearsLabel = Number.isInteger(years)
-      ? `${years} anos`
-      : `${years.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} anos`;
-    return `${months} meses (${yearsLabel})`;
-  };
-
-  const monthToYear = (month: number) => Math.max(1, Math.ceil(month / 12));
 
   const dataChart = result.installments.map((i) => ({
     month: i.month,
@@ -271,6 +261,9 @@ export default function LoanResults({
               withLegend
               legendProps={{ verticalAlign: 'bottom', height: 50 }}
               valueFormatter={(value) => money(value as number)}
+              xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
+              yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
+              tooltipAnimationDuration={150}
             />
           </Tabs.Panel>
 
@@ -285,6 +278,9 @@ export default function LoanResults({
               withLegend
               legendProps={{ verticalAlign: 'bottom', height: 50 }}
               valueFormatter={(value) => money(value as number)}
+              xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
+              yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
+              tooltipAnimationDuration={150}
             />
           </Tabs.Panel>
 
@@ -324,7 +320,7 @@ export default function LoanResults({
                   {result.installments.slice(0, 600).map((i) => (
                     <Table.Tr key={i.month}>
                       <Table.Td fw={500}>{i.month}</Table.Td>
-                      <Table.Td>{monthToYear(i.month)}</Table.Td>
+                      <Table.Td>{yearFromMonth(i.month)}</Table.Td>
                       <Table.Td>{money(i.installment)}</Table.Td>
                       {tableView === 'detailed' && <Table.Td>{money(i.amortization)}</Table.Td>}
                       <Table.Td c="danger.6">{money(i.interest)}</Table.Td>

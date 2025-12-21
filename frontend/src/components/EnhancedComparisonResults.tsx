@@ -23,7 +23,19 @@ import {
   ActionIcon,
 } from '@mantine/core';
 import { EnhancedComparisonResult } from '../api/types';
-import { money, percent } from '../utils/format';
+import {
+  money,
+  moneyCompact,
+  percent,
+  formatMonthsYears,
+  formatMonthLabel,
+  formatYearTickFromMonth,
+  signedMoney,
+  signedPercent,
+  yearFromMonth,
+  ratio,
+  ratioAsPercent,
+} from '../utils/format';
 import { AreaChart, LineChart } from '@mantine/charts';
 import {
   IconArrowDownRight,
@@ -48,7 +60,7 @@ interface ScenarioCardNewProps {
 
 function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCardNewProps) {
   const s = scenario;
-  const colorMap = ['sage', 'sage', 'sage'];
+  const colorMap = ['sage', 'info', 'forest'] as const;
   const color = colorMap[index % colorMap.length];
   const iconMap = [<IconBuildingBank size={24} />, <IconChartLine size={24} />, <IconPigMoney size={24} />];
   
@@ -99,7 +111,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           size={52}
           radius="md"
           variant={isBest ? 'filled' : 'light'}
-          color='sage'
+          color={color}
         >
           {iconMap[index % 3]}
         </ThemeIcon>
@@ -232,7 +244,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           Juros/Aluguel: {money(s.metrics.total_interest_or_rent_paid)}
         </Badge>
         {s.opportunity_cost != null && s.opportunity_cost > 0 && (
-          <Badge variant="light" color="cyan" size="sm">
+          <Badge variant="light" color="info" size="sm">
             Ganho investimento: {money(s.opportunity_cost)}
           </Badge>
         )}
@@ -243,23 +255,22 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
 
 export default function EnhancedComparisonResults({ result, inputPayload }: { result: EnhancedComparisonResult; inputPayload?: any }) {
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
+  const [overviewMetric, setOverviewMetric] = useState<'wealth' | 'outflow'>('wealth');
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [milestonesOnly, setMilestonesOnly] = useState(false);
   const [tableView, setTableView] = useState<'essential' | 'detailed'>('essential');
 
   const months = new Set<number>();
-  result.scenarios.forEach((s) => s.monthly_data.forEach((m) => months.add(m.month)));
-  
-  const wealthData = Array.from(months)
-    .sort((a, b) => a - b)
-    .map((month) => {
-      const row: any = { month };
-      result.scenarios.forEach((s) => {
-        const md = s.monthly_data.find((m) => m.month === month);
-        if (md) row[s.name] = (md.equity || 0) + (md.investment_balance || 0) + (md.fgts_balance || 0);
-      });
-      return row;
+  const scenarioByMonth = new Map<string, Map<number, any>>();
+  result.scenarios.forEach((s) => {
+    const byMonth = new Map<number, any>();
+    s.monthly_data.forEach((m: any) => {
+      months.add(m.month);
+      byMonth.set(m.month, m);
     });
+    scenarioByMonth.set(s.name, byMonth);
+  });
+  const monthsSorted = Array.from(months).sort((a, b) => a - b);
 
   const moneySafe = (v: any) => money(v || 0);
   const monthlyOutflow = (m: any) => {
@@ -268,26 +279,26 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     return 0;
   };
 
-  const monthToYear = (month: number) => Math.max(1, Math.ceil(month / 12));
-  const horizonLabel = (monthsCount: number | null) => {
-    if (!monthsCount || monthsCount <= 0) return '—';
-    const years = monthsCount / 12;
-    const yearsLabel = Number.isInteger(years)
-      ? `${years} anos`
-      : `${years.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} anos`;
-    return `${monthsCount} meses (${yearsLabel})`;
-  };
-  const signedMoney = (v: number | null | undefined) => {
-    if (v == null || Number.isNaN(v)) return '—';
-    const sign = v > 0 ? '+' : v < 0 ? '−' : '';
-    return `${sign}${money(Math.abs(v))}`;
-  };
-  const signedPercent = (v: number | null | undefined, digits = 1) => {
-    if (v == null || Number.isNaN(v)) return '—';
-    const sign = v > 0 ? '+' : v < 0 ? '−' : '';
-    return `${sign}${Math.abs(v).toFixed(digits)}%`;
-  };
+  const horizonLabel = (monthsCount: number | null) => formatMonthsYears(monthsCount);
   const wealthAt = (m: any) => (m?.equity || 0) + (m?.investment_balance || 0) + (m?.fgts_balance || 0);
+
+  const wealthData = monthsSorted.map((month) => {
+    const row: any = { month };
+    result.scenarios.forEach((s) => {
+      const md = scenarioByMonth.get(s.name)?.get(month);
+      if (md) row[s.name] = wealthAt(md);
+    });
+    return row;
+  });
+
+  const outflowData = monthsSorted.map((month) => {
+    const row: any = { month };
+    result.scenarios.forEach((s) => {
+      const md = scenarioByMonth.get(s.name)?.get(month);
+      if (md) row[s.name] = monthlyOutflow(md);
+    });
+    return row;
+  });
 
   // Best scenario comes from the backend decision rule (currently: lowest total_cost).
   // Keep UI highlight consistent with `result.best_scenario`.
@@ -420,7 +431,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               <Table.Tbody>
                 {comparativeMiniTable.map((r: any) => (
                   <Table.Tr key={r.month}>
-                    <Table.Td fw={600}>Mês {r.month} (Ano {monthToYear(r.month)})</Table.Td>
+                    <Table.Td fw={600}>{formatMonthLabel(r.month)}</Table.Td>
                     <Table.Td c={r.buy_vs_rent_difference > 0 ? 'danger.6' : r.buy_vs_rent_difference < 0 ? 'success.7' : 'sage.6'}>
                       {signedMoney(r.buy_vs_rent_difference)}
                     </Table.Td>
@@ -469,16 +480,28 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               ))}
             </Tabs.List>
             {activeTab === 'overview' && (
-              <SegmentedControl
-                size="xs"
-                radius="lg"
-                value={chartType}
-                onChange={(v) => setChartType(v as any)}
-                data={[
-                  { label: 'Área', value: 'area' },
-                  { label: 'Linha', value: 'line' },
-                ]}
-              />
+              <Group gap="xs" wrap="wrap">
+                <SegmentedControl
+                  size="xs"
+                  radius="lg"
+                  value={overviewMetric}
+                  onChange={(v) => setOverviewMetric(v as any)}
+                  data={[
+                    { label: 'Patrimônio', value: 'wealth' },
+                    { label: 'Desembolso', value: 'outflow' },
+                  ]}
+                />
+                <SegmentedControl
+                  size="xs"
+                  radius="lg"
+                  value={chartType}
+                  onChange={(v) => setChartType(v as any)}
+                  data={[
+                    { label: 'Área', value: 'area' },
+                    { label: 'Linha', value: 'line' },
+                  ]}
+                />
+              </Group>
             )}
           </Group>
         </Paper>
@@ -492,42 +515,50 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             }}
           >
             <Text fw={600} size="lg" mb="lg" c="sage.8">
-              Evolução do Patrimônio ao Longo do Tempo
+              {overviewMetric === 'wealth'
+                ? 'Evolução do Patrimônio ao Longo do Tempo'
+                : 'Desembolso mensal (saída de caixa) ao longo do tempo'}
             </Text>
             {chartType === 'area' && (
               <AreaChart
                 h={350}
-                data={wealthData}
+                data={overviewMetric === 'wealth' ? wealthData : outflowData}
                 dataKey="month"
                 series={result.scenarios.map((s, i) => ({
                   name: s.name,
-                  color: ['sage.9', 'sage.6', 'sage.4'][i % 3],
+                  color: ['sage.9', 'info.6', 'forest.6'][i % 3],
                 }))}
                 curveType="monotone"
                 gridAxis="xy"
                 withLegend
                 legendProps={{ verticalAlign: 'bottom', height: 50 }}
                 valueFormatter={(value) => money(value)}
+                xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
+                yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
+                tooltipAnimationDuration={150}
               />
             )}
             {chartType === 'line' && (
               <LineChart
                 h={350}
-                data={wealthData}
+                data={overviewMetric === 'wealth' ? wealthData : outflowData}
                 dataKey="month"
                 series={result.scenarios.map((s, i) => ({
                   name: s.name,
-                  color: ['sage.9', 'sage.6', 'sage.4'][i % 3],
+                  color: ['sage.9', 'info.6', 'forest.6'][i % 3],
                 }))}
                 curveType="monotone"
                 gridAxis="xy"
                 withLegend
                 legendProps={{ verticalAlign: 'bottom', height: 50 }}
                 valueFormatter={(value) => money(value)}
+                xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
+                yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
+                tooltipAnimationDuration={150}
               />
             )}
             <Text size="xs" c="sage.6" mt="sm">
-              Eixo X: mês da simulação (1..N).
+              Eixo X: meses (marcado por anos). Passe o mouse para valores exatos.
             </Text>
           </Paper>
         </Tabs.Panel>
@@ -653,7 +684,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             }}
                           >
                             <Table.Td>{m.month}</Table.Td>
-                            <Table.Td>{monthToYear(m.month)}</Table.Td>
+                            <Table.Td>{yearFromMonth(m.month)}</Table.Td>
                             <Table.Td>{moneySafe(monthlyOutflow(m))}</Table.Td>
                             <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
                             <Table.Td>{moneySafe(m.equity)}</Table.Td>
@@ -721,7 +752,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     )}
                     {s.metrics.average_sustainable_withdrawal_ratio != null && (
                       <Badge variant="light" color="sage">
-                        Retirada sustentável média: {percent(s.metrics.average_sustainable_withdrawal_ratio, 2)}
+                        Retirada sustentável média: {ratio(s.metrics.average_sustainable_withdrawal_ratio, 2)} ({ratioAsPercent(s.metrics.average_sustainable_withdrawal_ratio, 0)})
                       </Badge>
                     )}
                   </Group>
