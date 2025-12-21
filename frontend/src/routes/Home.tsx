@@ -45,7 +45,7 @@ export default function Home() {
         style={{
           position: 'relative',
           overflow: 'hidden',
-          background: 'linear-gradient(180deg, var(--mantine-color-cream-0) 0%, var(--mantine-color-sage-0) 100%)',
+          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-cream-0) 0%, var(--mantine-color-sage-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
         }}
       >
         {/* Decorative elements */}
@@ -57,7 +57,7 @@ export default function Home() {
             width: rem(400),
             height: rem(400),
             borderRadius: '50%',
-            background: 'radial-gradient(circle, var(--mantine-color-sage-1) 0%, transparent 70%)',
+            background: 'light-dark(radial-gradient(circle, var(--mantine-color-sage-1) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-sage-7) 35%, transparent) 0%, transparent 70%))',
             opacity: 0.6,
             pointerEvents: 'none',
           }}
@@ -70,7 +70,7 @@ export default function Home() {
             width: rem(300),
             height: rem(300),
             borderRadius: '50%',
-            background: 'radial-gradient(circle, var(--mantine-color-cream-2) 0%, transparent 70%)',
+            background: 'light-dark(radial-gradient(circle, var(--mantine-color-cream-2) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-dark-6) 45%, transparent) 0%, transparent 70%))',
             opacity: 0.5,
             pointerEvents: 'none',
           }}
@@ -98,11 +98,15 @@ export default function Home() {
               }}
             >
               Tome a melhor decisão para{' '}
-              <Text component="span" inherit style={{ color: 'var(--mantine-color-sage-7)' }}>
+              <Text
+                component="span"
+                inherit
+                style={{ color: 'light-dark(var(--mantine-color-sage-7), var(--mantine-color-sage-3))' }}
+              >
                 adquirir seu imóvel
               </Text>
             </Title>
-            <Text size="lg" c="neutral.6" maw={580} mx="auto" mb="xl" lh={1.7}>
+            <Text size="lg" c="dimmed" maw={580} mx="auto" mb="xl" lh={1.7}>
               Compare financiamento, aluguel + investimento ou investir para comprar à vista.
               Simule diferentes cenários e descubra qual estratégia faz mais sentido para você.
             </Text>
@@ -144,7 +148,7 @@ export default function Home() {
           radius="xl"
           shadow="lg"
           style={{
-            border: '1px solid var(--mantine-color-sage-2)',
+            border: '1px solid var(--mantine-color-default-border)',
             backgroundColor: 'var(--mantine-color-body)',
           }}
         >
@@ -162,8 +166,8 @@ export default function Home() {
                 }
               />
               <Box>
-                <Text size="xl" fw={700} c="sage.8">Comprar</Text>
-                <Text size="sm" c="neutral.5">Financiamento SAC ou PRICE</Text>
+                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Comprar</Text>
+                <Text size="sm" c="dimmed">Financiamento SAC ou PRICE</Text>
               </Box>
             </Group>
             <Group gap="lg" wrap="nowrap">
@@ -179,8 +183,8 @@ export default function Home() {
                 }
               />
               <Box>
-                <Text size="xl" fw={700} c="sage.8">Alugar</Text>
-                <Text size="sm" c="neutral.5">Investir a diferença</Text>
+                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Alugar</Text>
+                <Text size="sm" c="dimmed">Investir a diferença</Text>
               </Box>
             </Group>
             <Group gap="lg" wrap="nowrap">
@@ -196,8 +200,8 @@ export default function Home() {
                 }
               />
               <Box>
-                <Text size="xl" fw={700} c="sage.8">Investir</Text>
-                <Text size="sm" c="neutral.5">Juntar e comprar à vista</Text>
+                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Investir</Text>
+                <Text size="sm" c="dimmed">Juntar e comprar à vista</Text>
               </Box>
             </Group>
           </SimpleGrid>
@@ -213,7 +217,7 @@ export default function Home() {
           <Title order={2} fw={600} mb="sm">
             Tudo que você precisa para decidir
           </Title>
-          <Text size="md" c="neutral.6" maw={520} mx="auto">
+          <Text size="md" c="dimmed" maw={520} mx="auto">
             Ferramentas completas para analisar cada aspecto da sua decisão imobiliária
           </Text>
         </Box>
@@ -264,9 +268,9 @@ export default function Home() {
       <Box
         py={{ base: 60, md: 100 }}
         style={{
-          backgroundColor: 'var(--mantine-color-sage-0)',
-          borderTop: '1px solid var(--mantine-color-sage-1)',
-          borderBottom: '1px solid var(--mantine-color-sage-1)',
+          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+          borderTop: '1px solid var(--mantine-color-default-border)',
+          borderBottom: '1px solid var(--mantine-color-default-border)',
         }}
       >
         <Container size="lg">
@@ -278,7 +282,7 @@ export default function Home() {
               <Title order={2} fw={600} mb="md">
                 Simples e intuitivo
               </Title>
-              <Text size="md" c="neutral.6" mb="xl" lh={1.7}>
+              <Text size="md" c="dimmed" mb="xl" lh={1.7}>
                 Em poucos passos, você terá uma visão clara de qual estratégia é mais vantajosa
                 para o seu perfil e objetivos.
               </Text>
@@ -291,9 +295,17 @@ export default function Home() {
                       <IconClipboardList size={18} />
                     </ThemeIcon>
                   }
-                  title={<Text fw={600} c="sage.8" size="md">Informe os dados</Text>}
+                  title={
+                    <Text
+                      fw={600}
+                      size="md"
+                      c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))"
+                    >
+                      Informe os dados
+                    </Text>
+                  }
                 >
-                  <Text c="neutral.6" size="sm" mt={4}>
+                  <Text c="dimmed" size="sm" mt={4}>
                     Valor do imóvel, entrada, prazo e taxas de juros.
                   </Text>
                 </Timeline.Item>
@@ -304,9 +316,17 @@ export default function Home() {
                       <IconSettings size={18} />
                     </ThemeIcon>
                   }
-                  title={<Text fw={600} c="sage.8" size="md">Configure cenários</Text>}
+                  title={
+                    <Text
+                      fw={600}
+                      size="md"
+                      c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))"
+                    >
+                      Configure cenários
+                    </Text>
+                  }
                 >
-                  <Text c="neutral.6" size="sm" mt={4}>
+                  <Text c="dimmed" size="sm" mt={4}>
                     Defina aluguel, retorno de investimentos e inflação.
                   </Text>
                 </Timeline.Item>
@@ -317,9 +337,17 @@ export default function Home() {
                       <IconChartBar size={18} />
                     </ThemeIcon>
                   }
-                  title={<Text fw={600} c="sage.8" size="md">Compare resultados</Text>}
+                  title={
+                    <Text
+                      fw={600}
+                      size="md"
+                      c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))"
+                    >
+                      Compare resultados
+                    </Text>
+                  }
                 >
-                  <Text c="neutral.6" size="sm" mt={4}>
+                  <Text c="dimmed" size="sm" mt={4}>
                     Visualize patrimônio, custos e ROI de cada estratégia.
                   </Text>
                 </Timeline.Item>
@@ -332,7 +360,7 @@ export default function Home() {
                 radius="xl"
                 style={{
                   backgroundColor: 'var(--mantine-color-body)',
-                  border: '1px solid var(--mantine-color-sage-2)',
+                  border: '1px solid var(--mantine-color-default-border)',
                   boxShadow: 'var(--mantine-shadow-lg)',
                 }}
               >
@@ -341,10 +369,10 @@ export default function Home() {
                     <IconChartLine size={26} />
                   </ThemeIcon>
                   <Box>
-                    <Text fw={600} size="lg" c="sage.8">
+                    <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))">
                       Exemplo de Análise
                     </Text>
-                    <Text size="sm" c="neutral.5">
+                    <Text size="sm" c="dimmed">
                       Imóvel de R$ 500 mil em 30 anos
                     </Text>
                   </Box>
@@ -355,8 +383,8 @@ export default function Home() {
                     p="md"
                     radius="lg"
                     style={{
-                      background: 'linear-gradient(135deg, var(--mantine-color-sage-0) 0%, var(--mantine-color-sage-1) 100%)',
-                      border: '1px solid var(--mantine-color-sage-2)',
+                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-sage-0) 0%, var(--mantine-color-sage-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-6) 100%))',
+                      border: '1px solid var(--mantine-color-default-border)',
                     }}
                   >
                     <Group gap="xs" mb={4}>
@@ -373,8 +401,8 @@ export default function Home() {
                     p="md"
                     radius="lg"
                     style={{
-                      background: 'linear-gradient(135deg, var(--mantine-color-success-0) 0%, var(--mantine-color-success-1) 100%)',
-                      border: '1px solid var(--mantine-color-success-2)',
+                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-success-0) 0%, var(--mantine-color-success-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, color-mix(in srgb, var(--mantine-color-success-9) 35%, var(--mantine-color-dark-8)) 100%))',
+                      border: '1px solid var(--mantine-color-default-border)',
                     }}
                   >
                     <Group gap="xs" mb={4}>
@@ -393,13 +421,13 @@ export default function Home() {
                 <Box
                   style={{
                     height: rem(120),
-                    backgroundColor: 'var(--mantine-color-cream-1)',
+                    backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-7))',
                     borderRadius: rem(12),
                     display: 'flex',
                     alignItems: 'flex-end',
                     justifyContent: 'space-around',
                     padding: rem(16),
-                    border: '1px solid var(--mantine-color-sage-1)',
+                    border: '1px solid var(--mantine-color-default-border)',
                   }}
                 >
                   {[
@@ -422,7 +450,7 @@ export default function Home() {
                           marginBottom: rem(6),
                         }}
                       />
-                      <Text size="xs" c="neutral.5">{bar.label}</Text>
+                      <Text size="xs" c="dimmed">{bar.label}</Text>
                     </Box>
                   ))}
                 </Box>
@@ -446,7 +474,7 @@ export default function Home() {
               p="xl"
               radius="xl"
               style={{
-                border: '1px solid var(--mantine-color-sage-2)',
+                border: '1px solid var(--mantine-color-default-border)',
                 textAlign: 'center',
                 transition: 'all 200ms ease',
               }}
@@ -462,8 +490,8 @@ export default function Home() {
               >
                 <benefit.icon size={24} />
               </ThemeIcon>
-              <Text fw={600} size="lg" c="sage.8" mb={4}>{benefit.title}</Text>
-              <Text size="sm" c="neutral.5">{benefit.desc}</Text>
+              <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb={4}>{benefit.title}</Text>
+              <Text size="sm" c="dimmed">{benefit.desc}</Text>
             </Paper>
           ))}
         </SimpleGrid>

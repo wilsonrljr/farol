@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from '../../types/react';
 import { Paper, Box, Text, Group, rem } from '@mantine/core';
 
 interface ChartContainerProps {
@@ -21,16 +21,16 @@ export function ChartContainer({
       p="lg"
       radius="xl"
       style={{
-        border: '1px solid var(--mantine-color-sage-2)',
+        border: '1px solid var(--mantine-color-default-border)',
       }}
     >
       <Group justify="space-between" align="flex-start" mb="lg">
         <Box>
-          <Text fw={600} size="lg" c="sage.8">
+          <Text fw={600} size="lg" c="bright">
             {title}
           </Text>
           {subtitle && (
-            <Text size="sm" c="sage.6">
+            <Text size="sm" c="dimmed">
               {subtitle}
             </Text>
           )}

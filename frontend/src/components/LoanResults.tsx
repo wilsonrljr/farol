@@ -289,28 +289,56 @@ export default function LoanResults({
               <Table striped highlightOnHover stickyHeader>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                    <Table.Th
+                      style={{
+                        backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                      }}
+                    >
                       Mês
                     </Table.Th>
-                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                    <Table.Th
+                      style={{
+                        backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                      }}
+                    >
                       Ano
                     </Table.Th>
-                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                    <Table.Th
+                      style={{
+                        backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                      }}
+                    >
                       Parcela
                     </Table.Th>
                     {tableView === 'detailed' && (
-                      <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      <Table.Th
+                        style={{
+                          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                        }}
+                      >
                         Amortização
                       </Table.Th>
                     )}
-                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                    <Table.Th
+                      style={{
+                        backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                      }}
+                    >
                       Juros
                     </Table.Th>
-                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                    <Table.Th
+                      style={{
+                        backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                      }}
+                    >
                       Saldo Devedor
                     </Table.Th>
                     {tableView === 'detailed' && (
-                      <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      <Table.Th
+                        style={{
+                          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                        }}
+                      >
                         Amort. Extra
                       </Table.Th>
                     )}

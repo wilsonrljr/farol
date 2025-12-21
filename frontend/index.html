@@ -1,11 +1,23 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-mantine-color-scheme="light">
 
 <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulador Financeiro Imobiliário</title>
+    <script>
+        try {
+            var _colorScheme = window.localStorage.getItem('mantine-color-scheme-value');
+            var colorScheme = _colorScheme === 'light' || _colorScheme === 'dark' || _colorScheme === 'auto' ? _colorScheme : 'auto';
+            var computedColorScheme = colorScheme !== 'auto'
+                ? colorScheme
+                : window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light';
+            document.documentElement.setAttribute('data-mantine-color-scheme', computedColorScheme);
+        } catch (e) { }
+    </script>
 </head>
 
 <body>

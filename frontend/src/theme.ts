@@ -47,6 +47,21 @@ const neutral: MantineColorsTuple = [
   '#1c1917', // 9 - heading
 ];
 
+// Dark palette (Farol) - deep sage/charcoal for dark scheme surfaces
+// Used by Mantine as `theme.colors.dark` to define default dark surfaces/text
+const dark: MantineColorsTuple = [
+  '#e8ede9', // 0 - brightest (text on dark)
+  '#cfd7d1', // 1
+  '#b3beb7', // 2
+  '#97a49b', // 3
+  '#7b887f', // 4
+  '#5f6d64', // 5
+  '#43524a', // 6
+  '#2e3a33', // 7 - surface
+  '#1c2621', // 8 - background
+  '#111814', // 9 - deepest
+];
+
 // Forest - deeper green accent
 const forest: MantineColorsTuple = [
   '#f0f7f0', // 0
@@ -135,6 +150,8 @@ export const theme = createTheme({
     sage,
     cream,
     neutral,
+    gray: neutral,
+    dark,
     forest,
     success,
     warning,
@@ -280,23 +297,23 @@ export const theme = createTheme({
     Stepper: {
       styles: {
         stepIcon: {
-          backgroundColor: 'var(--mantine-color-cream-1)',
-          borderColor: 'var(--mantine-color-sage-3)',
+          backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-7))',
+          borderColor: 'light-dark(var(--mantine-color-sage-3), var(--mantine-color-dark-5))',
         },
       },
     },
     Timeline: {
       styles: {
         itemBullet: {
-          backgroundColor: 'var(--mantine-color-cream-1)',
-          borderColor: 'var(--mantine-color-sage-4)',
+          backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-7))',
+          borderColor: 'light-dark(var(--mantine-color-sage-4), var(--mantine-color-dark-5))',
         },
       },
     },
     Progress: {
       styles: {
         root: {
-          backgroundColor: 'var(--mantine-color-cream-2)',
+          backgroundColor: 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-6))',
         },
       },
     },

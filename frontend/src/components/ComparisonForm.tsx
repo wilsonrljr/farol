@@ -131,8 +131,8 @@ export default function ComparisonForm() {
         p="lg"
         radius="xl"
         style={{
-          border: "1px solid var(--mantine-color-sage-2)",
-          backgroundColor: "var(--mantine-color-sage-0)",
+          border: '1px solid var(--mantine-color-default-border)',
+          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
         }}
       >
         <Group justify="space-between" align="flex-start" wrap="wrap" gap="lg">
@@ -141,10 +141,10 @@ export default function ComparisonForm() {
               <IconChartLine size={18} />
             </ThemeIcon>
             <Box>
-              <Text fw={600} c="sage.9">
+              <Text fw={600} c="bright">
                 Resumo da comparação
               </Text>
-              <Text size="xs" c="sage.6">
+              <Text size="xs" c="dimmed">
                 O que você está comparando
               </Text>
             </Box>
@@ -154,7 +154,7 @@ export default function ComparisonForm() {
               <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
                 Valor do imóvel
               </Text>
-              <Text size="lg" fw={700} c="sage.9">
+              <Text size="lg" fw={700} c="bright">
                 {money(propertyValue)}
               </Text>
             </Box>
@@ -162,7 +162,7 @@ export default function ComparisonForm() {
               <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
                 Entrada
               </Text>
-              <Text size="lg" fw={700} c="sage.9">
+              <Text size="lg" fw={700} c="bright">
                 {money(downPayment)} ({downPaymentPct.toFixed(0)}%)
               </Text>
             </Box>
@@ -375,9 +375,9 @@ export default function ComparisonForm() {
                 </Grid.Col>
               </Grid>
 
-              <Divider my="lg" color="sage.2" />
+              <Divider my="lg" color="var(--mantine-color-default-border)" />
 
-              <Text fw={600} size="sm" mb="sm" c="sage.8">
+              <Text fw={600} size="sm" mb="sm" c="bright">
                 Retornos de investimento
               </Text>
               <InvestmentReturnsFieldArray

@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from '../../types/react';
 import { Paper, Box, Text, Group, rem, Stack, ThemeIcon, Progress, UnstyledButton, Transition } from '@mantine/core';
 import { IconCheck, IconChevronRight, IconChevronLeft } from '@tabler/icons-react';
 
@@ -56,12 +56,14 @@ function StepIndicator({
             ? 'var(--mantine-color-sage-6)' 
             : active 
               ? 'var(--mantine-color-sage-7)' 
-              : 'var(--mantine-color-cream-2)',
-          border: `2px solid ${completed || active ? 'var(--mantine-color-sage-6)' : 'var(--mantine-color-sage-3)'}`,
+              : 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-7))',
+          border: `2px solid ${completed || active ? 'var(--mantine-color-sage-6)' : 'var(--mantine-color-default-border)'}`,
           color: completed || active ? 'white' : 'var(--mantine-color-sage-6)',
           transition: 'all 250ms ease',
           flexShrink: 0,
-          boxShadow: active ? '0 0 0 4px var(--mantine-color-sage-1)' : 'none',
+          boxShadow: active
+            ? '0 0 0 4px light-dark(var(--mantine-color-sage-1), var(--mantine-color-dark-6))'
+            : 'none',
         }}
       >
         {completed ? (
@@ -78,13 +80,13 @@ function StepIndicator({
         <Text 
           fw={active ? 600 : 500} 
           size="sm" 
-          c={active ? 'sage.8' : completed ? 'sage.7' : 'neutral.5'}
+          c={active ? 'bright' : completed ? 'sage.7' : 'dimmed'}
           style={{ whiteSpace: 'nowrap' }}
         >
           {step.label}
         </Text>
         {step.description && (
-          <Text size="xs" c="neutral.5" style={{ whiteSpace: 'nowrap' }}>
+          <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
             {step.description}
           </Text>
         )}
@@ -96,7 +98,9 @@ function StepIndicator({
           style={{
             flex: 1,
             height: rem(2),
-            backgroundColor: completed ? 'var(--mantine-color-sage-4)' : 'var(--mantine-color-cream-3)',
+            backgroundColor: completed
+              ? 'var(--mantine-color-sage-4)'
+              : 'light-dark(var(--mantine-color-cream-3), var(--mantine-color-dark-5))',
             borderRadius: rem(1),
             marginLeft: rem(8),
             marginRight: rem(8),
@@ -120,7 +124,7 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
           <Text size="sm" fw={500} c="sage.7">
             Passo {active + 1} de {steps.length}
           </Text>
-          <Text size="sm" c="neutral.5">
+          <Text size="sm" c="dimmed">
             {steps[active].label}
           </Text>
         </Group>
@@ -131,7 +135,7 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
           color="sage"
           styles={{
             root: {
-              backgroundColor: 'var(--mantine-color-cream-2)',
+              backgroundColor: 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-6))',
             },
           }}
         />
@@ -143,9 +147,9 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
         mb="xl"
         p="lg"
         style={{
-          backgroundColor: 'var(--mantine-color-cream-1)',
+          backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-8))',
           borderRadius: rem(16),
-          border: '1px solid var(--mantine-color-sage-2)',
+          border: '1px solid var(--mantine-color-default-border)',
         }}
       >
         <Group gap="xs" wrap="nowrap">
@@ -179,13 +183,16 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
             gap: rem(8),
             padding: `${rem(10)} ${rem(16)}`,
             borderRadius: rem(8),
-            backgroundColor: active === 0 ? 'var(--mantine-color-cream-2)' : 'var(--mantine-color-sage-0)',
-            color: active === 0 ? 'var(--mantine-color-neutral-4)' : 'var(--mantine-color-sage-7)',
+            backgroundColor:
+              active === 0
+                ? 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-6))'
+                : 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+            color: active === 0 ? 'var(--mantine-color-dimmed)' : 'var(--mantine-color-sage-7)',
             fontWeight: 500,
             fontSize: rem(14),
             cursor: active === 0 ? 'not-allowed' : 'pointer',
             transition: 'all 150ms ease',
-            border: '1px solid var(--mantine-color-sage-2)',
+            border: '1px solid var(--mantine-color-default-border)',
           }}
         >
           <IconChevronLeft size={18} />
@@ -231,7 +238,7 @@ export function FormSection({ title, description, children, icon }: FormSectionP
       p="xl"
       radius="xl"
       style={{
-        border: '1px solid var(--mantine-color-sage-2)',
+        border: '1px solid var(--mantine-color-default-border)',
         backgroundColor: 'var(--mantine-color-body)',
         marginBottom: rem(24),
       }}
@@ -243,11 +250,11 @@ export function FormSection({ title, description, children, icon }: FormSectionP
           </ThemeIcon>
         )}
         <Box>
-          <Text fw={600} size="lg" c="sage.8">
+          <Text fw={600} size="lg" c="bright">
             {title}
           </Text>
           {description && (
-            <Text size="sm" c="neutral.6" mt={4}>
+            <Text size="sm" c="dimmed" mt={4}>
               {description}
             </Text>
           )}

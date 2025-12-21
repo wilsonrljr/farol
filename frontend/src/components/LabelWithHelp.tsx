@@ -1,6 +1,6 @@
 import { Group, Tooltip, Text, ActionIcon } from '@mantine/core';
 import { IconHelpCircle } from '@tabler/icons-react';
-import { ReactNode } from 'react';
+import type { ReactNode } from '../types/react';
 
 interface LabelWithHelpProps {
   label: string;

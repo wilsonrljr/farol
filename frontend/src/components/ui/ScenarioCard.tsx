@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from '../../types/react';
 import { Paper, Text, Box, rem, SimpleGrid, Group, ThemeIcon } from '@mantine/core';
 import { IconArrowUpRight, IconArrowDownRight, IconMinus } from '@tabler/icons-react';
 
@@ -34,11 +34,11 @@ export function ScenarioCard({
       className={isWinner ? 'card-hover' : ''}
       style={{
         backgroundColor: isWinner
-          ? `var(--mantine-color-${color}-0)`
+          ? `light-dark(var(--mantine-color-${color}-0), var(--mantine-color-dark-8))`
           : 'var(--mantine-color-body)',
         border: isWinner
-          ? `2px solid var(--mantine-color-${color}-3)`
-          : '1px solid var(--mantine-color-sage-2)',
+          ? `2px solid light-dark(var(--mantine-color-${color}-3), var(--mantine-color-${color}-6))`
+          : '1px solid var(--mantine-color-default-border)',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -77,11 +77,11 @@ export function ScenarioCard({
           </ThemeIcon>
         )}
         <Box>
-          <Text fw={600} size="lg" c={isWinner ? `${color}.8` : 'sage.8'}>
+          <Text fw={600} size="lg" c={isWinner ? `${color}.8` : 'bright'}>
             {title}
           </Text>
           {subtitle && (
-            <Text size="xs" c="sage.6">
+            <Text size="xs" c="dimmed">
               {subtitle}
             </Text>
           )}
@@ -90,13 +90,13 @@ export function ScenarioCard({
 
       {/* Main Value */}
       <Box mb="lg">
-        <Text size="xs" c="sage.5" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
+        <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
           Patrimônio Final
         </Text>
         <Text
           fw={700}
           style={{ fontSize: rem(32), lineHeight: 1.1 }}
-          c={isWinner ? `${color}.7` : 'sage.8'}
+          c={isWinner ? `${color}.7` : 'bright'}
         >
           {value}
         </Text>
@@ -109,15 +109,15 @@ export function ScenarioCard({
             key={metric.label}
             p="xs"
             style={{
-              backgroundColor: 'var(--mantine-color-sage-0)',
+              backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
               borderRadius: rem(8),
             }}
           >
-            <Text size="xs" c="sage.5" mb={2}>
+            <Text size="xs" c="dimmed" mb={2}>
               {metric.label}
             </Text>
             <Group gap={4} align="center">
-              <Text fw={600} size="sm" c="sage.8">
+              <Text fw={600} size="sm" c="bright">
                 {metric.value}
               </Text>
               {metric.trend && (

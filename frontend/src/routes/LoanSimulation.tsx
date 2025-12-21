@@ -9,8 +9,8 @@ export default function LoanSimulation() {
       <Box
         py={{ base: 40, md: 60 }}
         style={{
-          borderBottom: '1px solid var(--mantine-color-sage-2)',
-          background: 'linear-gradient(180deg, var(--mantine-color-sage-0) 0%, var(--mantine-color-cream-0) 100%)',
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-sage-0) 0%, var(--mantine-color-cream-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
         }}
       >
         <Container size="lg">
@@ -26,10 +26,10 @@ export default function LoanSimulation() {
             >
               <IconCalculator size={32} />
             </ThemeIcon>
-            <Title order={1} fw={700} c="sage.8">
+            <Title order={1} fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
               Simulação de Financiamento
             </Title>
-            <Text size="lg" c="neutral.6" maw={600}>
+            <Text size="lg" c="dimmed" maw={600}>
               Simule seu financiamento imobiliário com sistemas SAC ou PRICE,
               incluindo amortizações extras e custos adicionais.
             </Text>
@@ -42,7 +42,7 @@ export default function LoanSimulation() {
               radius="xl"
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
-                border: '1px solid var(--mantine-color-sage-2)',
+                border: '1px solid var(--mantine-color-default-border)',
               }}
             >
               <Group gap="sm" wrap="nowrap">
@@ -50,10 +50,10 @@ export default function LoanSimulation() {
                   <IconChartBar size={20} />
                 </ThemeIcon>
                 <Box>
-                  <Text fw={600} size="sm" c="sage.8">
+                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                     SAC
                   </Text>
-                  <Text size="xs" c="neutral.5">
+                  <Text size="xs" c="dimmed">
                     Parcelas decrescentes
                   </Text>
                 </Box>
@@ -64,7 +64,7 @@ export default function LoanSimulation() {
               radius="xl"
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
-                border: '1px solid var(--mantine-color-sage-2)',
+                border: '1px solid var(--mantine-color-default-border)',
               }}
             >
               <Group gap="sm" wrap="nowrap">
@@ -72,10 +72,10 @@ export default function LoanSimulation() {
                   <IconChartBar size={20} />
                 </ThemeIcon>
                 <Box>
-                  <Text fw={600} size="sm" c="sage.8">
+                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                     PRICE
                   </Text>
-                  <Text size="xs" c="neutral.5">
+                  <Text size="xs" c="dimmed">
                     Parcelas fixas
                   </Text>
                 </Box>
@@ -86,7 +86,7 @@ export default function LoanSimulation() {
               radius="xl"
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
-                border: '1px solid var(--mantine-color-sage-2)',
+                border: '1px solid var(--mantine-color-default-border)',
               }}
             >
               <Group gap="sm" wrap="nowrap">
@@ -94,10 +94,10 @@ export default function LoanSimulation() {
                   <IconCoin size={20} />
                 </ThemeIcon>
                 <Box>
-                  <Text fw={600} size="sm" c="sage.8">
+                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                     Amortizações
                   </Text>
-                  <Text size="xs" c="neutral.5">
+                  <Text size="xs" c="dimmed">
                     Pagamentos extras
                   </Text>
                 </Box>
@@ -108,7 +108,7 @@ export default function LoanSimulation() {
               radius="xl"
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
-                border: '1px solid var(--mantine-color-sage-2)',
+                border: '1px solid var(--mantine-color-default-border)',
               }}
             >
               <Group gap="sm" wrap="nowrap">
@@ -116,10 +116,10 @@ export default function LoanSimulation() {
                   <IconReceipt size={20} />
                 </ThemeIcon>
                 <Box>
-                  <Text fw={600} size="sm" c="sage.8">
+                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                     Custos
                   </Text>
-                  <Text size="xs" c="neutral.5">
+                  <Text size="xs" c="dimmed">
                     ITBI, escritura, etc.
                   </Text>
                 </Box>

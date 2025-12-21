@@ -159,8 +159,8 @@ export default function AmortizationsFieldArray({
           radius="lg"
           ta="center"
           style={{
-            border: '2px dashed var(--mantine-color-sage-2)',
-            backgroundColor: 'var(--mantine-color-sage-0)',
+            border: '2px dashed var(--mantine-color-default-border)',
+            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
           }}
         >
           <Stack gap="sm" align="center">
@@ -168,10 +168,10 @@ export default function AmortizationsFieldArray({
               <IconCoin size={24} />
             </ThemeIcon>
             <div>
-              <Text fw={500} c="sage.8">
+              <Text fw={500} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                 {ui.emptyTitle}
               </Text>
-              <Text size="sm" c="sage.5">
+              <Text size="sm" c="dimmed">
                 {ui.emptyDescription}
               </Text>
             </div>
@@ -195,7 +195,7 @@ export default function AmortizationsFieldArray({
           p="md"
           radius="lg"
           style={{
-            border: '1px solid var(--mantine-color-sage-2)',
+            border: '1px solid var(--mantine-color-default-border)',
             backgroundColor: 'var(--mantine-color-body)',
           }}
         >
@@ -205,7 +205,7 @@ export default function AmortizationsFieldArray({
                 <ThemeIcon size={32} radius="lg" variant="light" color="sage">
                   <IconCalendar size={16} />
                 </ThemeIcon>
-                <Text fw={500} c="sage.8">
+                <Text fw={500} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                   {ui.itemLabel} {idx + 1}
                 </Text>
               </Group>
@@ -355,16 +355,16 @@ export default function AmortizationsFieldArray({
           p="md"
           radius="lg"
           style={{
-            border: '1px solid var(--mantine-color-sage-2)',
-            backgroundColor: 'var(--mantine-color-sage-0)',
+            border: '1px solid var(--mantine-color-default-border)',
+            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
           }}
         >
-          <Text fw={600} size="sm" c="sage.8" mb="md">
+          <Text fw={600} size="sm" c="bright" mb="md">
             {ui.previewTitle}
           </Text>
 
           {previewData.length === 0 && (
-            <Text size="sm" c="sage.5">
+            <Text size="sm" c="dimmed">
               Nenhum mês gerado com as configurações atuais.
             </Text>
           )}
@@ -402,25 +402,25 @@ export default function AmortizationsFieldArray({
           )}
 
           {previewData.length > 20 && (
-            <Text size="xs" c="sage.5" mt="sm">
+            <Text size="xs" c="dimmed" mt="sm">
               Mostrando primeiros 20 de {previewData.length} meses.
             </Text>
           )}
 
           <Group gap="lg" mt="md">
             <div>
-              <Text size="xs" c="sage.5">
+              <Text size="xs" c="dimmed">
                 Total nominal
               </Text>
-              <Text fw={600} size="sm" c="sage.8">
+              <Text fw={600} size="sm" c="bright">
                 {totals.nominalFixed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </Text>
             </div>
             <div>
-              <Text size="xs" c="sage.5">
+              <Text size="xs" c="dimmed">
                 Total ajustado
               </Text>
-              <Text fw={600} size="sm" c="sage.8">
+              <Text fw={600} size="sm" c="bright">
                 {totals.inflatedFixed.toLocaleString('pt-BR', {
                   style: 'currency',
                   currency: 'BRL',
@@ -428,7 +428,7 @@ export default function AmortizationsFieldArray({
               </Text>
             </div>
             {totals.hasPct && (
-              <Text size="xs" c="sage.5" style={{ fontStyle: 'italic' }}>
+              <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
                 {ui.percentageFootnote}
               </Text>
             )}

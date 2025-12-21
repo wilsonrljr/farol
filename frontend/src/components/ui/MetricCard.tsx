@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from '../../types/react';
 import { Box, Text, Group, ThemeIcon, rem, Paper, Tooltip, ActionIcon } from '@mantine/core';
 import { IconHelpCircle } from '@tabler/icons-react';
 
@@ -35,15 +35,15 @@ export function MetricCard({
   const currentSize = sizes[size];
 
   const bgColors = {
-    default: 'transparent',
-    highlight: 'var(--mantine-color-sage-0)',
-    subtle: 'var(--mantine-color-sage-0)',
+    default: 'var(--mantine-color-body)',
+    highlight: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+    subtle: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
   };
 
   const borderColors = {
-    default: 'var(--mantine-color-sage-2)',
-    highlight: 'var(--mantine-color-sage-3)',
-    subtle: 'var(--mantine-color-sage-1)',
+    default: 'var(--mantine-color-default-border)',
+    highlight: 'light-dark(var(--mantine-color-sage-3), var(--mantine-color-dark-5))',
+    subtle: 'var(--mantine-color-default-border)',
   };
 
   return (
@@ -61,7 +61,7 @@ export function MetricCard({
             <Text
               size="xs"
               fw={500}
-              c="sage.6"
+              c="dimmed"
               tt="uppercase"
               style={{ letterSpacing: '0.5px', fontSize: currentSize.label }}
             >
@@ -82,14 +82,18 @@ export function MetricCard({
           </Group>
           <Text
             fw={600}
-            c={variant === 'highlight' ? 'sage.9' : 'sage.8'}
+            c={
+              variant === 'highlight'
+                ? 'light-dark(var(--mantine-color-sage-9), var(--mantine-color-text))'
+                : 'bright'
+            }
             style={{ fontSize: currentSize.value, lineHeight: 1.2 }}
             mt={4}
           >
             {value}
           </Text>
           {description && (
-            <Text size="xs" c="sage.5" mt={4}>
+            <Text size="xs" c="dimmed" mt={4}>
               {description}
             </Text>
           )}
@@ -103,7 +107,7 @@ export function MetricCard({
                 {trend.value >= 0 ? '+' : ''}{trend.value}%
               </Text>
               {trend.label && (
-                <Text size="xs" c="sage.5">
+                <Text size="xs" c="dimmed">
                   {trend.label}
                 </Text>
               )}

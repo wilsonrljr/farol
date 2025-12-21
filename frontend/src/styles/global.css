@@ -13,8 +13,8 @@
   --farol-animate-scale-in: scaleIn 0.2s ease-out;
   
   /* Neutral accents */
-  --farol-accent-gold: var(--mantine-color-stone-8);
-  --farol-accent-gold-light: var(--mantine-color-stone-1);
+  --farol-accent-gold: var(--mantine-color-warning-7);
+  --farol-accent-gold-light: var(--mantine-color-warning-1);
   --farol-accent-coral: var(--mantine-color-danger-6);
 }
 
@@ -23,7 +23,15 @@ html {
   scroll-behavior: smooth;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
+  background-color: var(--mantine-color-body);
+  color: var(--mantine-color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -31,7 +39,7 @@ body {
 
 /* Focus styles */
 *:focus-visible {
-  outline: 2px solid var(--mantine-color-stone-6);
+  outline: 2px solid var(--mantine-primary-color-filled);
   outline-offset: 2px;
 }
 
@@ -46,21 +54,21 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--mantine-color-stone-3);
+  background: var(--mantine-color-default-border);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--mantine-color-stone-4);
+  background: var(--mantine-color-gray-4);
 }
 
 /* Dark mode scrollbar */
 [data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb {
-  background: var(--mantine-color-charcoal-6);
+  background: var(--mantine-color-dark-6);
 }
 
 [data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: var(--mantine-color-charcoal-5);
+  background: var(--mantine-color-dark-5);
 }
 
 /* Animations */
@@ -164,23 +172,23 @@ body {
 
 /* Skeleton loading */
 .skeleton {
-  background: var(--mantine-color-stone-2);
+  background: var(--mantine-color-gray-2);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
 [data-mantine-color-scheme="dark"] .skeleton {
-  background: var(--mantine-color-charcoal-7);
+  background: var(--mantine-color-dark-7);
 }
 
 /* Glassmorphism effect */
 .glass {
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--mantine-color-body) 85%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 
 [data-mantine-color-scheme="dark"] .glass {
-  background: rgba(30, 41, 59, 0.85);
+  background: color-mix(in srgb, var(--mantine-color-body) 85%, transparent);
 }
 
 /* Card hover effects */
@@ -191,7 +199,7 @@ body {
 .card-hover:hover {
   transform: translateY(-2px);
   box-shadow: var(--mantine-shadow-lg);
-  border-color: var(--mantine-color-stone-3);
+  border-color: var(--mantine-color-default-border);
 }
 
 .card-hover:hover .feature-card-accent {
@@ -247,11 +255,11 @@ input[type="number"] {
 /* Section divider */
 .section-divider {
   height: 1px;
-  background: var(--mantine-color-stone-3);
+  background: var(--mantine-color-default-border);
 }
 
 [data-mantine-color-scheme="dark"] .section-divider {
-  background: var(--mantine-color-charcoal-6);
+  background: var(--mantine-color-dark-6);
 }
 
 /* Accent underline for headings */
@@ -267,34 +275,34 @@ input[type="number"] {
   left: 0;
   width: 60px;
   height: 3px;
-  background: var(--mantine-color-gold-5);
+  background: var(--mantine-color-warning-5);
   border-radius: 2px;
 }
 
 /* Hero section background */
 .hero-section {
-  background: var(--mantine-color-stone-0);
+  background: var(--mantine-color-body);
   position: relative;
 }
 
 [data-mantine-color-scheme="dark"] .hero-section {
-  background: var(--mantine-color-charcoal-9);
+  background: var(--mantine-color-body);
 }
 
 /* Warm accent card */
 .accent-card {
-  border-left: 4px solid var(--mantine-color-gold-5);
+  border-left: 4px solid var(--mantine-color-warning-5);
 }
 
 /* Selection color */
 ::selection {
-  background: var(--mantine-color-gold-2);
-  color: var(--mantine-color-gold-9);
+  background: var(--mantine-color-warning-2);
+  color: var(--mantine-color-warning-9);
 }
 
 [data-mantine-color-scheme="dark"] ::selection {
-  background: var(--mantine-color-gold-8);
-  color: var(--mantine-color-gold-1);
+  background: var(--mantine-color-warning-8);
+  color: var(--mantine-color-warning-1);
 }
 
 /* Smooth page transitions */
@@ -311,16 +319,16 @@ input[type="number"] {
 
 /* Data table styles */
 .data-row-highlight {
-  background-color: var(--mantine-color-stone-0);
+  background-color: var(--mantine-color-default-hover);
 }
 
 [data-mantine-color-scheme="dark"] .data-row-highlight {
-  background-color: var(--mantine-color-charcoal-8);
+  background-color: var(--mantine-color-dark-7);
 }
 
 /* Metric card positive/negative indicators */
 .metric-positive {
-  color: var(--mantine-color-stone-7);
+  color: var(--mantine-color-success-6);
 }
 
 .metric-negative {
@@ -330,11 +338,11 @@ input[type="number"] {
 /* Stepper and Timeline enhancements */
 .step-connector {
   width: 2px;
-  background: var(--mantine-color-stone-3);
+  background: var(--mantine-color-default-border);
 }
 
 .step-connector-active {
-  background: var(--mantine-color-gold-5);
+  background: var(--mantine-color-warning-5);
 }
 
 /* Interactive number badge */
@@ -347,13 +355,13 @@ input[type="number"] {
   justify-content: center;
   font-weight: 600;
   font-size: 14px;
-  background: var(--mantine-color-stone-2);
-  color: var(--mantine-color-stone-7);
+  background: var(--mantine-color-gray-2);
+  color: var(--mantine-color-text);
   transition: all var(--farol-transition-normal);
 }
 
 .number-badge-active {
-  background: var(--mantine-color-gold-5);
+  background: var(--mantine-color-warning-5);
   color: white;
 }
 

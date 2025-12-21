@@ -50,9 +50,9 @@ function FeatureCard({
       style={{
         border: highlight
           ? '2px solid var(--mantine-color-sage-3)'
-          : '1px solid var(--mantine-color-sage-2)',
+          : '1px solid var(--mantine-color-default-border)',
         backgroundColor: highlight
-          ? 'var(--mantine-color-sage-0)'
+          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
           : 'var(--mantine-color-body)',
       }}
     >
@@ -66,10 +66,10 @@ function FeatureCard({
           <Icon size={22} />
         </ThemeIcon>
         <div>
-          <Text fw={600} c="sage.8" mb={4}>
+          <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb={4}>
             {title}
           </Text>
-          <Text size="sm" c="sage.6" style={{ lineHeight: 1.5 }}>
+          <Text size="sm" c="dimmed" style={{ lineHeight: 1.5 }}>
             {description}
           </Text>
         </div>
@@ -93,7 +93,7 @@ function TechCard({
       p="lg"
       radius="lg"
       style={{
-        border: '1px solid var(--mantine-color-sage-2)',
+        border: '1px solid var(--mantine-color-default-border)',
         backgroundColor: 'var(--mantine-color-body)',
       }}
     >
@@ -102,12 +102,12 @@ function TechCard({
           <Icon size={20} />
         </ThemeIcon>
         <div>
-          <Text fw={600} c="sage.8" mb="xs">
+          <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="xs">
             {title}
           </Text>
           <Stack gap={4}>
             {items.map((item) => (
-              <Text key={item} size="sm" c="sage.6">
+              <Text key={item} size="sm" c="dimmed">
                 • {item}
               </Text>
             ))}
@@ -125,8 +125,8 @@ export default function About() {
       <Box
         py={{ base: 40, md: 60 }}
         style={{
-          borderBottom: '1px solid var(--mantine-color-sage-2)',
-          backgroundColor: 'var(--mantine-color-sage-0)',
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
         }}
       >
         <Container size="lg">
@@ -152,7 +152,7 @@ export default function About() {
             <Text size="sm" fw={600} c="sage.6" tt="uppercase" mb="xs">
               Propósito
             </Text>
-            <Title order={2} fw={700} c="sage.8" mb="md">
+            <Title order={2} fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="md">
               Por que criamos o Farol?
             </Title>
           </div>
@@ -181,7 +181,7 @@ export default function About() {
             <Text size="sm" fw={600} c="sage.6" tt="uppercase" mb="xs">
               Tecnologias
             </Text>
-            <Title order={2} fw={700} c="sage.8" mb="md">
+            <Title order={2} fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="md">
               Como foi construído
             </Title>
 
@@ -210,7 +210,7 @@ export default function About() {
             radius="lg"
             mt="xl"
             style={{
-              border: '1px solid var(--mantine-color-sage-2)',
+              border: '1px solid var(--mantine-color-default-border)',
               backgroundColor: 'var(--mantine-color-body)',
             }}
           >
@@ -220,14 +220,14 @@ export default function About() {
               </ThemeIcon>
               <Stack gap="sm" style={{ flex: 1 }}>
                 <div>
-                  <Text fw={600} size="lg" c="sage.8">
+                  <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                     Autor
                   </Text>
-                  <Text size="sm" c="sage.5">
+                  <Text size="sm" c="dimmed">
                     Wilson Rocha Lacerda Junior
                   </Text>
                 </div>
-                <Text size="sm" c="sage.6" style={{ lineHeight: 1.6 }}>
+                <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
                   Criei a{' '}
                   <Anchor
                     href="https://github.com/wilsonrljr/sysidentpy"
@@ -324,8 +324,8 @@ export default function About() {
             p="lg"
             radius="lg"
             style={{
-              border: '1px solid var(--mantine-color-sage-3)',
-              backgroundColor: 'var(--mantine-color-sage-1)',
+              border: '1px solid var(--mantine-color-default-border)',
+              backgroundColor: 'light-dark(var(--mantine-color-sage-1), var(--mantine-color-dark-7))',
             }}
           >
             <Group align="flex-start" gap="md" wrap="nowrap">
@@ -333,10 +333,10 @@ export default function About() {
                 <IconCode size={20} />
               </ThemeIcon>
               <Stack gap="xs">
-                <Text fw={600} c="sage.8">
+                <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                   Uso de IA
                 </Text>
-                <Text size="sm" c="sage.6" style={{ lineHeight: 1.6 }}>
+                <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
                   Grande parte desta aplicação foi desenvolvida com o auxílio de ferramentas de
                   Inteligência Artificial. Todo o conteúdo foi revisado e adaptado. Por isso, nada
                   mais justo do que torná-la open source, permitindo que a comunidade colabore e
@@ -351,8 +351,8 @@ export default function About() {
             p="lg"
             radius="lg"
             style={{
-              border: '1px solid var(--mantine-color-warning-3)',
-              backgroundColor: 'var(--mantine-color-warning-0)',
+              border: '1px solid light-dark(var(--mantine-color-warning-3), var(--mantine-color-dark-5))',
+              backgroundColor: 'light-dark(var(--mantine-color-warning-0), color-mix(in srgb, var(--mantine-color-warning-9) 18%, var(--mantine-color-dark-8)))',
             }}
           >
             <Group align="flex-start" gap="md" wrap="nowrap">
@@ -360,16 +360,16 @@ export default function About() {
                 <IconShieldCheck size={20} />
               </ThemeIcon>
               <Stack gap="xs">
-                <Text fw={600} c="sage.8">
+                <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                   Disclaimer
                 </Text>
-                <Text size="sm" c="sage.7" style={{ lineHeight: 1.6 }}>
+                <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
                   Isto é uma simulação educativa. Nada aqui é recomendação de compra, venda,
                   financiamento ou de como você deve investir seu dinheiro. Os resultados dependem
                   totalmente das premissas inseridas e podem divergir da vida real. Faça sempre sua
                   própria análise e, se necessário, consulte um profissional qualificado.
                 </Text>
-                <Text size="xs" c="sage.5" style={{ fontStyle: 'italic' }}>
+                <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
                   Resumindo: é uma calculadora para reduzir achismo, não um oráculo financeiro.
                 </Text>
               </Stack>
@@ -377,7 +377,7 @@ export default function About() {
           </Paper>
 
           {/* Footer */}
-          <Text size="xs" c="sage.4" ta="center" mt="xl">
+          <Text size="xs" c="dimmed" ta="center" mt="xl">
             Frontend: React + Vite + Mantine · Backend: FastAPI (Python) · ©{' '}
             {new Date().getFullYear()}
           </Text>

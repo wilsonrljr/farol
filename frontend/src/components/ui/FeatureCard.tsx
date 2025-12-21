@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from '../../types/react';
 import { Box, Text, Group, ThemeIcon, rem, UnstyledButton, Paper } from '@mantine/core';
 import { IconChevronRight } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
@@ -24,7 +24,7 @@ export function FeatureCard({
       radius="xl"
       className="card-hover"
       style={{
-        border: '1px solid var(--mantine-color-sage-2)',
+        border: '1px solid var(--mantine-color-default-border)',
         cursor: link ? 'pointer' : 'default',
         height: '100%',
         position: 'relative',
@@ -56,10 +56,10 @@ export function FeatureCard({
       >
         {icon}
       </ThemeIcon>
-      <Text fw={600} size="lg" c="sage.8" mb="xs">
+      <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="xs">
         {title}
       </Text>
-      <Text size="sm" c="neutral.6" lh={1.6}>
+      <Text size="sm" c="dimmed" lh={1.6}>
         {description}
       </Text>
       {link && (
@@ -99,9 +99,11 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
         gap: rem(16),
         padding: rem(16),
         borderRadius: rem(12),
-        backgroundColor: isActive ? 'var(--mantine-color-sage-0)' : 'transparent',
+        backgroundColor: isActive
+          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
+          : 'transparent',
         border: isActive
-          ? '1px solid var(--mantine-color-sage-2)'
+          ? '1px solid var(--mantine-color-default-border)'
           : '1px solid transparent',
         transition: 'all 200ms ease',
       }}
@@ -113,7 +115,7 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
           borderRadius: rem(8),
           backgroundColor: isActive
             ? 'var(--mantine-color-sage-6)'
-            : 'var(--mantine-color-cream-2)',
+            : 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-7))',
           color: isActive ? 'white' : 'var(--mantine-color-sage-6)',
           display: 'flex',
           alignItems: 'center',
@@ -126,10 +128,10 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
         {step}
       </Box>
       <Box>
-        <Text fw={600} size="md" c={isActive ? 'sage.7' : 'sage.8'}>
+        <Text fw={600} size="md" c={isActive ? 'sage.7' : 'bright'}>
           {title}
         </Text>
-        <Text size="sm" c="neutral.5" lh={1.5}>
+        <Text size="sm" c="dimmed" lh={1.5}>
           {description}
         </Text>
       </Box>
@@ -166,20 +168,20 @@ export function InfoCard({
       p="md"
       radius="xl"
       style={{
-        backgroundColor: `var(--mantine-color-${color.bg}-0)`,
-        border: `1px solid var(--mantine-color-${color.bg}-2)`,
+        backgroundColor: `light-dark(var(--mantine-color-${color.bg}-0), var(--mantine-color-dark-7))`,
+        border: '1px solid var(--mantine-color-default-border)',
       }}
     >
       <Group justify="space-between" align="flex-start" wrap="nowrap">
         <Box>
-          <Text size="xs" c="neutral.5" tt="uppercase" fw={500}>
+          <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
             {title}
           </Text>
           <Text fw={700} size="xl" c={`${color.text}.7`}>
             {value}
           </Text>
           {subtitle && (
-            <Text size="xs" c="neutral.5">
+            <Text size="xs" c="dimmed">
               {subtitle}
             </Text>
           )}

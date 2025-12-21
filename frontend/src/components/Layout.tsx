@@ -1,10 +1,12 @@
-import { ReactNode, useState } from 'react';
+import { useState } from 'react';
+import type { ReactNode } from '../types/react';
 import {
   Box,
   Container,
   Group,
   Text,
   UnstyledButton,
+  useComputedColorScheme,
   useMantineColorScheme,
   ActionIcon,
   Drawer,
@@ -30,7 +32,7 @@ import {
 interface NavItem {
   to: string;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }
 
 const mainNavItems: NavItem[] = [
@@ -58,13 +60,13 @@ function NavLink({ to, label, icon, active, onClick }: NavItem & { active: boole
         borderRadius: rem(8),
         fontWeight: 500,
         fontSize: rem(14),
-        color: active ? 'var(--mantine-color-sage-7)' : 'var(--mantine-color-neutral-7)',
-        backgroundColor: active ? 'var(--mantine-color-sage-0)' : 'transparent',
+        color: active ? 'var(--mantine-primary-color-filled)' : 'var(--mantine-color-dimmed)',
+        backgroundColor: active ? 'var(--mantine-color-default-hover)' : 'transparent',
         transition: 'all 150ms ease',
       }}
       onMouseEnter={(e) => {
         if (!active) {
-          e.currentTarget.style.backgroundColor = 'var(--mantine-color-cream-1)';
+          e.currentTarget.style.backgroundColor = 'var(--mantine-color-default-hover)';
         }
       }}
       onMouseLeave={(e) => {
@@ -93,8 +95,8 @@ function MobileNavLink({ to, label, icon, active, onClick }: NavItem & { active:
         borderRadius: rem(8),
         fontWeight: 500,
         fontSize: rem(16),
-        color: active ? 'var(--mantine-color-sage-7)' : 'var(--mantine-color-neutral-8)',
-        backgroundColor: active ? 'var(--mantine-color-sage-0)' : 'transparent',
+        color: active ? 'var(--mantine-primary-color-filled)' : 'var(--mantine-color-text)',
+        backgroundColor: active ? 'var(--mantine-color-default-hover)' : 'transparent',
         transition: 'all 150ms ease',
       }}
     >
@@ -107,6 +109,7 @@ function MobileNavLink({ to, label, icon, active, onClick }: NavItem & { active:
 export default function Layout({ children }: { children: ReactNode }) {
   const [drawerOpened, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
   const { setColorScheme, colorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme('light');
   const location = useLocation();
 
   const isActive = (to: string) => {
@@ -120,7 +123,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: 'var(--mantine-color-cream-0)',
+        backgroundColor: 'var(--mantine-color-body)',
       }}
     >
       {/* Header */}
@@ -130,8 +133,8 @@ export default function Layout({ children }: { children: ReactNode }) {
           position: 'sticky',
           top: 0,
           zIndex: 100,
-          borderBottom: '1px solid var(--mantine-color-sage-2)',
-          backgroundColor: 'rgba(250, 250, 245, 0.95)',
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+          backgroundColor: 'color-mix(in srgb, var(--mantine-color-body) 92%, transparent)',
           backdropFilter: 'blur(12px)',
         }}
       >
@@ -156,10 +159,10 @@ export default function Layout({ children }: { children: ReactNode }) {
                   <IconLeaf size={20} />
                 </Box>
                 <Box>
-                  <Text fw={700} size="lg" lh={1.1} c="sage.8">
+                  <Text fw={700} size="lg" lh={1.1} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
                     Farol
                   </Text>
-                  <Text size="xs" c="sage.5" lh={1}>
+                  <Text size="xs" c="dimmed" lh={1}>
                     Simulador Imobiliário
                   </Text>
                 </Box>
@@ -175,7 +178,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 style={{
                   width: 1,
                   height: rem(24),
-                  background: 'var(--mantine-color-sage-3)',
+                  background: 'var(--mantine-color-default-border)',
                   margin: `0 ${rem(8)}`,
                 }}
               />
@@ -191,10 +194,10 @@ export default function Layout({ children }: { children: ReactNode }) {
                 color="sage"
                 size="lg"
                 radius="lg"
-                onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
+                onClick={() => setColorScheme(computedColorScheme === 'dark' ? 'light' : 'dark')}
                 aria-label="Alternar tema"
               >
-                {colorScheme === 'dark' ? <IconSun size={20} /> : <IconMoon size={20} />}
+                {computedColorScheme === 'dark' ? <IconSun size={20} /> : <IconMoon size={20} />}
               </ActionIcon>
 
               <Burger
@@ -212,6 +215,11 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* Mobile Drawer */}
       <Drawer
         opened={drawerOpened}
+        styles={{
+          content: {
+            backgroundColor: 'var(--mantine-color-body)',
+          },
+        }}
         onClose={closeDrawer}
         size="100%"
         padding="lg"
@@ -231,7 +239,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               <IconLeaf size={16} />
             </Box>
-            <Text fw={700} c="sage.8">Farol</Text>
+            <Text fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Farol</Text>
           </Group>
         }
         zIndex={200}
@@ -245,7 +253,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               onClick={closeDrawer}
             />
           ))}
-          <Divider my="sm" color="sage.2" />
+          <Divider my="sm" color="var(--mantine-color-default-border)" />
           {secondaryNavItems.map((item) => (
             <MobileNavLink
               key={item.to}
@@ -272,8 +280,8 @@ export default function Layout({ children }: { children: ReactNode }) {
         component="footer"
         py="xl"
         style={{
-          borderTop: '1px solid var(--mantine-color-sage-2)',
-          backgroundColor: 'var(--mantine-color-cream-1)',
+          borderTop: '1px solid var(--mantine-color-default-border)',
+          backgroundColor: 'var(--mantine-color-default)',
         }}
       >
         <Container size="xl">
@@ -293,11 +301,11 @@ export default function Layout({ children }: { children: ReactNode }) {
               >
                 <IconLeaf size={12} />
               </Box>
-              <Text size="sm" c="sage.6">
+              <Text size="sm" c="dimmed">
                 Farol © {new Date().getFullYear()}
               </Text>
             </Group>
-            <Text size="xs" c="sage.5">
+            <Text size="xs" c="dimmed">
               Simulador educativo • Não é recomendação financeira
             </Text>
           </Group>

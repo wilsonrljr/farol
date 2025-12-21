@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from '../types/react';
 import {
   Title,
   Stack,
@@ -67,7 +68,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
   const wealthDelta = s.metrics.wealth_accumulation - bestScenario.metrics.wealth_accumulation;
   const costDelta = s.total_cost - bestScenario.total_cost;
 
-  const Help = ({ label, help }: { label: string; help: React.ReactNode }) => (
+  const Help = ({ label, help }: { label: string; help: ReactNode }) => (
     <Tooltip label={help} multiline w={320} withArrow position="top-start">
       <ActionIcon variant="subtle" color="gray" size="xs" aria-label={`Ajuda: ${label}`}>
         <IconHelpCircle size={14} />
@@ -81,8 +82,12 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
       radius="lg"
       className={isBest ? 'card-hover' : ''}
       style={{
-        backgroundColor: isBest ? 'var(--mantine-color-sage-0)' : 'var(--mantine-color-body)',
-        border: isBest ? '2px solid var(--mantine-color-sage-3)' : '1px solid var(--mantine-color-sage-2)',
+        backgroundColor: isBest
+          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+          : 'var(--mantine-color-body)',
+        border: isBest
+          ? '2px solid light-dark(var(--mantine-color-sage-3), var(--mantine-color-sage-6))'
+          : '1px solid var(--mantine-color-default-border)',
         position: 'relative',
         overflow: 'hidden',
         height: '100%',
@@ -116,10 +121,10 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           {iconMap[index % 3]}
         </ThemeIcon>
         <Box>
-          <Text fw={700} size="xl" c={isBest ? 'sage.9' : 'sage.8'}>
+          <Text fw={700} size="xl" c={isBest ? 'bright' : 'bright'}>
             {s.name}
           </Text>
-          <Text size="sm" c="sage.5">
+          <Text size="sm" c="dimmed">
             {index === 0 ? 'Financiamento imobiliário' : index === 1 ? 'Aluguel + investimento' : 'Investir para comprar'}
           </Text>
         </Box>
@@ -130,7 +135,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
         p="lg"
         mb="lg"
         style={{
-          backgroundColor: 'var(--mantine-color-sage-0)',
+          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
           borderRadius: rem(10),
         }}
       >
@@ -143,11 +148,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
             help="Total acumulado no fim do horizonte da simulação. No comparador, é calculado como (equidade + investimentos + FGTS)."
           />
         </Group>
-        <Text
-          fw={700}
-          style={{ fontSize: rem(32), lineHeight: 1.1 }}
-          c={isBest ? 'sage.9' : 'sage.8'}
-        >
+        <Text fw={700} style={{ fontSize: rem(32), lineHeight: 1.1 }} c="bright">
           {money(s.metrics.wealth_accumulation)}
         </Text>
         {!isBest && wealthDelta !== 0 && (
@@ -395,16 +396,16 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         p="xl"
         radius="xl"
         style={{
-          border: '1px solid var(--mantine-color-sage-2)',
+          border: '1px solid var(--mantine-color-default-border)',
           backgroundColor: 'var(--mantine-color-body)',
         }}
       >
         <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm" mb="md">
           <Box>
-            <Text fw={600} size="lg" c="sage.8">
+            <Text fw={600} size="lg" c="bright">
               Resumo comparativo
             </Text>
-            <Text size="sm" c="sage.5">
+            <Text size="sm" c="dimmed">
               Alguns pontos no tempo para facilitar a leitura (mês a mês está no export).
             </Text>
           </Box>
@@ -464,8 +465,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           radius="xl"
           mb="md"
           style={{
-            backgroundColor: 'var(--mantine-color-sage-0)',
-            border: '1px solid var(--mantine-color-sage-2)',
+            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+            border: '1px solid var(--mantine-color-default-border)',
           }}
         >
           <Group justify="space-between" align="center" wrap="wrap" gap="md">
@@ -511,10 +512,10 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             p="xl"
             radius="xl"
             style={{
-              border: '1px solid var(--mantine-color-sage-2)',
+              border: '1px solid var(--mantine-color-default-border)',
             }}
           >
-            <Text fw={600} size="lg" mb="lg" c="sage.8">
+            <Text fw={600} size="lg" mb="lg" c="bright">
               {overviewMetric === 'wealth'
                 ? 'Evolução do Patrimônio ao Longo do Tempo'
                 : 'Desembolso mensal (saída de caixa) ao longo do tempo'}
@@ -557,7 +558,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 tooltipAnimationDuration={150}
               />
             )}
-            <Text size="xs" c="sage.6" mt="sm">
+            <Text size="xs" c="dimmed" mt="sm">
               Eixo X: meses (marcado por anos). Passe o mouse para valores exatos.
             </Text>
           </Paper>
@@ -588,16 +589,16 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 p="xl"
                 radius="xl"
                 style={{
-                  border: '1px solid var(--mantine-color-sage-2)',
+                  border: '1px solid var(--mantine-color-default-border)',
                 }}
               >
                 {/* Scenario header */}
                 <Group justify="space-between" mb="lg" wrap="wrap" gap="md">
                   <Box>
-                    <Text fw={600} size="lg" c="sage.8">
+                    <Text fw={600} size="lg" c="bright">
                       Detalhamento: {s.name}
                     </Text>
-                    <Text size="sm" c="sage.5">
+                    <Text size="sm" c="dimmed">
                       Dados mensais da simulação
                     </Text>
                   </Box>
