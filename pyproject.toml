@@ -31,7 +31,53 @@ dev = ["pytest>=8.4.1", "pytest-cov>=5.0.0", "ruff>=0.12.0"]
 [tool.ruff]
 target-version = "py313"
 line-length = 88
+src = ["backend"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
-ignore = ["E501"]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+    "N",    # pep8-naming
+    "ANN",  # flake8-annotations
+    "S",    # flake8-bandit (security)
+    "DTZ",  # flake8-datetimez
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "RSE",  # flake8-raise
+    "RET",  # flake8-return
+    "TCH",  # flake8-type-checking
+    "ARG",  # flake8-unused-arguments
+    "PL",   # pylint
+    "PERF", # perflint
+]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "ANN401",  # dynamically typed expressions (Any)
+    "PLR0913", # too many arguments (we have complex financial functions)
+    "PLR2004", # magic values in comparisons (financial constants are intentional)
+    "S101",    # assert usage is fine in tests
+    "S104",    # binding to all interfaces (needed for Docker)
+    "S110",    # try-except-pass (used intentionally in some places)
+    "PLC0415", # import at top level (conditional imports are fine)
+    "PLR0912", # too many branches (complex business logic)
+    "PLR0915", # too many statements (complex business logic)
+    "PERF401", # list comprehension suggestion (readability preference)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"backend/tests/*" = ["ANN", "S101", "PLR2004"]
+"backend/app/tests/*" = ["ANN", "S101", "PLR2004"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

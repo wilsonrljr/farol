@@ -31,10 +31,8 @@ def test_roi_adjusted_present_when_withdrawals():
     metrics = rent_scenario.metrics
 
     # Should have withdrawals
-    assert (
-        metrics.total_rent_withdrawn_from_investment
-        and metrics.total_rent_withdrawn_from_investment > 0
-    )
+    assert metrics.total_rent_withdrawn_from_investment
+    assert metrics.total_rent_withdrawn_from_investment > 0
     # Adjusted ROI should be higher than gross ROI due to adding back withdrawals
     assert metrics.roi_adjusted_percentage is not None
     assert metrics.roi_adjusted_percentage > metrics.roi_percentage

@@ -49,7 +49,7 @@ class AmortizationInput(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_recurrence(self):  # type: ignore
+    def validate_recurrence(self) -> "AmortizationInput":
         if self.month is not None and self.month < 1:
             raise ValueError("month must be >= 1")
         if self.end_month is not None and self.end_month < 1:
@@ -75,7 +75,7 @@ class InvestmentReturnInput(BaseModel):
     annual_rate: float = Field(..., description="Annual return rate (in percentage)")
 
     @model_validator(mode="after")
-    def validate_months(self):  # type: ignore
+    def validate_months(self) -> "InvestmentReturnInput":
         if self.start_month < 1:
             raise ValueError("start_month must be >= 1")
         if self.end_month is not None and self.end_month < 1:
@@ -308,7 +308,7 @@ class ComparisonInput(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_month_fields(self):  # type: ignore
+    def validate_month_fields(self) -> "ComparisonInput":
         if (
             self.fixed_investment_start_month is not None
             and self.fixed_investment_start_month < 1

@@ -67,12 +67,12 @@ app.add_middleware(
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     return {"message": f"{API_TITLE}", "name": APP_NAME}
 
 
 @app.post("/api/simulate-loan", response_model=LoanSimulationResult)
-async def simulate_loan(input_data: LoanSimulationInput):
+async def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult:
     """
     Simulate a loan with either SAC or PRICE method.
     Supports additional costs (ITBI, deed, HOA, property tax) and inflation.
@@ -117,11 +117,11 @@ async def simulate_loan(input_data: LoanSimulationInput):
         return result
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/api/compare-scenarios", response_model=ComparisonResult)
-async def compare_housing_scenarios(input_data: ComparisonInput):
+async def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
     """
     Compare different housing scenarios: buying with a loan, renting and investing, or investing then buying.
     Supports additional costs (ITBI, deed, HOA, property tax) and inflation.
@@ -153,7 +153,7 @@ async def compare_housing_scenarios(input_data: ComparisonInput):
             )
 
         # Compare scenarios
-        result = compare_scenarios(
+        return compare_scenarios(
             property_value=input_data.property_value,
             down_payment=input_data.down_payment,
             loan_term_years=input_data.loan_term_years,
@@ -176,14 +176,12 @@ async def compare_housing_scenarios(input_data: ComparisonInput):
             fgts=input_data.fgts,
         )
 
-        return result
-
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/api/scenario-metrics", response_model=ScenariosMetricsResult)
-async def scenario_metrics(input_data: ComparisonInput):
+async def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
     """Lightweight metrics summary (ROI bruto e ajustado, custo líquido) sem monthly_data detalhado."""
     try:
         annual_rate = input_data.annual_interest_rate
@@ -256,7 +254,9 @@ async def scenario_metrics(input_data: ComparisonInput):
 
 
 @app.post("/api/compare-scenarios-enhanced", response_model=EnhancedComparisonResult)
-async def compare_housing_scenarios_enhanced(input_data: ComparisonInput):
+async def compare_housing_scenarios_enhanced(
+    input_data: ComparisonInput,
+) -> EnhancedComparisonResult:
     """
     Enhanced comparison of housing scenarios with detailed metrics and month-by-month analysis.
     Includes explicit differences between scenarios, ROI calculations, and comprehensive wealth tracking.
@@ -288,7 +288,7 @@ async def compare_housing_scenarios_enhanced(input_data: ComparisonInput):
             )
 
         # Enhanced comparison with detailed metrics
-        result = enhanced_compare_scenarios(
+        return enhanced_compare_scenarios(
             property_value=input_data.property_value,
             down_payment=input_data.down_payment,
             loan_term_years=input_data.loan_term_years,
@@ -310,8 +310,6 @@ async def compare_housing_scenarios_enhanced(input_data: ComparisonInput):
             investment_tax=input_data.investment_tax,
             fgts=input_data.fgts,
         )
-
-        return result
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -338,7 +336,7 @@ def _dataframe_to_stream(
                 "Content-Disposition": f"attachment; filename={base_filename}.csv"
             },
         )
-    elif file_format == "xlsx":
+    if file_format == "xlsx":
         bio = BytesIO()
         with pd.ExcelWriter(bio, engine="openpyxl") as writer:  # type: ignore
             df.to_excel(writer, index=False, sheet_name="data")
@@ -352,14 +350,15 @@ def _dataframe_to_stream(
                 "Content-Disposition": f"attachment; filename={base_filename}.xlsx"
             },
         )
-    else:  # pragma: no cover - validation happens earlier
-        raise HTTPException(status_code=400, detail="Unsupported format")
+    # pragma: no cover - validation happens earlier
+    raise HTTPException(status_code=400, detail="Unsupported format")
 
 
 @app.post("/api/simulate-loan/export")
 async def export_simulate_loan(
-    input_data: LoanSimulationInput, format: str = Query("csv", pattern="^(csv|xlsx)$")
-):
+    input_data: LoanSimulationInput,
+    format: str = Query("csv", pattern="^(csv|xlsx)$"),
+) -> StreamingResponse:
     """Exporta a simulação de financiamento (SAC/PRICE) em CSV ou XLSX."""
     result = await simulate_loan(input_data)  # reutiliza lógica existente
     rows = []
@@ -392,7 +391,7 @@ async def export_compare_scenarios(
     input_data: ComparisonInput,
     format: str = Query("csv", pattern="^(csv|xlsx)$"),
     shape: str = Query("long", pattern="^(long|wide)$"),
-):
+) -> StreamingResponse:
     """Exporta comparação básica.
 
     XLSX Sheets:
@@ -481,7 +480,7 @@ async def export_compare_scenarios(
             wide.to_excel(writer, index=False, sheet_name="monthly_wide")
         # Per-scenario sheet
         # Uma única aba por cenário (todos os meses). Garante unicidade de nomes.
-        used_sheet_names = set(["summary", "monthly_long", "monthly_wide"])
+        used_sheet_names = {"summary", "monthly_long", "monthly_wide"}
         for sc in result.scenarios:
             df_sc = pd.DataFrame(sc.monthly_data)
             base = sc.name.strip() or "scenario"
@@ -518,7 +517,7 @@ async def export_compare_scenarios_enhanced(
     input_data: ComparisonInput,
     format: str = Query("csv", pattern="^(csv|xlsx)$"),
     shape: str = Query("long", pattern="^(long|wide)$"),
-):
+) -> StreamingResponse:
     """Exporta comparação avançada com métricas e summary multi-sheet / multi-bloco."""
     result = await compare_housing_scenarios_enhanced(input_data)
     long_rows: list[dict] = []
@@ -625,9 +624,12 @@ async def export_compare_scenarios_enhanced(
             pd.DataFrame([{"comparative_summary_json": json.dumps(comp)}]).to_excel(
                 writer, index=False, sheet_name="comparative_summary"
             )
-        used_sheet_names = set(
-            ["metrics", "monthly_long", "monthly_wide", "comparative_summary"]
-        ) | {s for s in writer.book.sheetnames}
+        used_sheet_names = {
+            "metrics",
+            "monthly_long",
+            "monthly_wide",
+            "comparative_summary",
+        } | set(writer.book.sheetnames)
         for sc in result.scenarios:
             df_sc = pd.DataFrame(sc.monthly_data)
             base = sc.name.strip() or "scenario"
