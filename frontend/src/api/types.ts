@@ -75,6 +75,7 @@ export interface LoanSimulationResult {
 export interface ComparisonInput {
   property_value: number;
   down_payment: number;
+  total_savings?: number | null; // Total available savings (initial_investment = total_savings - down_payment)
   loan_term_years: number;
   annual_interest_rate?: number | null;
   monthly_interest_rate?: number | null;
@@ -174,6 +175,7 @@ export interface ComparisonScenario {
   final_equity: number;
   total_outflows?: number;
   net_cost?: number;
+  opportunity_cost?: number | null; // Investment gains from initial capital kept invested
   monthly_data: MonthlyRecord[];
 }
 

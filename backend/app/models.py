@@ -257,6 +257,11 @@ class LoanSimulationInput(BaseModel):
 class ComparisonInput(BaseModel):
     property_value: float = Field(..., gt=0.0, description="Total property value")
     down_payment: float = Field(..., ge=0.0, description="Down payment value")
+    total_savings: float | None = Field(
+        None,
+        ge=0.0,
+        description="Total available savings. If provided, initial_investment = total_savings - down_payment",
+    )
     loan_term_years: int = Field(..., gt=0, description="Loan term in years")
     annual_interest_rate: float | None = Field(
         None, ge=0.0, description="Annual interest rate (in percentage)"
@@ -339,7 +344,16 @@ class ComparisonInput(BaseModel):
             and self.fixed_investment_start_month < 1
         ):
             raise ValueError("fixed_investment_start_month must be >= 1")
+        if self.total_savings is not None and self.total_savings < self.down_payment:
+            raise ValueError("total_savings must be >= down_payment")
         return self
+
+    @property
+    def initial_investment(self) -> float:
+        """Calculated initial investment capital (total_savings - down_payment)."""
+        if self.total_savings is not None:
+            return self.total_savings - self.down_payment
+        return 0.0
 
 
 class LoanInstallment(BaseModel):
@@ -389,6 +403,10 @@ class ComparisonScenario(BaseModel):
     net_cost: float | None = Field(
         None,
         description="Net cost after subtracting remaining equity/assets (alias of total_cost if provided)",
+    )
+    opportunity_cost: float | None = Field(
+        None,
+        description="Investment gains from initial capital kept invested (buy scenario only)",
     )
 
 

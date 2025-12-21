@@ -48,6 +48,7 @@ def compare_scenarios(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    initial_investment: float = 0.0,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     result = _compare_scenarios_domain(
@@ -71,6 +72,7 @@ def compare_scenarios(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        initial_investment=initial_investment,
     )
     return comparison_result_to_api(result)
 
@@ -97,6 +99,7 @@ def _compare_scenarios_domain(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    initial_investment: float = 0.0,
 ) -> domain.ComparisonResult:
     term_months = loan_term_years * 12
 
@@ -111,6 +114,9 @@ def _compare_scenarios_domain(
         additional_costs=additional_costs,
         inflation_rate=inflation_rate,
         fgts=fgts,
+        initial_investment=initial_investment,
+        investment_returns=list(investment_returns) if investment_returns else None,
+        investment_tax=investment_tax,
     ).simulate_domain()
 
     rent = RentAndInvestScenarioSimulator(
@@ -128,6 +134,7 @@ def _compare_scenarios_domain(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        initial_investment=initial_investment,
     ).simulate_domain()
 
     invest_buy = InvestThenBuyScenarioSimulator(
@@ -151,6 +158,7 @@ def _compare_scenarios_domain(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        initial_investment=initial_investment,
     ).simulate_domain()
 
     scenarios = [buy, rent, invest_buy]
@@ -179,6 +187,7 @@ def enhanced_compare_scenarios(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    initial_investment: float = 0.0,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
     result = _enhanced_compare_scenarios_domain(
@@ -202,6 +211,7 @@ def enhanced_compare_scenarios(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        initial_investment=initial_investment,
     )
     return enhanced_comparison_result_to_api(result)
 
@@ -228,6 +238,7 @@ def _enhanced_compare_scenarios_domain(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    initial_investment: float = 0.0,
 ) -> domain.EnhancedComparisonResult:
     basic = _compare_scenarios_domain(
         property_value=property_value,
@@ -250,6 +261,7 @@ def _enhanced_compare_scenarios_domain(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        initial_investment=initial_investment,
     )
 
     best_cost = min(s.total_cost for s in basic.scenarios)

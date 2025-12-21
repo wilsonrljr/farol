@@ -44,6 +44,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     invest_external_surplus: bool = field(default=False)
     investment_tax: InvestmentTaxLike | None = field(default=None)
 
+    # Initial investment capital (total_savings - down_payment)
+    initial_investment: float = field(default=0.0)
+
     # Internal state
     _investment_balance: float = field(init=False)
     _total_rent_paid: float = field(init=False, default=0.0)
@@ -59,7 +62,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         super().__post_init__()
         if self.term_months <= 0:
             raise ValueError("term_months must be > 0")
-        self._investment_balance = self.down_payment
+        # Investment balance starts with down payment plus any additional initial capital
+        self._investment_balance = self.down_payment + self.initial_investment
         self._total_rent_paid = 0.0
         self._investment_calculator = InvestmentCalculator(
             investment_returns=self.investment_returns,
@@ -84,10 +88,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def _simulate_month(self, month: int) -> DomainMonthlyRecord:
         """Simulate a single month."""
         current_rent = self.get_current_rent(month)
-        monthly_hoa, monthly_property_tax, monthly_additional = (
-            self.get_inflated_monthly_costs(month)
-        )
-        total_monthly_cost = current_rent + monthly_additional
+        # As a renter, we do not pay ownership costs (HOA/IPTU). Keep them zero here.
+        monthly_hoa, monthly_property_tax, monthly_additional = 0.0, 0.0, 0.0
+        total_monthly_cost = current_rent
         self._total_rent_paid += total_monthly_cost
 
         # Process cashflows
@@ -157,14 +160,20 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             property_value=self.property_value,
             total_monthly_cost=total_monthly_cost,
             cumulative_rent_paid=self._total_rent_paid,
-            cumulative_investment_gains=self._investment_balance - self.down_payment,
+            cumulative_investment_gains=self._investment_balance
+            - self.down_payment
+            - self.initial_investment,
             investment_roi_percentage=(
                 (
-                    (self._investment_balance - self.down_payment)
-                    / self.down_payment
+                    (
+                        self._investment_balance
+                        - self.down_payment
+                        - self.initial_investment
+                    )
+                    / (self.down_payment + self.initial_investment)
                     * 100
                 )
-                if self.down_payment
+                if (self.down_payment + self.initial_investment) > 0
                 else 0.0
             ),
             scenario_type="rent_invest",
@@ -187,8 +196,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def _build_domain_result(self) -> DomainComparisonScenario:
         """Build the final comparison scenario result (domain)."""
         final_equity = self._investment_balance + self.fgts_balance
-        initial_capital = self.down_payment + (
-            self.fgts.initial_balance if self.fgts else 0.0
+        initial_capital = (
+            self.down_payment
+            + self.initial_investment
+            + (self.fgts.initial_balance if self.fgts else 0.0)
         )
         total_outflows = self._total_rent_paid + initial_capital
         net_cost = total_outflows - final_equity

@@ -183,13 +183,18 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
 
       {/* Additional info */}
       <Divider my="md" color="sage.2" />
-      <Group gap="xs">
+      <Group gap="xs" wrap="wrap">
         <Badge variant="light" color="sage" size="sm">
           {s.monthly_data.length} meses
         </Badge>
         <Badge variant="light" color="sage" size="sm">
           Juros/Aluguel: {money(s.metrics.total_interest_or_rent_paid)}
         </Badge>
+        {s.opportunity_cost != null && s.opportunity_cost > 0 && (
+          <Badge variant="light" color="cyan" size="sm">
+            Ganho investimento: {money(s.opportunity_cost)}
+          </Badge>
+        )}
       </Group>
     </Paper>
   );

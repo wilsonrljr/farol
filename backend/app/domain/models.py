@@ -93,6 +93,7 @@ class ComparisonScenario:
     monthly_data: list[MonthlyRecord]
     total_outflows: float | None = None
     net_cost: float | None = None
+    opportunity_cost: float | None = None
 
 
 @dataclass

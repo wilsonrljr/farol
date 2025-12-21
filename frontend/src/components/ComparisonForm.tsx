@@ -46,6 +46,7 @@ export default function ComparisonForm() {
     initialValues: {
       property_value: 500000,
       down_payment: 100000,
+      total_savings: null,
       loan_term_years: 30,
       annual_interest_rate: 10,
       monthly_interest_rate: null,
@@ -89,6 +90,8 @@ export default function ComparisonForm() {
 
   const propertyValue = Number(form.values.property_value || 0);
   const downPayment = Number(form.values.down_payment || 0);
+  const totalSavings = Number(form.values.total_savings || 0);
+  const initialInvestment = totalSavings > 0 ? Math.max(0, totalSavings - downPayment) : 0;
   const loanAmount = Math.max(0, propertyValue - downPayment);
   const downPaymentPct =
     propertyValue > 0 ? (downPayment / propertyValue) * 100 : 0;
@@ -169,6 +172,16 @@ export default function ComparisonForm() {
                 {money(loanAmount)}
               </Text>
             </Box>
+            {initialInvestment > 0 && (
+              <Box ta="center">
+                <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
+                  Capital para investir
+                </Text>
+                <Text size="lg" fw={700} c="sage.9">
+                  {money(initialInvestment)}
+                </Text>
+              </Box>
+            )}
             <Box ta="center">
               <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
                 Aluguel mensal
@@ -233,7 +246,7 @@ export default function ComparisonForm() {
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <NumberInput
                     label="Entrada"
-                    description="Valor disponível para dar de entrada"
+                    description="Valor que você vai usar de entrada"
                     placeholder="R$ 100.000"
                     min={0}
                     required
@@ -242,6 +255,24 @@ export default function ComparisonForm() {
                     decimalSeparator=","
                     prefix="R$ "
                     size="md"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6 }}>
+                  <NumberInput
+                    label="Patrimônio total disponível"
+                    description="Valor total que você tem (entrada + reserva para investir)"
+                    placeholder="R$ 150.000"
+                    min={0}
+                    {...form.getInputProps("total_savings")}
+                    thousandSeparator="."
+                    decimalSeparator=","
+                    prefix="R$ "
+                    size="md"
+                    error={
+                      totalSavings > 0 && totalSavings < downPayment
+                        ? "Deve ser maior ou igual à entrada"
+                        : undefined
+                    }
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 6 }}>

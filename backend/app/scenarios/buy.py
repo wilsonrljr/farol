@@ -12,7 +12,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from ..core.inflation import apply_property_appreciation
-from ..core.protocols import AdditionalCostsLike, AmortizationLike, FGTSLike
+from ..core.investment import InvestmentCalculator
+from ..core.protocols import (
+    AdditionalCostsLike,
+    AmortizationLike,
+    FGTSLike,
+    InvestmentReturnLike,
+    InvestmentTaxLike,
+)
 from ..domain.mappers import comparison_scenario_to_api
 from ..domain.models import ComparisonScenario as DomainComparisonScenario
 from ..domain.models import MonthlyRecord as DomainMonthlyRecord
@@ -38,12 +45,21 @@ class BuyScenarioSimulator(ScenarioSimulator):
     amortizations: Sequence[AmortizationLike] | None = field(default=None)
     property_appreciation_rate: float | None = field(default=None)
 
+    # Initial investment for opportunity cost tracking
+    initial_investment: float = field(default=0.0)
+    investment_returns: Sequence[InvestmentReturnLike] | None = field(default=None)
+    investment_tax: InvestmentTaxLike | None = field(default=None)
+
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
     _fgts_used_at_purchase: float = field(init=False, default=0.0)
     _loan_value: float = field(init=False, default=0.0)
     _total_upfront_costs: float = field(init=False, default=0.0)
     _total_monthly_additional_costs: float = field(init=False, default=0.0)
+    _investment_balance: float = field(init=False, default=0.0)
+    _investment_calculator: InvestmentCalculator | None = field(
+        init=False, default=None
+    )
 
     @property
     def scenario_name(self) -> str:
@@ -56,6 +72,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self.term_months = self.loan_term_years * 12
         if self.term_months <= 0:
             raise ValueError("loan_term_years must be > 0")
+        # Initialize investment tracking for opportunity cost
+        self._investment_balance = self.initial_investment
+        if self.investment_returns:
+            self._investment_calculator = InvestmentCalculator(
+                investment_returns=self.investment_returns,
+                investment_tax=self.investment_tax,
+            )
+        else:
+            self._investment_calculator = None
 
     def simulate(self) -> ComparisonScenario:
         """Run the buy scenario simulation (API model)."""
@@ -161,6 +186,13 @@ class BuyScenarioSimulator(ScenarioSimulator):
             cumulative_payments += installment_value + monthly_additional
             cumulative_interest += interest_value
 
+            # Apply investment returns for opportunity cost tracking
+            if self._investment_calculator is not None:
+                inv_result = self._investment_calculator.calculate_monthly_return(
+                    self._investment_balance, month
+                )
+                self._investment_balance = inv_result.new_balance
+
             record = self._create_monthly_record(
                 month,
                 property_value,
@@ -194,10 +226,16 @@ class BuyScenarioSimulator(ScenarioSimulator):
         equity = property_value - outstanding_balance
         total_monthly_cost = installment_value + monthly_additional
 
+        # Include investment balance only if tracking opportunity cost
+        investment_balance = (
+            self._investment_balance if self.initial_investment > 0 else None
+        )
+
         return DomainMonthlyRecord(
             month=month,
             cash_flow=-total_monthly_cost,
             equity=equity,
+            investment_balance=investment_balance,
             installment=installment_value,
             principal_payment=amortization_value,
             interest_payment=interest_value,
@@ -241,6 +279,13 @@ class BuyScenarioSimulator(ScenarioSimulator):
         )
         net_cost = total_outflows - final_equity
 
+        # Calculate opportunity cost (what initial investment would have grown to)
+        opportunity_cost: float | None = None
+        if self.initial_investment > 0:
+            opportunity_cost = self._investment_balance - self.initial_investment
+            # Include investment balance in final equity for fair comparison
+            final_equity += self._investment_balance
+
         return DomainComparisonScenario(
             name=self.scenario_name,
             scenario_type="buy",
@@ -249,6 +294,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
             monthly_data=self._monthly_data,
             total_outflows=total_outflows,
             net_cost=net_cost,
+            opportunity_cost=opportunity_cost,
         )
 
 

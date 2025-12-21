@@ -92,6 +92,7 @@ def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
         invest_external_surplus=input_data.invest_external_surplus,
         investment_tax=input_data.investment_tax,
         fgts=input_data.fgts,
+        initial_investment=input_data.initial_investment,
     )
 
 
@@ -131,6 +132,7 @@ def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
         invest_external_surplus=input_data.invest_external_surplus,
         investment_tax=input_data.investment_tax,
         fgts=input_data.fgts,
+        initial_investment=input_data.initial_investment,
     )
 
     summaries: list[ScenarioMetricsSummary] = []
@@ -195,4 +197,5 @@ def compare_housing_scenarios_enhanced(
         invest_external_surplus=input_data.invest_external_surplus,
         investment_tax=input_data.investment_tax,
         fgts=input_data.fgts,
+        initial_investment=input_data.initial_investment,
     )

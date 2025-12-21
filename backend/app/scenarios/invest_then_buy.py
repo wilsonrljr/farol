@@ -59,6 +59,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     invest_external_surplus: bool = field(default=False)
     investment_tax: InvestmentTaxLike | None = field(default=None)
 
+    # Initial investment capital (total_savings - down_payment)
+    initial_investment: float = field(default=0.0)
+
     # Internal state
     _investment_balance: float = field(init=False)
     _investment_calculator: InvestmentCalculator = field(init=False)
@@ -85,7 +88,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         super().__post_init__()
         if self.term_months <= 0:
             raise ValueError("term_months must be > 0")
-        self._investment_balance = self.down_payment
+        # Investment balance starts with down payment plus any additional initial capital
+        self._investment_balance = self.down_payment + self.initial_investment
         self._investment_calculator = InvestmentCalculator(
             investment_returns=self.investment_returns,
             investment_tax=self.investment_tax,
@@ -278,10 +282,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     ) -> dict[str, float]:
         """Compute rent and additional costs for a month."""
         current_rent = self.get_current_rent(month)
-        monthly_hoa, monthly_property_tax, monthly_additional = (
-            self.get_inflated_monthly_costs(month)
-        )
-        total_rent_cost = current_rent + monthly_additional
+        # Pre-purchase we are renting only; ownership costs (HOA/IPTU) are not paid yet.
+        monthly_hoa, monthly_property_tax, monthly_additional = 0.0, 0.0, 0.0
+        total_rent_cost = current_rent
         self._total_rent_paid += total_rent_cost
 
         return {
@@ -336,12 +339,16 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_purchase_cost: float,
     ) -> tuple[float, float, bool]:
         """Update progress tracking."""
+        total_available = self._investment_balance
+        if self._fgts_manager and self._fgts_manager.use_at_purchase:
+            total_available += self.fgts_balance
+
         progress_percent = (
-            (self._investment_balance / total_purchase_cost) * 100
+            (total_available / total_purchase_cost) * 100
             if total_purchase_cost > 0
             else 0.0
         )
-        shortfall = max(0.0, total_purchase_cost - self._investment_balance)
+        shortfall = max(0.0, total_purchase_cost - total_available)
 
         # Check for milestone crossing
         progress_bucket = 0
@@ -378,6 +385,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         fgts_used_this_month = 0.0
         status = "Aguardando compra"
         equity = 0.0
+        monthly_hoa = rent_result["monthly_hoa"]
+        monthly_property_tax = rent_result["monthly_property_tax"]
+        monthly_additional = rent_result["monthly_additional"]
 
         total_available = self._investment_balance
         if self._fgts_manager and self._fgts_manager.use_at_purchase:
@@ -401,7 +411,15 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             shortfall = 0.0
             is_milestone = True
 
-        cash_flow = -(rent_result["total_rent_cost"] + additional_investment)
+            # Begin paying ownership monthly costs from the purchase month onward.
+            monthly_hoa, monthly_property_tax, monthly_additional = (
+                self.get_inflated_monthly_costs(month)
+            )
+            self._total_monthly_additional_costs += monthly_additional
+
+        cash_flow = -(
+            rent_result["total_rent_cost"] + monthly_additional + additional_investment
+        )
         if additional_investment > 0:
             self._total_additional_investments += additional_investment
 
@@ -421,10 +439,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_balance=self._investment_balance,
             investment_return=investment_return,
             rent_paid=current_rent,
-            monthly_hoa=rent_result["monthly_hoa"],
-            monthly_property_tax=rent_result["monthly_property_tax"],
-            monthly_additional_costs=rent_result["monthly_additional"],
-            total_monthly_cost=rent_result["total_rent_cost"],
+            monthly_hoa=monthly_hoa,
+            monthly_property_tax=monthly_property_tax,
+            monthly_additional_costs=monthly_additional,
+            total_monthly_cost=rent_result["total_rent_cost"] + monthly_additional,
             status=status,
             equity=equity,
             property_value=current_property_value,
