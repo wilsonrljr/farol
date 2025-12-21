@@ -50,16 +50,16 @@ const neutral: MantineColorsTuple = [
 // Dark palette (Farol) - deep sage/charcoal for dark scheme surfaces
 // Used by Mantine as `theme.colors.dark` to define default dark surfaces/text
 const dark: MantineColorsTuple = [
-  '#e8ede9', // 0 - brightest (text on dark)
-  '#cfd7d1', // 1
-  '#b3beb7', // 2
-  '#97a49b', // 3
-  '#7b887f', // 4
-  '#5f6d64', // 5
-  '#43524a', // 6
-  '#2e3a33', // 7 - surface
-  '#1c2621', // 8 - background
-  '#111814', // 9 - deepest
+  '#f2f5f3', // 0 - brightest (text on dark)
+  '#d9dfdc', // 1
+  '#c0c8c3', // 2
+  '#a3aea8', // 3
+  '#86928b', // 4
+  '#66736b', // 5
+  '#3f4843', // 6
+  '#171d1a', // 7 - surface
+  '#0f1311', // 8 - background
+  '#070a08', // 9 - deepest
 ];
 
 // Forest - deeper green accent
@@ -162,7 +162,7 @@ export const theme = createTheme({
     accent: virtualColor({ name: 'accent', dark: 'forest', light: 'forest' }),
   },
   primaryColor: 'sage',
-  primaryShade: { light: 7, dark: 4 },
+  primaryShade: { light: 7, dark: 5 },
   black: '#1c1917',
   white: '#ffffff',
   defaultRadius: 'md',

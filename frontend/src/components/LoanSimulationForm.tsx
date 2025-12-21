@@ -88,8 +88,8 @@ export default function LoanSimulationForm() {
         p="lg"
         radius="xl"
         style={{
-          border: "1px solid var(--mantine-color-sage-2)",
-          backgroundColor: "var(--mantine-color-sage-0)",
+          border: "1px solid light-dark(var(--mantine-color-sage-2), var(--mantine-color-dark-6))",
+          backgroundColor: "light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))",
         }}
       >
         <Group justify="space-between" align="flex-start" wrap="wrap" gap="lg">
@@ -98,36 +98,51 @@ export default function LoanSimulationForm() {
               <IconChartLine size={18} />
             </ThemeIcon>
             <Box>
-              <Text fw={600} c="sage.9">
+              <Text fw={600} style={{ color: 'light-dark(var(--mantine-color-sage-9), var(--mantine-color-dark-0))' }}>
                 Resumo da simulação
               </Text>
-              <Text size="xs" c="sage.6">
+              <Text size="xs" style={{ color: 'light-dark(var(--mantine-color-sage-6), var(--mantine-color-dark-2))' }}>
                 Checagem rápida dos números
               </Text>
             </Box>
           </Group>
           <Group gap="xl" wrap="wrap">
             <Box ta="center">
-              <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
+              <Text
+                size="xs"
+                tt="uppercase"
+                fw={500}
+                style={{ color: 'light-dark(var(--mantine-color-sage-6), var(--mantine-color-dark-2))' }}
+              >
                 Valor do imóvel
               </Text>
-              <Text size="lg" fw={700} c="sage.9">
+              <Text size="lg" fw={700} style={{ color: 'light-dark(var(--mantine-color-sage-9), var(--mantine-color-dark-0))' }}>
                 {money(propertyValue)}
               </Text>
             </Box>
             <Box ta="center">
-              <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
+              <Text
+                size="xs"
+                tt="uppercase"
+                fw={500}
+                style={{ color: 'light-dark(var(--mantine-color-sage-6), var(--mantine-color-dark-2))' }}
+              >
                 Entrada
               </Text>
-              <Text size="lg" fw={700} c="sage.9">
+              <Text size="lg" fw={700} style={{ color: 'light-dark(var(--mantine-color-sage-9), var(--mantine-color-dark-0))' }}>
                 {money(downPayment)} ({downPaymentPct.toFixed(0)}%)
               </Text>
             </Box>
             <Box ta="center">
-              <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
+              <Text
+                size="xs"
+                tt="uppercase"
+                fw={500}
+                style={{ color: 'light-dark(var(--mantine-color-sage-6), var(--mantine-color-dark-2))' }}
+              >
                 Valor financiado
               </Text>
-              <Text size="lg" fw={700} c="sage.9">
+              <Text size="lg" fw={700} style={{ color: 'light-dark(var(--mantine-color-sage-9), var(--mantine-color-dark-0))' }}>
                 {money(loanAmount)}
               </Text>
             </Box>
@@ -369,20 +384,26 @@ export default function LoanSimulationForm() {
             <Box
               p="sm"
               style={{
-                backgroundColor: "var(--mantine-color-sage-1)",
+                backgroundColor: "light-dark(var(--mantine-color-sage-1), var(--mantine-color-dark-7))",
                 borderRadius: "var(--mantine-radius-md)",
               }}
             >
               <IconChartLine
                 size={20}
-                style={{ color: "var(--mantine-color-sage-7)" }}
+                style={{
+                  color: "light-dark(var(--mantine-color-sage-7), var(--mantine-color-sage-4))",
+                }}
               />
             </Box>
             <div>
-              <Text fw={600} size="lg" c="sage.8">
+              <Text
+                fw={600}
+                size="lg"
+                style={{ color: 'light-dark(var(--mantine-color-sage-8), var(--mantine-color-dark-0))' }}
+              >
                 Resultado da Simulação
               </Text>
-              <Text size="sm" c="sage.5">
+              <Text size="sm" style={{ color: 'light-dark(var(--mantine-color-sage-5), var(--mantine-color-dark-2))' }}>
                 Análise detalhada do seu financiamento
               </Text>
             </div>
@@ -398,28 +419,34 @@ export default function LoanSimulationForm() {
           radius="lg"
           ta="center"
           style={{
-            border: "2px dashed var(--mantine-color-sage-2)",
-            backgroundColor: "var(--mantine-color-sage-0)",
+            border: "2px dashed light-dark(var(--mantine-color-sage-2), var(--mantine-color-dark-5))",
+            backgroundColor: "light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))",
           }}
         >
           <Stack gap="md" align="center">
             <Box
               p="lg"
               style={{
-                backgroundColor: "var(--mantine-color-sage-1)",
+                backgroundColor: "light-dark(var(--mantine-color-sage-1), var(--mantine-color-dark-8))",
                 borderRadius: "var(--mantine-radius-xl)",
               }}
             >
               <IconCalculator
                 size={32}
-                style={{ color: "var(--mantine-color-sage-8)" }}
+                style={{
+                  color: "light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-3))",
+                }}
               />
             </Box>
             <div>
-              <Text fw={600} c="sage.8">
+              <Text fw={600} style={{ color: 'light-dark(var(--mantine-color-sage-8), var(--mantine-color-dark-0))' }}>
                 Preencha os dados acima
               </Text>
-              <Text size="sm" c="sage.5" maw={400}>
+              <Text
+                size="sm"
+                maw={400}
+                style={{ color: 'light-dark(var(--mantine-color-sage-5), var(--mantine-color-dark-2))' }}
+              >
                 Configure os parâmetros do financiamento e clique em "Simular"
                 para ver os resultados detalhados com gráficos e tabelas.
               </Text>
