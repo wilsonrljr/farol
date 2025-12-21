@@ -1,150 +1,388 @@
-import { Container, Title, Text, ThemeIcon, Group, Stack, SimpleGrid, Card, Anchor, Badge, Divider, useMantineColorScheme, ActionIcon, Tooltip } from '@mantine/core';
-import { IconBrandPython, IconBrandReact, IconServerBolt, IconLayersLinked, IconCode, IconUser, IconBrandGithub, IconLockOpen, IconInfoCircle, IconBrandLinkedin, IconBrandX, IconId } from '@tabler/icons-react';
+import {
+  Container,
+  Title,
+  Text,
+  ThemeIcon,
+  Group,
+  Stack,
+  SimpleGrid,
+  Paper,
+  Anchor,
+  Badge,
+  ActionIcon,
+  Tooltip,
+  Box,
+} from '@mantine/core';
+import {
+  IconBrandPython,
+  IconBrandReact,
+  IconServerBolt,
+  IconLayersLinked,
+  IconCode,
+  IconUser,
+  IconBrandGithub,
+  IconLockOpen,
+  IconInfoCircle,
+  IconBrandLinkedin,
+  IconBrandX,
+  IconId,
+  IconBulb,
+  IconTarget,
+  IconShieldCheck,
+} from '@tabler/icons-react';
 
-export default function About() {
+// Feature Card Component
+function FeatureCard({
+  icon: Icon,
+  title,
+  description,
+  highlight = false,
+}: {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  highlight?: boolean;
+}) {
   return (
-    <Container size="lg" py="xl">
-      <Title order={2} mb="xs">Sobre</Title>
-      <Text size="sm" c="dimmed" mb="lg">Entenda rapidamente o objetivo antes de detalhes técnicos.</Text>
-
-      <SimpleGrid cols={{ base:1, sm:2, md:3 }} spacing="md" mb="xl">
-        <InfoCard icon={<IconCode size={18} />} color="moss" title="Propósito" lines={[
-          'Comparar estratégias de aquisição',
-          'Responder: financiar ou investir?',
-          'Dar clareza a juros e inflação'
-        ]} emphasis />
-        <InfoCard icon={<IconServerBolt size={18} />} color="ember" title="O que Faz" lines={[
-          'Simula fluxos mensais', 'Mostra patrimônio líquido', 'Exibe custos e ROI'
-        ]} />
-        <InfoCard icon={<IconLockOpen size={18} />} color="sand" title="Filosofia" lines={[
-          'Transparente', 'Educacional', 'Open source em breve'
-        ]} />
-      </SimpleGrid>
-
-      <Divider label="Tecnologias" labelPosition="center" my="lg" />
-      <SimpleGrid cols={{ base:1, sm:2, lg:3 }} spacing="md" mb="xl">
-        <InfoCard icon={<IconBrandPython size={18} />} color="ember" title="Backend (Python)" lines={[
-          'FastAPI + Pydantic', 'Conversão de taxas', 'Cálculo mensal determinístico'
-        ]} />
-        <InfoCard icon={<IconBrandReact size={18} />} color="moss" title="Frontend (React)" lines={[
-          'React + TS + Vite', 'Mantine UI/Charts', 'Componentização'
-        ]} />
-        <InfoCard icon={<IconLayersLinked size={18} />} color="sand" title="Arquitetura" lines={[
-            'Inputs estruturados', 'Série temporal gerada', 'Métricas agregadas'
-        ]} />
-      </SimpleGrid>
-
-      <Card withBorder radius="md" padding="md" shadow="sm" mb="lg">
-        <Group align="flex-start" gap="sm">
-          <ThemeIcon size={32} radius="md" color="moss" variant="light"><IconUser size={18} /></ThemeIcon>
-          <Stack gap={4}>
-            <Text fw={600} size="sm">Autor</Text>
-            <Text size="xs" c="dimmed">
-              Wilson Rocha Lacerda Junior. Criei a <Anchor href="https://github.com/wilsonrljr/sysidentpy" target="_blank" rel="noopener noreferrer">SysIdentPy</Anchor>, mas aqui sou só mais uma pessoa tentando responder (com números) a dúvida existencial imobiliária brasileira: vale chutar o balde e comprar logo ou é melhor respirar fundo, investir e esperar? Se der certo, ótimo. Se der errado, bom... espero que tenha uma reserva de emergência.
-            </Text>
-            <Group gap={6} wrap="wrap">
-              <Badge size="xs" variant="light" color="moss">Software</Badge>
-              <Badge size="xs" variant="light" color="ember">Finanças</Badge>
-              <Badge size="xs" variant="light" color="sand">Open Source</Badge>
-              <Group gap={4}>
-                <Tooltip label="GitHub" withArrow>
-                  <ActionIcon size="sm" variant="light" color="gray" component="a" href="https://github.com/wilsonrljr" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-                    <IconBrandGithub size={14} />
-                  </ActionIcon>
-                </Tooltip>
-                <Tooltip label="LinkedIn" withArrow>
-                  <ActionIcon size="sm" variant="light" color="moss" component="a" href="https://www.linkedin.com/in/wilsonrljr" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
-                    <IconBrandLinkedin size={14} />
-                  </ActionIcon>
-                </Tooltip>
-                <Tooltip label="Twitter / X" withArrow>
-                  <ActionIcon size="sm" variant="light" color="dark" component="a" href="https://twitter.com/wilsonrljr" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-                    <IconBrandX size={14} />
-                  </ActionIcon>
-                </Tooltip>
-                <Tooltip label="ORCID" withArrow>
-                  <ActionIcon size="sm" variant="light" color="lime" component="a" href="https://orcid.org/0000-0002-3263-1152" target="_blank" rel="noopener noreferrer" aria-label="ORCID">
-                    <IconId size={14} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-            </Group>
-          </Stack>
-        </Group>
-      </Card>
-
-      <Card withBorder radius="md" padding="md" shadow="sm" mb="lg" style={{ background: 'var(--mantine-color-dark-6)' }}>
-        <Group align="flex-start" gap="sm">
-          <ThemeIcon size={34} radius="md" color="ember" variant="light"><IconInfoCircle size={18} /></ThemeIcon>
-          <Stack gap={4}>
-            <Text fw={600} size="sm" c="ember.3">Uso de IA</Text>
-            <Text size="xs" c="gray.2" style={{ lineHeight:1.35 }}>
-              Grande parte desta aplicação web foi desenvolvida com o auxílio de ferramentas de Inteligência Artificial, utilizadas para apoiar na geração de código, textos e ideias. Todo o conteúdo foi revisado e adaptado antes da disponibilização. Por isso, nada mais justo do que torná-la completamente open source, permitindo que a comunidade colabore, identifique possíveis erros de conceito ou lógica e contribua para seu aprimoramento.
-            </Text>
-          </Stack>
-        </Group>
-      </Card>
-
-      <Card withBorder radius="md" padding="md" shadow="sm" mb="xl" style={{ background: 'var(--mantine-color-dark-7)' }}>
-        <Group align="flex-start" gap="sm">
-          <ThemeIcon size={34} radius="md" color="sand" variant="light"><IconInfoCircle size={18} /></ThemeIcon>
-          <Stack gap={4}>
-            <Text fw={600} size="sm" c="sand.2">Disclaimer</Text>
-            <Text size="xs" c="gray.2" style={{ lineHeight:1.35 }}>
-              Isto é uma simulação educativa. Nada aqui é recomendação de compra, venda, financiamento ou de como você deve investir seu dinheiro. Os resultados dependem totalmente das premissas inseridas e podem divergir da vida real (taxas, impostos, vacância, custos de manutenção, eventos imprevisíveis etc.). Faça sempre sua própria análise e, se necessário, consulte um profissional qualificado. Use por sua conta e risco.
-            </Text>
-            <Text size="xs" c="gray.4" style={{ lineHeight:1.3 }}>
-              Resumindo: é uma calculadora para reduzir achismo, não um oráculo financeiro.
-            </Text>
-          </Stack>
-        </Group>
-      </Card>
-
-      <Text size="10px" c="dimmed" ta="center">Frontend: React + Vite + Mantine · Backend: FastAPI (Python) · © {new Date().getFullYear()}</Text>
-    </Container>
+    <Paper
+      p="lg"
+      radius="lg"
+      style={{
+        border: highlight
+          ? '2px solid var(--mantine-color-sage-3)'
+          : '1px solid var(--mantine-color-sage-2)',
+        backgroundColor: highlight
+          ? 'var(--mantine-color-sage-0)'
+          : 'var(--mantine-color-body)',
+      }}
+    >
+      <Group gap="md" wrap="nowrap" align="flex-start">
+        <ThemeIcon
+          size={44}
+          radius="lg"
+          variant={highlight ? 'filled' : 'light'}
+          color="sage"
+        >
+          <Icon size={22} />
+        </ThemeIcon>
+        <div>
+          <Text fw={600} c="sage.8" mb={4}>
+            {title}
+          </Text>
+          <Text size="sm" c="sage.6" style={{ lineHeight: 1.5 }}>
+            {description}
+          </Text>
+        </div>
+      </Group>
+    </Paper>
   );
 }
 
-interface InfoCardProps {
-  icon: React.ReactNode;
+// Tech Card Component
+function TechCard({
+  icon: Icon,
+  title,
+  items,
+}: {
+  icon: React.ElementType;
   title: string;
-  lines: string[];
-  color: string;
-}
-
-interface ExtendedInfoCardProps extends InfoCardProps { emphasis?: boolean }
-
-function InfoCard({ icon, title, lines, color, emphasis }: ExtendedInfoCardProps) {
-  const { colorScheme } = useMantineColorScheme();
-  const isDark = colorScheme === 'dark';
-  const background = emphasis
-    ? (isDark ? 'var(--mantine-color-dark-7)' : `var(--mantine-color-${color}-0)`)
-    : 'var(--mantine-color-body)';
+  items: string[];
+}) {
   return (
-    <Card
-      withBorder
-      radius="md"
-      padding="md"
-      shadow={emphasis ? 'md' : 'sm'}
-      style={{ position: 'relative', overflow: 'hidden', background, borderTop: emphasis ? `3px solid var(--mantine-color-${color}-6)` : undefined }}
+    <Paper
+      p="lg"
+      radius="lg"
+      style={{
+        border: '1px solid var(--mantine-color-sage-2)',
+        backgroundColor: 'var(--mantine-color-body)',
+      }}
     >
-      <Group align="flex-start" gap="sm" style={{ position: 'relative' }} wrap="nowrap">
-        <ThemeIcon size={34} radius="md" variant={emphasis ? 'filled' : 'light'} color={color}>
-          {icon}
+      <Group gap="md" wrap="nowrap" align="flex-start">
+        <ThemeIcon size={40} radius="lg" variant="light" color="sage">
+          <Icon size={20} />
         </ThemeIcon>
-        <Stack gap={4} style={{ flex: 1 }}>
-          <Text fw={600} size="sm" c={emphasis ? (isDark ? undefined : color) : undefined}>
+        <div>
+          <Text fw={600} c="sage.8" mb="xs">
             {title}
           </Text>
-          <Stack gap={2}>
-            {lines.map((l) => (
-              <Text key={l} size="xs" c={emphasis ? (isDark ? 'dimmed' : undefined) : 'dimmed'} style={{ lineHeight: 1.3 }}>
-                {l}
+          <Stack gap={4}>
+            {items.map((item) => (
+              <Text key={item} size="sm" c="sage.6">
+                • {item}
               </Text>
             ))}
           </Stack>
-        </Stack>
+        </div>
       </Group>
-    </Card>
+    </Paper>
+  );
+}
+
+export default function About() {
+  return (
+    <Box>
+      {/* Header Section */}
+      <Box
+        py={{ base: 40, md: 60 }}
+        style={{
+          borderBottom: '1px solid var(--mantine-color-sage-2)',
+          backgroundColor: 'var(--mantine-color-sage-0)',
+        }}
+      >
+        <Container size="lg">
+          <Stack gap="md" align="center" ta="center">
+            <ThemeIcon size={60} radius="xl" color="sage">
+              <IconInfoCircle size={30} />
+            </ThemeIcon>
+            <Title order={1} fw={700}>
+              Sobre o Farol
+            </Title>
+            <Text size="lg" c="sage.6" maw={600}>
+              Uma ferramenta educativa para ajudar você a entender melhor as opções de aquisição
+              imobiliária no Brasil.
+            </Text>
+          </Stack>
+        </Container>
+      </Box>
+
+      {/* Purpose Section */}
+      <Container size="lg" py={{ base: 40, md: 60 }}>
+        <Stack gap="xl">
+          <div>
+            <Text size="sm" fw={600} c="sage.6" tt="uppercase" mb="xs">
+              Propósito
+            </Text>
+            <Title order={2} fw={700} c="sage.8" mb="md">
+              Por que criamos o Farol?
+            </Title>
+          </div>
+
+          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+            <FeatureCard
+              icon={IconTarget}
+              title="Comparar Estratégias"
+              description="Responder a pergunta: vale a pena financiar agora ou investir e comprar depois?"
+              highlight
+            />
+            <FeatureCard
+              icon={IconBulb}
+              title="Trazer Clareza"
+              description="Entender o impacto real de juros compostos, inflação e valorização imobiliária."
+            />
+            <FeatureCard
+              icon={IconShieldCheck}
+              title="Decisão Informada"
+              description="Tomar decisões financeiras importantes com base em números, não em achismo."
+            />
+          </SimpleGrid>
+
+          {/* Technologies */}
+          <Box mt="xl">
+            <Text size="sm" fw={600} c="sage.6" tt="uppercase" mb="xs">
+              Tecnologias
+            </Text>
+            <Title order={2} fw={700} c="sage.8" mb="md">
+              Como foi construído
+            </Title>
+
+            <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+              <TechCard
+                icon={IconBrandPython}
+                title="Backend (Python)"
+                items={['FastAPI + Pydantic', 'Conversão de taxas', 'Cálculo determinístico']}
+              />
+              <TechCard
+                icon={IconBrandReact}
+                title="Frontend (React)"
+                items={['React + TypeScript', 'Mantine UI/Charts', 'Vite para build']}
+              />
+              <TechCard
+                icon={IconLayersLinked}
+                title="Arquitetura"
+                items={['Inputs estruturados', 'Série temporal', 'Métricas agregadas']}
+              />
+            </SimpleGrid>
+          </Box>
+
+          {/* Author */}
+          <Paper
+            p="xl"
+            radius="lg"
+            mt="xl"
+            style={{
+              border: '1px solid var(--mantine-color-sage-2)',
+              backgroundColor: 'var(--mantine-color-body)',
+            }}
+          >
+            <Group align="flex-start" gap="lg" wrap="nowrap">
+              <ThemeIcon size={50} radius="xl" variant="light" color="sage">
+                <IconUser size={24} />
+              </ThemeIcon>
+              <Stack gap="sm" style={{ flex: 1 }}>
+                <div>
+                  <Text fw={600} size="lg" c="sage.8">
+                    Autor
+                  </Text>
+                  <Text size="sm" c="sage.5">
+                    Wilson Rocha Lacerda Junior
+                  </Text>
+                </div>
+                <Text size="sm" c="sage.6" style={{ lineHeight: 1.6 }}>
+                  Criei a{' '}
+                  <Anchor
+                    href="https://github.com/wilsonrljr/sysidentpy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    c="sage.6"
+                  >
+                    SysIdentPy
+                  </Anchor>
+                  , mas aqui sou só mais uma pessoa tentando responder (com números) a dúvida
+                  existencial imobiliária brasileira: vale chutar o balde e comprar logo ou é melhor
+                  respirar fundo, investir e esperar? Se der certo, ótimo. Se der errado, bom...
+                  espero que tenha uma reserva de emergência.
+                </Text>
+                <Group gap="xs">
+                  <Badge size="sm" variant="light" color="sage">
+                    Software
+                  </Badge>
+                  <Badge size="sm" variant="light" color="sage">
+                    Finanças
+                  </Badge>
+                  <Badge size="sm" variant="light" color="coral">
+                    Open Source
+                  </Badge>
+                </Group>
+                <Group gap="xs" mt="xs">
+                  <Tooltip label="GitHub" withArrow>
+                    <ActionIcon
+                      size="md"
+                      variant="light"
+                      color="sage"
+                      component="a"
+                      href="https://github.com/wilsonrljr"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="GitHub"
+                      radius="lg"
+                    >
+                      <IconBrandGithub size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="LinkedIn" withArrow>
+                    <ActionIcon
+                      size="md"
+                      variant="light"
+                      color="sage"
+                      component="a"
+                      href="https://www.linkedin.com/in/wilsonrljr"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="LinkedIn"
+                      radius="lg"
+                    >
+                      <IconBrandLinkedin size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Twitter / X" withArrow>
+                    <ActionIcon
+                      size="md"
+                      variant="light"
+                      color="sage"
+                      component="a"
+                      href="https://twitter.com/wilsonrljr"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Twitter"
+                      radius="lg"
+                    >
+                      <IconBrandX size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="ORCID" withArrow>
+                    <ActionIcon
+                      size="md"
+                      variant="light"
+                      color="sage"
+                      component="a"
+                      href="https://orcid.org/0000-0002-3263-1152"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="ORCID"
+                      radius="lg"
+                    >
+                      <IconId size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              </Stack>
+            </Group>
+          </Paper>
+
+          {/* AI Notice */}
+          <Paper
+            p="lg"
+            radius="lg"
+            style={{
+              border: '1px solid var(--mantine-color-sage-3)',
+              backgroundColor: 'var(--mantine-color-sage-1)',
+            }}
+          >
+            <Group align="flex-start" gap="md" wrap="nowrap">
+              <ThemeIcon size={40} radius="lg" variant="light" color="sage">
+                <IconCode size={20} />
+              </ThemeIcon>
+              <Stack gap="xs">
+                <Text fw={600} c="sage.8">
+                  Uso de IA
+                </Text>
+                <Text size="sm" c="sage.6" style={{ lineHeight: 1.6 }}>
+                  Grande parte desta aplicação foi desenvolvida com o auxílio de ferramentas de
+                  Inteligência Artificial. Todo o conteúdo foi revisado e adaptado. Por isso, nada
+                  mais justo do que torná-la open source, permitindo que a comunidade colabore e
+                  identifique possíveis melhorias.
+                </Text>
+              </Stack>
+            </Group>
+          </Paper>
+
+          {/* Disclaimer */}
+          <Paper
+            p="lg"
+            radius="lg"
+            style={{
+              border: '1px solid var(--mantine-color-warning-3)',
+              backgroundColor: 'var(--mantine-color-warning-0)',
+            }}
+          >
+            <Group align="flex-start" gap="md" wrap="nowrap">
+              <ThemeIcon size={40} radius="lg" variant="light" color="warning">
+                <IconShieldCheck size={20} />
+              </ThemeIcon>
+              <Stack gap="xs">
+                <Text fw={600} c="sage.8">
+                  Disclaimer
+                </Text>
+                <Text size="sm" c="sage.7" style={{ lineHeight: 1.6 }}>
+                  Isto é uma simulação educativa. Nada aqui é recomendação de compra, venda,
+                  financiamento ou de como você deve investir seu dinheiro. Os resultados dependem
+                  totalmente das premissas inseridas e podem divergir da vida real. Faça sempre sua
+                  própria análise e, se necessário, consulte um profissional qualificado.
+                </Text>
+                <Text size="xs" c="sage.5" style={{ fontStyle: 'italic' }}>
+                  Resumindo: é uma calculadora para reduzir achismo, não um oráculo financeiro.
+                </Text>
+              </Stack>
+            </Group>
+          </Paper>
+
+          {/* Footer */}
+          <Text size="xs" c="sage.4" ta="center" mt="xl">
+            Frontend: React + Vite + Mantine · Backend: FastAPI (Python) · ©{' '}
+            {new Date().getFullYear()}
+          </Text>
+        </Stack>
+      </Container>
+    </Box>
   );
 }

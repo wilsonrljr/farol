@@ -1,39 +1,59 @@
-import { Button, Group, NumberInput, Paper, Select, Switch, Tooltip, Table, Collapse, ActionIcon, Text } from '@mantine/core';
-import { IconPlus, IconTrash, IconEye } from '@tabler/icons-react';
+import {
+  Button,
+  Group,
+  NumberInput,
+  Paper,
+  Select,
+  Switch,
+  Tooltip,
+  Table,
+  Collapse,
+  ActionIcon,
+  Text,
+  Stack,
+  SimpleGrid,
+  Box,
+  ThemeIcon,
+} from '@mantine/core';
+import { IconPlus, IconTrash, IconEye, IconCalendar, IconCoin } from '@tabler/icons-react';
 import { useState, useMemo } from 'react';
 import type { AmortizationInput } from '../api/types';
 
 interface Props {
   value: AmortizationInput[];
   onChange: (val: AmortizationInput[]) => void;
-  termMonths?: number; // optional for preview
-  inflationRate?: number | null; // annual % to estimate inflation-adjusted total
+  termMonths?: number;
+  inflationRate?: number | null;
 }
 
-export default function AmortizationsFieldArray({ value, onChange, termMonths = 360, inflationRate }: Props) {
+export default function AmortizationsFieldArray({
+  value,
+  onChange,
+  termMonths = 360,
+  inflationRate,
+}: Props) {
   const [showPreview, setShowPreview] = useState(false);
 
   const previewData = useMemo(() => {
-    // Expand recurring amortizations client-side (approximate, no inflation compounding here)
     const out: { month: number; fixed: number; pct: number; fixedInflated: number }[] = [];
     const map = new Map<number, { fixed: number; pct: number; fixedInflated: number }>();
-    const monthlyInfl = inflationRate ? (Math.pow(1 + inflationRate/100, 1/12) - 1) : 0;
-    (value||[]).forEach(a => {
-      // Determine months
+    const monthlyInfl = inflationRate ? Math.pow(1 + inflationRate / 100, 1 / 12) - 1 : 0;
+
+    (value || []).forEach((a) => {
       let months: number[] = [];
       if (a.interval_months && a.interval_months > 0) {
         const start = a.month || 1;
         if (a.occurrences) {
-            months = Array.from({length: a.occurrences}, (_,i)=> start + i * a.interval_months!);
+          months = Array.from({ length: a.occurrences }, (_, i) => start + i * a.interval_months!);
         } else {
-            const end = a.end_month || termMonths;
-            for (let m=start; m<= Math.min(end, termMonths); m+= a.interval_months) months.push(m);
+          const end = a.end_month || termMonths;
+          for (let m = start; m <= Math.min(end, termMonths); m += a.interval_months) months.push(m);
         }
       } else if (a.month) {
         months = [a.month];
       }
       const base = months[0] || 1;
-      months.forEach(m => {
+      months.forEach((m) => {
         if (m < 1 || m > termMonths) return;
         const entry = map.get(m) || { fixed: 0, pct: 0, fixedInflated: 0 };
         if (a.value_type === 'percentage') {
@@ -51,70 +71,343 @@ export default function AmortizationsFieldArray({ value, onChange, termMonths = 
         map.set(m, entry);
       });
     });
-    Array.from(map.entries()).sort((a,b)=>a[0]-b[0]).forEach(([month, v])=> out.push({ month, ...v }));
+    Array.from(map.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([month, v]) => out.push({ month, ...v }));
     return out;
   }, [value, termMonths, inflationRate]);
 
-  const totals = useMemo(()=>{
-    const nominalFixed = previewData.reduce((s,r)=>s+r.fixed,0);
-    const inflatedFixed = previewData.reduce((s,r)=>s+r.fixedInflated,0);
-    const pctList = previewData.filter(r=>r.pct>0);
-    return { nominalFixed, inflatedFixed, hasPct: pctList.length>0 };
-  },[previewData]);
+  const totals = useMemo(() => {
+    const nominalFixed = previewData.reduce((s, r) => s + r.fixed, 0);
+    const inflatedFixed = previewData.reduce((s, r) => s + r.fixedInflated, 0);
+    const pctList = previewData.filter((r) => r.pct > 0);
+    return { nominalFixed, inflatedFixed, hasPct: pctList.length > 0 };
+  }, [previewData]);
+
+  const addAmortization = () => {
+    onChange([...(value || []), { month: 12, value: 10000, value_type: 'fixed' }]);
+  };
 
   return (
-    <div>
-      <Group mb="xs" justify="space-between">
-        <strong>Amortizações Extra</strong>
-        <Group gap={4} wrap="nowrap">
-          <Tooltip label="Pré-visualizar meses gerados"><ActionIcon variant={showPreview? 'filled':'light'} size="sm" onClick={()=>setShowPreview(s=>!s)}><IconEye size={16} /></ActionIcon></Tooltip>
-          <Button leftSection={<IconPlus size={16} />} size="xs" variant="light" onClick={() => onChange([...(value||[]), { month: 12, value: 10000, value_type: 'fixed' }])}>Adicionar</Button>
+    <Stack gap="md">
+      {/* Header */}
+      <Group justify="space-between">
+        <Group gap="xs">
+          <Text fw={600} c="sage.8">
+            Amortizações Configuradas
+          </Text>
+          <Text size="xs" c="sage.5">
+            ({(value || []).length})
+          </Text>
+        </Group>
+        <Group gap="xs">
+          <Tooltip label="Pré-visualizar meses gerados">
+            <ActionIcon
+              variant={showPreview ? 'filled' : 'light'}
+              color="sage"
+              size="md"
+              radius="lg"
+              onClick={() => setShowPreview((s) => !s)}
+            >
+              <IconEye size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            size="sm"
+            variant="light"
+            color="sage"
+            radius="lg"
+            onClick={addAmortization}
+          >
+            Adicionar
+          </Button>
         </Group>
       </Group>
-      {(value||[]).length === 0 && <Paper p="xs" c="dimmed" fz="xs">Nenhuma amortização adicionada.</Paper>}
-      {(value||[]).map((item, idx) => (
-        <Group key={idx} mb={4} align="flex-end">
-          <NumberInput label="Mês inicial" min={1} value={item.month || 1} onChange={(v) => { const arr=[...value]; arr[idx].month = Number(v)||1; onChange(arr); }} w={90} />
-          <Select label="Recorrência" value={item.interval_months? 'rec':'one'} data={[{value:'one', label:'Única'},{value:'rec', label:'Recorrente'}]} onChange={(val)=> { const arr=[...value]; if(val==='rec'){ arr[idx].interval_months = arr[idx].interval_months || 12; } else { arr[idx].interval_months = null; arr[idx].end_month = null; arr[idx].occurrences = null; } onChange(arr); }} w={110} />
-          {item.interval_months && (
-            <>
-              <NumberInput label="Intervalo" min={1} value={item.interval_months} onChange={(v)=>{ const arr=[...value]; arr[idx].interval_months = Number(v)||1; onChange(arr); }} w={90} />
-              <NumberInput label="Ocorrências" min={1} value={item.occurrences || ''} placeholder="N" onChange={(v)=>{ const arr=[...value]; arr[idx].occurrences = v? Number(v): null; arr[idx].end_month = null; onChange(arr); }} w={100} />
-              <NumberInput label="Fim" min={item.month||1} value={item.end_month || ''} placeholder="Mês" onChange={(v)=>{ const arr=[...value]; arr[idx].end_month = v? Number(v): null; arr[idx].occurrences = null; onChange(arr); }} w={90} />
-            </>
-          )}
-          <Select label="Tipo" value={item.value_type || 'fixed'} onChange={(val)=>{ const arr=[...value]; arr[idx].value_type = (val as any)||'fixed'; onChange(arr); }} data={[{value:'fixed', label:'Fixo'},{value:'percentage', label:'% Saldo'}]} w={110} />
-          <NumberInput label={item.value_type==='percentage'? '%':''} min={0} value={item.value} onChange={(v) => { const arr = [...value]; arr[idx].value = Number(v)||0; onChange(arr); }} thousandSeparator w={120} />
-          {item.value_type !== 'percentage' && (
-            <Switch label="Inflação" checked={!!item.inflation_adjust} onChange={(e)=>{ const arr=[...value]; arr[idx].inflation_adjust = e.currentTarget.checked; onChange(arr); }} />
-          )}
-          <Button color="red" variant="subtle" size="xs" onClick={() => onChange(value.filter((_, i) => i!==idx))} leftSection={<IconTrash size={14} />}>Remover</Button>
-        </Group>
+
+      {/* Empty State */}
+      {(value || []).length === 0 && (
+        <Paper
+          p="lg"
+          radius="lg"
+          ta="center"
+          style={{
+            border: '2px dashed var(--mantine-color-sage-2)',
+            backgroundColor: 'var(--mantine-color-sage-0)',
+          }}
+        >
+          <Stack gap="sm" align="center">
+            <ThemeIcon size={48} radius="xl" variant="light" color="sage">
+              <IconCoin size={24} />
+            </ThemeIcon>
+            <div>
+              <Text fw={500} c="sage.8">
+                Nenhuma amortização extra
+              </Text>
+              <Text size="sm" c="sage.5">
+                Adicione pagamentos extras para reduzir o prazo ou juros
+              </Text>
+            </div>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              variant="light"
+              color="sage"
+              radius="lg"
+              onClick={addAmortization}
+            >
+              Adicionar Amortização
+            </Button>
+          </Stack>
+        </Paper>
+      )}
+
+      {/* Amortization Items */}
+      {(value || []).map((item, idx) => (
+        <Paper
+          key={idx}
+          p="md"
+          radius="lg"
+          style={{
+            border: '1px solid var(--mantine-color-sage-2)',
+            backgroundColor: 'var(--mantine-color-body)',
+          }}
+        >
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Group gap="xs">
+                <ThemeIcon size={32} radius="lg" variant="light" color="sage">
+                  <IconCalendar size={16} />
+                </ThemeIcon>
+                <Text fw={500} c="sage.8">
+                  Amortização {idx + 1}
+                </Text>
+              </Group>
+              <ActionIcon
+                color="danger"
+                variant="subtle"
+                size="md"
+                radius="lg"
+                onClick={() => onChange(value.filter((_, i) => i !== idx))}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Group>
+
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
+              <NumberInput
+                label="Mês inicial"
+                description="Quando começa"
+                min={1}
+                value={item.month || 1}
+                onChange={(v) => {
+                  const arr = [...value];
+                  arr[idx].month = Number(v) || 1;
+                  onChange(arr);
+                }}
+              />
+              <Select
+                label="Recorrência"
+                description="Única ou periódica"
+                value={item.interval_months ? 'rec' : 'one'}
+                data={[
+                  { value: 'one', label: 'Única' },
+                  { value: 'rec', label: 'Recorrente' },
+                ]}
+                onChange={(val) => {
+                  const arr = [...value];
+                  if (val === 'rec') {
+                    arr[idx].interval_months = arr[idx].interval_months || 12;
+                  } else {
+                    arr[idx].interval_months = null;
+                    arr[idx].end_month = null;
+                    arr[idx].occurrences = null;
+                  }
+                  onChange(arr);
+                }}
+              />
+              <Select
+                label="Tipo de valor"
+                description="Fixo ou percentual"
+                value={item.value_type || 'fixed'}
+                onChange={(val) => {
+                  const arr = [...value];
+                  arr[idx].value_type = (val as 'fixed' | 'percentage') || 'fixed';
+                  onChange(arr);
+                }}
+                data={[
+                  { value: 'fixed', label: 'Valor Fixo (R$)' },
+                  { value: 'percentage', label: '% do Saldo' },
+                ]}
+              />
+            </SimpleGrid>
+
+            {item.interval_months && (
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+                <NumberInput
+                  label="Intervalo (meses)"
+                  description="A cada X meses"
+                  min={1}
+                  value={item.interval_months}
+                  onChange={(v) => {
+                    const arr = [...value];
+                    arr[idx].interval_months = Number(v) || 1;
+                    onChange(arr);
+                  }}
+                />
+                <NumberInput
+                  label="Ocorrências"
+                  description="Quantas vezes (opcional)"
+                  min={1}
+                  value={item.occurrences || ''}
+                  placeholder="Indefinido"
+                  onChange={(v) => {
+                    const arr = [...value];
+                    arr[idx].occurrences = v ? Number(v) : null;
+                    arr[idx].end_month = null;
+                    onChange(arr);
+                  }}
+                />
+                <NumberInput
+                  label="Mês final"
+                  description="Até quando (opcional)"
+                  min={item.month || 1}
+                  value={item.end_month || ''}
+                  placeholder="Indefinido"
+                  onChange={(v) => {
+                    const arr = [...value];
+                    arr[idx].end_month = v ? Number(v) : null;
+                    arr[idx].occurrences = null;
+                    onChange(arr);
+                  }}
+                />
+              </SimpleGrid>
+            )}
+
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <NumberInput
+                label={item.value_type === 'percentage' ? 'Percentual (%)' : 'Valor (R$)'}
+                description={
+                  item.value_type === 'percentage'
+                    ? 'Percentual do saldo devedor'
+                    : 'Valor fixo por ocorrência'
+                }
+                min={0}
+                value={item.value}
+                onChange={(v) => {
+                  const arr = [...value];
+                  arr[idx].value = Number(v) || 0;
+                  onChange(arr);
+                }}
+                thousandSeparator={item.value_type !== 'percentage' ? '.' : undefined}
+                decimalSeparator=","
+                prefix={item.value_type !== 'percentage' ? 'R$ ' : undefined}
+                suffix={item.value_type === 'percentage' ? ' %' : undefined}
+              />
+              {item.value_type !== 'percentage' && (
+                <Box pt={24}>
+                  <Switch
+                    label="Ajustar pela inflação"
+                    description="Corrigir valor ao longo do tempo"
+                    checked={!!item.inflation_adjust}
+                    onChange={(e) => {
+                      const arr = [...value];
+                      arr[idx].inflation_adjust = e.currentTarget.checked;
+                      onChange(arr);
+                    }}
+                  />
+                </Box>
+              )}
+            </SimpleGrid>
+          </Stack>
+        </Paper>
       ))}
-      <Collapse in={showPreview} mt="sm">
-        <Paper p="sm" withBorder radius="md">
-          <Text fw={500} size="xs" mb={4}>Pré-visualização (aprox.)</Text>
-          {previewData.length === 0 && <Text size="xs" c="dimmed">Nenhum mês gerado.</Text>}
-          {previewData.length>0 && (
-            <Table striped highlightOnHover withTableBorder withColumnBorders>
-              <Table.Thead>
-                <Table.Tr><Table.Th>Mês</Table.Th><Table.Th>Fixos</Table.Th><Table.Th>% Saldo</Table.Th><Table.Th>Fixo Ajust.</Table.Th></Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {previewData.slice(0,50).map(r=> (
-                  <Table.Tr key={r.month}><Table.Td>{r.month}</Table.Td><Table.Td>{r.fixed.toLocaleString('pt-BR',{style:'currency', currency:'BRL'})}</Table.Td><Table.Td>{r.pct.toFixed(2)}%</Table.Td><Table.Td>{r.fixedInflated.toLocaleString('pt-BR',{style:'currency', currency:'BRL'})}</Table.Td></Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+
+      {/* Preview Panel */}
+      <Collapse in={showPreview}>
+        <Paper
+          p="md"
+          radius="lg"
+          style={{
+            border: '1px solid var(--mantine-color-sage-2)',
+            backgroundColor: 'var(--mantine-color-sage-0)',
+          }}
+        >
+          <Text fw={600} size="sm" c="sage.8" mb="md">
+            Pré-visualização dos Pagamentos
+          </Text>
+
+          {previewData.length === 0 && (
+            <Text size="sm" c="sage.5">
+              Nenhum mês gerado com as configurações atuais.
+            </Text>
           )}
-          {previewData.length>50 && <Text size="10px" c="dimmed">Mostrando primeiros 50 de {previewData.length} meses.</Text>}
-          <Group gap={12} mt={6} wrap="wrap">
-            <Text size="xs" c="dimmed">Total fixo nominal: <strong>{totals.nominalFixed.toLocaleString('pt-BR',{style:'currency', currency:'BRL'})}</strong></Text>
-            <Text size="xs" c="dimmed">Total fixo ajustado: <strong>{totals.inflatedFixed.toLocaleString('pt-BR',{style:'currency', currency:'BRL'})}</strong></Text>
-            {totals.hasPct && <Text size="xs" c="dimmed">Há amortizações percentuais (valor depende do saldo).</Text>}
+
+          {previewData.length > 0 && (
+            <Box style={{ overflowX: 'auto' }}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Mês</Table.Th>
+                    <Table.Th>Valor Fixo</Table.Th>
+                    <Table.Th>% Saldo</Table.Th>
+                    <Table.Th>Fixo Ajustado</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {previewData.slice(0, 20).map((r) => (
+                    <Table.Tr key={r.month}>
+                      <Table.Td fw={500}>{r.month}</Table.Td>
+                      <Table.Td>
+                        {r.fixed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </Table.Td>
+                      <Table.Td>{r.pct.toFixed(2)}%</Table.Td>
+                      <Table.Td>
+                        {r.fixedInflated.toLocaleString('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        })}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Box>
+          )}
+
+          {previewData.length > 20 && (
+            <Text size="xs" c="sage.5" mt="sm">
+              Mostrando primeiros 20 de {previewData.length} meses.
+            </Text>
+          )}
+
+          <Group gap="lg" mt="md">
+            <div>
+              <Text size="xs" c="sage.5">
+                Total nominal
+              </Text>
+              <Text fw={600} size="sm" c="sage.8">
+                {totals.nominalFixed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </Text>
+            </div>
+            <div>
+              <Text size="xs" c="sage.5">
+                Total ajustado
+              </Text>
+              <Text fw={600} size="sm" c="sage.8">
+                {totals.inflatedFixed.toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
+              </Text>
+            </div>
+            {totals.hasPct && (
+              <Text size="xs" c="sage.5" style={{ fontStyle: 'italic' }}>
+                * Valores percentuais dependem do saldo devedor.
+              </Text>
+            )}
           </Group>
         </Paper>
       </Collapse>
-    </div>
+    </Stack>
   );
 }

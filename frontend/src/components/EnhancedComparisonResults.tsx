@@ -1,235 +1,468 @@
-import { Title, Stack, Group, Paper, Text, Table, SimpleGrid, ScrollArea, SegmentedControl, Tabs, Badge, Switch, Alert, Menu, Button } from '@mantine/core';
+import { useState } from 'react';
+import {
+  Title,
+  Stack,
+  Group,
+  Paper,
+  Text,
+  Table,
+  SimpleGrid,
+  ScrollArea,
+  SegmentedControl,
+  Tabs,
+  Badge,
+  Switch,
+  Alert,
+  Menu,
+  Button,
+  Box,
+  rem,
+  ThemeIcon,
+  Divider,
+} from '@mantine/core';
 import { EnhancedComparisonResult } from '../api/types';
 import { money, percent } from '../utils/format';
-import { AreaChart, BarChart, LineChart } from '@mantine/charts';
-import { CardWithStats } from './cards/CardWithStats';
-import { ScenarioSummaryCard } from './cards/ScenarioSummaryCard';
-import { IconTrendingUp, IconArrowDownRight, IconArrowUpRight, IconMedal, IconCash, IconChartLine, IconBuildingBank, IconDownload } from '@tabler/icons-react';
+import { AreaChart, LineChart } from '@mantine/charts';
+import {
+  IconTrendingUp,
+  IconArrowDownRight,
+  IconArrowUpRight,
+  IconCrown,
+  IconCash,
+  IconChartLine,
+  IconBuildingBank,
+  IconDownload,
+  IconTable,
+  IconChartArea,
+  IconHome,
+  IconPigMoney,
+} from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
-import { useState } from 'react';
 
-export default function EnhancedComparisonResults({ result, inputPayload }: { result: EnhancedComparisonResult, inputPayload?: any }) {
-  const [chartType, setChartType] = useState<'area' | 'bar' | 'line'>('area');
-  const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const toggleExpand = (name: string) => setExpanded(e => ({ ...e, [name]: !e[name] }));
-  const months = new Set<number>();
-  result.scenarios.forEach((s) => s.monthly_data.forEach((m) => months.add(m.month)));
-  const wealthData = Array.from(months).sort((a,b)=>a-b).map((month) => {
-    const row: any = { month };
-    result.scenarios.forEach((s) => {
-      const md = s.monthly_data.find((m) => m.month === month);
-      if (md) row[s.name] = (md.equity || 0) + (md.investment_balance || 0);
-    });
-    return row;
-  });
+interface ScenarioCardNewProps {
+  scenario: any;
+  isBest: boolean;
+  bestScenario: any;
+  index: number;
+}
 
-  const moneySafe = (v: any) => money(v || 0);
-  // Show all months by default; user can switch to milestone-only view
-  const [milestonesOnly, setMilestonesOnly] = useState(false);
-  const colorForProgress = (p: number) => {
-    if (p >= 90) return 'green';
-    if (p >= 75) return 'moss';
-    if (p >= 50) return 'ember';
-    if (p >= 25) return 'sand';
-    return 'red';
-  };
+function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCardNewProps) {
+  const s = scenario;
+  const colorMap = ['sage', 'sage', 'sage'];
+  const color = colorMap[index % colorMap.length];
+  const iconMap = [<IconBuildingBank size={24} />, <IconChartLine size={24} />, <IconPigMoney size={24} />];
+  
+  const wealthDelta = s.metrics.wealth_accumulation - bestScenario.metrics.wealth_accumulation;
+  const costDelta = s.total_cost - bestScenario.total_cost;
 
   return (
-    <Stack>
-      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-        <div>
-          <Title order={3}>Resultados Avançados</Title>
-          <Text size="sm">Melhor cenário: <strong>{result.best_scenario}</strong></Text>
-        </div>
+    <Paper
+      p="xl"
+      radius="lg"
+      className={isBest ? 'card-hover' : ''}
+      style={{
+        backgroundColor: isBest ? 'var(--mantine-color-sage-0)' : 'var(--mantine-color-body)',
+        border: isBest ? '2px solid var(--mantine-color-sage-3)' : '1px solid var(--mantine-color-sage-2)',
+        position: 'relative',
+        overflow: 'hidden',
+        height: '100%',
+      }}
+    >
+      {/* Winner badge */}
+      {isBest && (
+        <Badge
+          color="sage"
+          variant="filled"
+          size="sm"
+          leftSection={<IconCrown size={12} />}
+          style={{
+            position: 'absolute',
+            top: rem(16),
+            right: rem(16),
+          }}
+        >
+          Melhor Opção
+        </Badge>
+      )}
+
+      {/* Header */}
+      <Group gap="md" mb="lg">
+        <ThemeIcon
+          size={52}
+          radius="md"
+          variant={isBest ? 'filled' : 'light'}
+          color='sage'
+        >
+          {iconMap[index % 3]}
+        </ThemeIcon>
+        <Box>
+          <Text fw={700} size="xl" c={isBest ? 'sage.9' : 'sage.8'}>
+            {s.name}
+          </Text>
+          <Text size="sm" c="sage.5">
+            {index === 0 ? 'Financiamento imobiliário' : index === 1 ? 'Aluguel + investimento' : 'Investir para comprar'}
+          </Text>
+        </Box>
+      </Group>
+
+      {/* Main Metric - Patrimônio */}
+      <Box
+        p="lg"
+        mb="lg"
+        style={{
+          backgroundColor: 'var(--mantine-color-sage-0)',
+          borderRadius: rem(10),
+        }}
+      >
+        <Text size="xs" c="sage.6" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
+          Patrimônio Final
+        </Text>
+        <Text
+          fw={700}
+          style={{ fontSize: rem(32), lineHeight: 1.1 }}
+          c={isBest ? 'sage.9' : 'sage.8'}
+        >
+          {money(s.metrics.wealth_accumulation)}
+        </Text>
+        {!isBest && wealthDelta !== 0 && (
+          <Group gap={4} mt={4}>
+            {wealthDelta < 0 ? (
+              <IconArrowDownRight size={14} color="var(--mantine-color-danger-6)" />
+            ) : (
+              <IconArrowUpRight size={14} color="var(--mantine-color-sage-7)" />
+            )}
+            <Text size="xs" c={wealthDelta < 0 ? 'danger.6' : 'sage.7'} fw={500}>
+              {wealthDelta > 0 ? '+' : ''}{money(wealthDelta)} vs melhor
+            </Text>
+          </Group>
+        )}
+      </Box>
+
+      {/* Metrics Grid */}
+      <SimpleGrid cols={2} spacing="md">
+        <Box>
+          <Text size="xs" c="sage.5" mb={2}>
+            Custo Total
+          </Text>
+          <Group gap={4} align="center">
+            <Text fw={600} size="md" c="sage.8">
+              {money(s.total_cost)}
+            </Text>
+            {!isBest && costDelta !== 0 && (
+              <Text size="xs" c={costDelta > 0 ? 'danger.6' : 'sage.7'}>
+                ({costDelta > 0 ? '+' : ''}{money(costDelta)})
+              </Text>
+            )}
+          </Group>
+        </Box>
+        <Box>
+          <Text size="xs" c="sage.5" mb={2}>
+            Equidade
+          </Text>
+          <Text fw={600} size="md" c="sage.8">
+            {money(s.final_equity)}
+          </Text>
+        </Box>
+        <Box>
+          <Text size="xs" c="sage.5" mb={2}>
+            ROI
+          </Text>
+          <Text fw={600} size="md" c="sage.8">
+            {percent(s.metrics.roi_percentage)}
+          </Text>
+        </Box>
+        <Box>
+          <Text size="xs" c="sage.5" mb={2}>
+            Custo Mensal Médio
+          </Text>
+          <Text fw={600} size="md" c="sage.8">
+            {money(s.metrics.average_monthly_cost)}
+          </Text>
+        </Box>
+      </SimpleGrid>
+
+      {/* Additional info */}
+      <Divider my="md" color="sage.2" />
+      <Group gap="xs">
+        <Badge variant="light" color="sage" size="sm">
+          {s.monthly_data.length} meses
+        </Badge>
+        <Badge variant="light" color="sage" size="sm">
+          Juros/Aluguel: {money(s.metrics.total_interest_or_rent_paid)}
+        </Badge>
+      </Group>
+    </Paper>
+  );
+}
+
+export default function EnhancedComparisonResults({ result, inputPayload }: { result: EnhancedComparisonResult; inputPayload?: any }) {
+  const [chartType, setChartType] = useState<'area' | 'line'>('area');
+  const [activeTab, setActiveTab] = useState<string>('overview');
+  const [milestonesOnly, setMilestonesOnly] = useState(false);
+
+  const months = new Set<number>();
+  result.scenarios.forEach((s) => s.monthly_data.forEach((m) => months.add(m.month)));
+  
+  const wealthData = Array.from(months)
+    .sort((a, b) => a - b)
+    .map((month) => {
+      const row: any = { month: `Mês ${month}` };
+      result.scenarios.forEach((s) => {
+        const md = s.monthly_data.find((m) => m.month === month);
+        if (md) row[s.name] = (md.equity || 0) + (md.investment_balance || 0);
+      });
+      return row;
+    });
+
+  const moneySafe = (v: any) => money(v || 0);
+
+  // Find best scenario
+  const ranked = [...result.scenarios].sort((a, b) => {
+    if (b.metrics.wealth_accumulation === a.metrics.wealth_accumulation) {
+      return b.metrics.roi_percentage - a.metrics.roi_percentage;
+    }
+    return b.metrics.wealth_accumulation - a.metrics.wealth_accumulation;
+  });
+  const bestScenario = ranked[0];
+
+  return (
+    <Stack gap="xl">
+      {/* Header */}
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Box>
+          <Group gap="sm" mb="xs">
+            <ThemeIcon size={40} radius="md" variant="filled" color="sage">
+              <IconChartLine size={20} />
+            </ThemeIcon>
+            <Title order={2} fw={600} c="sage.9">
+              Resultados da Análise
+            </Title>
+          </Group>
+          <Text size="md" c="sage.6">
+            Melhor cenário identificado: <Text component="span" fw={600} c="sage.8">{result.best_scenario}</Text>
+          </Text>
+        </Box>
         <Menu withinPortal position="bottom-end">
           <Menu.Target>
-            <Button size="xs" leftSection={<IconDownload size={14} />}>Exportar</Button>
+            <Button
+              variant="light"
+              color="sage"
+              leftSection={<IconDownload size={16} />}
+              radius="lg"
+            >
+              Exportar
+            </Button>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Label>Avançado</Menu.Label>
-            <Menu.Item onClick={()=>downloadFile('/api/compare-scenarios-enhanced/export?format=csv','POST', inputPayload, 'scenarios_comparison_enhanced.csv')}>CSV</Menu.Item>
-            <Menu.Item onClick={()=>downloadFile('/api/compare-scenarios-enhanced/export?format=xlsx','POST', inputPayload, 'scenarios_comparison_enhanced.xlsx')}>XLSX</Menu.Item>
+            <Menu.Label>Formato</Menu.Label>
+            <Menu.Item onClick={() => downloadFile('/api/compare-scenarios-enhanced/export?format=csv', 'POST', inputPayload, 'scenarios_comparison.csv')}>
+              CSV
+            </Menu.Item>
+            <Menu.Item onClick={() => downloadFile('/api/compare-scenarios-enhanced/export?format=xlsx', 'POST', inputPayload, 'scenarios_comparison.xlsx')}>
+              Excel (XLSX)
+            </Menu.Item>
           </Menu.Dropdown>
         </Menu>
       </Group>
-      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-        <Group gap="sm">
-          <Title order={4}>Visão Geral</Title>
-          <SegmentedControl size="xs" value={chartType} onChange={(v)=>setChartType(v as any)} data={[{label:'Área', value:'area'},{label:'Barras', value:'bar'},{label:'Linha', value:'line'}]} />
-        </Group>
-        <SegmentedControl size="xs" value={density} onChange={(v)=>setDensity(v as any)} data={[{label:'Conforto', value:'comfortable'},{label:'Compacto', value:'compact'}]} />
-      </Group>
-  <SimpleGrid cols={{ base: 1, sm: density==='compact'?2:1, md: density==='compact'?3:result.scenarios.length }} spacing="md">
-        {(() => {
-          const ranked = [...result.scenarios].sort((a,b) => {
-            if (b.metrics.wealth_accumulation === a.metrics.wealth_accumulation) {
-              return b.metrics.roi_percentage - a.metrics.roi_percentage;
-            }
-            return b.metrics.wealth_accumulation - a.metrics.wealth_accumulation;
-          });
-          const best = ranked[0];
-          const palette = ['moss','ember','sand','gray'];
-          return result.scenarios.map((s, idx) => {
-            const accent = palette[idx % palette.length];
-            const interestOrRentPct = s.metrics.total_interest_or_rent_paid / (s.total_cost + s.metrics.wealth_accumulation) * 100 || 0;
-            const costDelta = s.total_cost - best.total_cost;
-            const wealthDelta = s.metrics.wealth_accumulation - best.metrics.wealth_accumulation;
-            const costDeltaLabel = costDelta === 0 ? '—' : (costDelta > 0 ? '+'+money(costDelta) : money(costDelta));
-            const wealthDeltaLabel = wealthDelta === 0 ? '—' : (wealthDelta > 0 ? '+'+money(wealthDelta) : money(wealthDelta));
-            // Detect if scenario has rent withdrawals (flag active)
-            const anyWithdrawal = s.monthly_data.some((m: any) => (m.rent_withdrawal_from_investment || 0) > 0);
-            const totalWithdrawals = anyWithdrawal ? s.monthly_data.reduce((acc: number, m: any) => acc + (m.rent_withdrawal_from_investment || 0), 0) : 0;
-            const coreMetrics = [
-              { key:'wealth', label:'Patrimônio', value: money(s.metrics.wealth_accumulation), icon:<IconTrendingUp size={14} />, accentColor:accent },
-              { key:'equity', label:'Equidade', value: money(s.final_equity), icon:<IconBuildingBank size={14} />, accentColor:accent },
-              { key:'roi', label:'ROI Bruto', value: percent(s.metrics.roi_percentage), icon:<IconChartLine size={14} /> },
-              ...(s.metrics.roi_adjusted_percentage != null ? [{ key:'roiAdj', label:'ROI Ajust.', value: percent(s.metrics.roi_adjusted_percentage), icon:<IconChartLine size={14} />, accentColor:'moss' }] : []),
-              { key:'custo', label:'Custo', value: money(s.total_cost), icon:<IconCash size={14} /> }
-            ];
-            if (anyWithdrawal) {
-              coreMetrics.push({ key:'withdraw', label:'Ret. Aluguel', value: money(totalWithdrawals), icon:<IconCash size={14} />, accentColor:'red' });
-              if (s.metrics.total_rent_withdrawn_from_investment) {
-                coreMetrics.push({ key:'withdAgg', label:'Ret. Invest.', value: money(s.metrics.total_rent_withdrawn_from_investment), icon:<IconCash size={14} />, accentColor:'red' });
-              }
-              if (s.metrics.months_with_burn != null) {
-                coreMetrics.push({ key:'burns', label:'Meses Burn', value: String(s.metrics.months_with_burn), icon:<IconArrowDownRight size={14} />, accentColor:'orange' });
-              }
-              if (s.metrics.average_sustainable_withdrawal_ratio != null) {
-                coreMetrics.push({ key:'sust', label:'Rend/Ret', value: (s.metrics.average_sustainable_withdrawal_ratio).toFixed(2)+'x', icon:<IconTrendingUp size={14} />, accentColor:'moss' });
-              }
-            }
-            const deltaMetrics = [
-              { key:'deltaW', label:'Δ Patrimônio', value: wealthDeltaLabel, icon: wealthDelta > 0 ? <IconArrowUpRight size={14} /> : wealthDelta < 0 ? <IconArrowDownRight size={14} /> : <IconMedal size={14} />, accentColor: wealthDelta > 0 ? 'moss' : wealthDelta < 0 ? 'red' : accent },
-              { key:'deltaC', label:'Δ Custo', value: costDeltaLabel, icon: costDelta < 0 ? <IconArrowDownRight size={14} /> : costDelta > 0 ? <IconArrowUpRight size={14} /> : <IconMedal size={14} />, accentColor: costDelta < 0 ? 'moss' : costDelta > 0 ? 'red' : accent }
-            ];
-            const otherMetrics = [
-              { key:'avg', label:'Mensal', value: money(s.metrics.average_monthly_cost) },
-              { key:'jr', label:'J/Alug %', value: interestOrRentPct.toFixed(1)+'%' }
-            ];
-            const summaryMetrics = density === 'comfortable' ? coreMetrics : [...coreMetrics, ...deltaMetrics, ...otherMetrics];
-            const fullMetrics = [...coreMetrics, ...deltaMetrics, ...otherMetrics];
-            return (
-              <ScenarioSummaryCard
-                key={s.name}
-                title={s.name}
-                subtitle={s.name === best.name ? 'Maior patrimônio líquido' : 'Comparativo'}
-                highlight={s.name === best.name}
-                color={accent}
-                density={density}
-                badges={s.name === best.name ? ['Melhor'] : []}
-                metrics={summaryMetrics}
-                allMetrics={fullMetrics}
-                expandable={density === 'comfortable'}
-                expanded={!!expanded[s.name]}
-                onToggle={()=>toggleExpand(s.name)}
+
+      {/* Scenario Cards */}
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+        {result.scenarios.map((s, idx) => (
+          <ScenarioCardNew
+            key={s.name}
+            scenario={s}
+            isBest={s.name === bestScenario.name}
+            bestScenario={bestScenario}
+            index={idx}
+          />
+        ))}
+      </SimpleGrid>
+
+      {/* Charts and Tables */}
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'overview')} variant="pills" radius="lg">
+        <Paper
+          p="md"
+          radius="xl"
+          mb="md"
+          style={{
+            backgroundColor: 'var(--mantine-color-sage-0)',
+            border: '1px solid var(--mantine-color-sage-2)',
+          }}
+        >
+          <Group justify="space-between" align="center" wrap="wrap" gap="md">
+            <Tabs.List>
+              <Tabs.Tab value="overview" leftSection={<IconChartArea size={16} />}>
+                Evolução do Patrimônio
+              </Tabs.Tab>
+              {result.scenarios.map((s) => (
+                <Tabs.Tab key={s.name} value={s.name} leftSection={<IconTable size={16} />}>
+                  {s.name}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+            {activeTab === 'overview' && (
+              <SegmentedControl
+                size="xs"
+                radius="lg"
+                value={chartType}
+                onChange={(v) => setChartType(v as any)}
+                data={[
+                  { label: 'Área', value: 'area' },
+                  { label: 'Linha', value: 'line' },
+                ]}
               />
-            );
-          });
-        })()}
-  </SimpleGrid>
-      <Tabs defaultValue="wealth" keepMounted={false} variant="pills">
-        <Tabs.List>
-          <Tabs.Tab value="wealth">Patrimônio</Tabs.Tab>
-          {result.scenarios.map((s) => <Tabs.Tab key={s.name} value={s.name}>{s.name}</Tabs.Tab>)}
-        </Tabs.List>
-        <Tabs.Panel value="wealth" pt="xs">
-          <Paper withBorder p="sm" radius="md">
-            {chartType === 'area' && (
-              <AreaChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['moss.6','ember.6','gray.6'][i%3] }))} curveType="monotone" />
             )}
-            {chartType === 'bar' && (
-              <BarChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['moss.6','ember.6','gray.6'][i%3] }))} />
+          </Group>
+        </Paper>
+
+        <Tabs.Panel value="overview">
+          <Paper
+            p="xl"
+            radius="xl"
+            style={{
+              border: '1px solid var(--mantine-color-sage-2)',
+            }}
+          >
+            <Text fw={600} size="lg" mb="lg" c="sage.8">
+              Evolução do Patrimônio ao Longo do Tempo
+            </Text>
+            {chartType === 'area' && (
+              <AreaChart
+                h={350}
+                data={wealthData}
+                dataKey="month"
+                series={result.scenarios.map((s, i) => ({
+                  name: s.name,
+                  color: ['sage.9', 'sage.6', 'sage.4'][i % 3],
+                }))}
+                curveType="monotone"
+                gridAxis="xy"
+                withLegend
+                legendProps={{ verticalAlign: 'bottom', height: 50 }}
+                valueFormatter={(value) => money(value)}
+              />
             )}
             {chartType === 'line' && (
-              <LineChart h={260} data={wealthData} dataKey="month" series={result.scenarios.map((s,i) => ({ name: s.name, color: ['moss.6','ember.6','gray.6'][i%3] }))} curveType="monotone" />
+              <LineChart
+                h={350}
+                data={wealthData}
+                dataKey="month"
+                series={result.scenarios.map((s, i) => ({
+                  name: s.name,
+                  color: ['sage.9', 'sage.6', 'sage.4'][i % 3],
+                }))}
+                curveType="monotone"
+                gridAxis="xy"
+                withLegend
+                legendProps={{ verticalAlign: 'bottom', height: 50 }}
+                valueFormatter={(value) => money(value)}
+              />
             )}
           </Paper>
         </Tabs.Panel>
+
         {result.scenarios.map((s) => {
           const isInvestBuy = s.monthly_data.some((m: any) => m.scenario_type === 'invest_buy');
-          let rows = [...s.monthly_data].sort((a:any,b:any)=>a.month-b.month);
+          let rows = [...s.monthly_data].sort((a: any, b: any) => a.month - b.month);
           if (isInvestBuy && milestonesOnly) {
             rows = rows.filter((m: any) => m.is_milestone || m.status === 'Imóvel comprado');
           }
           const latest = s.monthly_data[s.monthly_data.length - 1];
           const first = s.monthly_data[0];
-            const progress = latest?.progress_percent ?? (latest?.equity ? 100 : 0);
-            const purchaseMonth = first?.purchase_month;
-            const projected = first?.projected_purchase_month;
+          const progress = latest?.progress_percent ?? (latest?.equity ? 100 : 0);
+          const purchaseMonth = first?.purchase_month;
+          const projected = first?.projected_purchase_month;
+
           return (
-            <Tabs.Panel key={s.name} value={s.name} pt="xs">
-              {isInvestBuy && (
-                <Stack gap="xs" mb="xs">
-                  <Group justify="space-between" wrap="wrap">
-                    <Group gap="sm">
-                      <Badge color={purchaseMonth ? 'green' : 'gray'} variant="filled">
-                        {purchaseMonth ? `Comprado (mês ${purchaseMonth})` : 'Ainda não comprado'}
-                      </Badge>
-                      {!purchaseMonth && projected && (
-                        <Badge color="sand" variant="light">Prev. compra: mês {projected}</Badge>
-                      )}
-                      <Badge color={colorForProgress(progress)} variant="light">
-                        Progresso {progress.toFixed(1)}%
-                      </Badge>
-                      {(typeof latest?.shortfall === 'number' && latest.shortfall > 0) && (
-                        <Badge color="red" variant="outline">Falta {moneySafe(latest.shortfall)}</Badge>
-                      )}
-                    </Group>
+            <Tabs.Panel key={s.name} value={s.name}>
+              <Paper
+                p="xl"
+                radius="xl"
+                style={{
+                  border: '1px solid var(--mantine-color-sage-2)',
+                }}
+              >
+                {/* Scenario header */}
+                <Group justify="space-between" mb="lg" wrap="wrap" gap="md">
+                  <Box>
+                    <Text fw={600} size="lg" c="sage.8">
+                      Detalhamento: {s.name}
+                    </Text>
+                    <Text size="sm" c="sage.5">
+                      Dados mensais da simulação
+                    </Text>
+                  </Box>
+                  {isInvestBuy && (
                     <Group gap="md">
-                      <Switch size="xs" checked={milestonesOnly} onChange={(e)=>setMilestonesOnly(e.currentTarget.checked)} label="Apenas marcos" />
+                      <Badge color={purchaseMonth ? 'success' : 'sage'} variant="light" size="lg">
+                        {purchaseMonth ? `Comprado no mês ${purchaseMonth}` : 'Ainda não comprado'}
+                      </Badge>
+                      <Switch
+                        size="sm"
+                        checked={milestonesOnly}
+                        onChange={(e) => setMilestonesOnly(e.currentTarget.checked)}
+                        label="Apenas marcos"
+                      />
                     </Group>
-                  </Group>
-                  {!purchaseMonth && first?.estimated_months_remaining != null && (
-                    <Alert color="sand" variant="light" radius="md" title="Projeção">
-                      Estimativa de meses restantes: {first.estimated_months_remaining ?? '—'}
-                    </Alert>
                   )}
-                </Stack>
-              )}
-              <Paper withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
-                <ScrollArea h={360} type="hover" scrollbarSize={6} offsetScrollbars>
-      <Table fz="xs" striped withTableBorder stickyHeader stickyHeaderOffset={0} miw={960}>
+                </Group>
+
+                {/* Progress info for invest-buy */}
+                {isInvestBuy && !purchaseMonth && first?.estimated_months_remaining != null && (
+                  <Alert color="warning" variant="light" radius="lg" mb="lg">
+                    <Text size="sm">
+                      Estimativa de {first.estimated_months_remaining} meses restantes para compra.
+                      {projected && ` Previsão: mês ${projected}.`}
+                    </Text>
+                  </Alert>
+                )}
+
+                {/* Table */}
+                <ScrollArea h={400} type="hover" scrollbarSize={8} offsetScrollbars>
+                  <Table fz="sm" striped highlightOnHover stickyHeader>
                     <Table.Thead>
                       <Table.Tr>
                         <Table.Th>Mês</Table.Th>
                         <Table.Th>Fluxo</Table.Th>
                         <Table.Th>Equidade</Table.Th>
-                        <Table.Th>Invest.</Table.Th>
-                        <Table.Th>Retirada Alug.</Table.Th>
-                        <Table.Th>Saldo Pré-Rend.</Table.Th>
+                        <Table.Th>Investimento</Table.Th>
                         <Table.Th>Valor Imóvel</Table.Th>
-                        {isInvestBuy && <Table.Th>Prog%</Table.Th>}
-                        {isInvestBuy && <Table.Th>Falta</Table.Th>}
+                        {isInvestBuy && <Table.Th>Progresso</Table.Th>}
                         {isInvestBuy && <Table.Th>Status</Table.Th>}
-        {isInvestBuy && <Table.Th>Aporte Fixo</Table.Th>}
-        {isInvestBuy && <Table.Th>Aporte %</Table.Th>}
-        {isInvestBuy && <Table.Th>Aporte Total</Table.Th>}
                       </Table.Tr>
                     </Table.Thead>
                     <Table.Tbody>
                       {rows.slice(0, 600).map((m: any) => {
-                        const purchase = m.status === 'Imóvel comprado';
-                        const phaseColor = m.phase === 'pre_purchase' ? 'var(--mantine-color-sand-1)' : undefined;
-                        const style: React.CSSProperties = {
-                          background: purchase ? 'var(--mantine-color-moss-1)' : phaseColor,
-                          fontWeight: m.is_milestone ? 500 : 400,
-                        };
+                        const isPurchase = m.status === 'Imóvel comprado';
                         return (
-                          <Table.Tr key={m.month} style={style}>
+                          <Table.Tr
+                            key={m.month}
+                            style={{
+                              backgroundColor: isPurchase ? 'var(--mantine-color-success-0)' : undefined,
+                              fontWeight: m.is_milestone ? 600 : 400,
+                            }}
+                          >
                             <Table.Td>{m.month}</Table.Td>
                             <Table.Td>{moneySafe(m.cash_flow)}</Table.Td>
                             <Table.Td>{moneySafe(m.equity)}</Table.Td>
                             <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
-                            <Table.Td>{m.rent_withdrawal_from_investment != null ? moneySafe(m.rent_withdrawal_from_investment) : '—'}</Table.Td>
-                            <Table.Td>{m.remaining_investment_before_return != null ? moneySafe(m.remaining_investment_before_return) : '—'}</Table.Td>
                             <Table.Td>{moneySafe(m.property_value)}</Table.Td>
-                            {isInvestBuy && <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>}
-                            {isInvestBuy && <Table.Td>{m.shortfall != null ? moneySafe(m.shortfall) : '—'}</Table.Td>}
-                            {isInvestBuy && <Table.Td>{m.status}</Table.Td>}
-                            {isInvestBuy && <Table.Td>{m.extra_contribution_fixed ? moneySafe(m.extra_contribution_fixed) : '—'}</Table.Td>}
-                            {isInvestBuy && <Table.Td>{m.extra_contribution_percentage ? moneySafe(m.extra_contribution_percentage) : '—'}</Table.Td>}
-                            {isInvestBuy && <Table.Td>{m.extra_contribution_total ? moneySafe(m.extra_contribution_total) : '—'}</Table.Td>}
+                            {isInvestBuy && (
+                              <Table.Td>
+                                {m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}
+                              </Table.Td>
+                            )}
+                            {isInvestBuy && (
+                              <Table.Td>
+                                <Badge
+                                  size="sm"
+                                  variant="light"
+                                  color={isPurchase ? 'success' : 'sage'}
+                                >
+                                  {m.status || '—'}
+                                </Badge>
+                              </Table.Td>
+                            )}
                           </Table.Tr>
                         );
                       })}
@@ -237,13 +470,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   </Table>
                 </ScrollArea>
               </Paper>
-              {isInvestBuy && (
-                <Group gap="xs" mt="xs" wrap="wrap" fz="xs">
-                  <Badge color="sand" variant="light">Pré-compra</Badge>
-                  <Badge color="moss" variant="light">Mês de compra / Pós-compra</Badge>
-                  <Badge color="sand" variant="outline">Linha em negrito = marco</Badge>
-                </Group>
-              )}
             </Tabs.Panel>
           );
         })}

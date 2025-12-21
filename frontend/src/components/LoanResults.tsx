@@ -1,23 +1,105 @@
-import { Paper, Stack, Title, Table, Group, SimpleGrid, ScrollArea, SegmentedControl, Tabs, Badge, Button, Menu } from '@mantine/core';
+import {
+  Paper,
+  Stack,
+  Table,
+  Group,
+  SimpleGrid,
+  ScrollArea,
+  Tabs,
+  Badge,
+  Button,
+  Menu,
+  Text,
+  Box,
+  ThemeIcon,
+} from '@mantine/core';
 import { LoanSimulationResult } from '../api/types';
 import { money } from '../utils/format';
-import { AreaChart, BarChart, LineChart } from '@mantine/charts';
-import { ScenarioSummaryCard } from './cards/ScenarioSummaryCard';
+import { AreaChart, LineChart } from '@mantine/charts';
 import { useState } from 'react';
-import { IconCash, IconTrendingUp, IconChartBar, IconArrowDownRight, IconArrowUpRight, IconChartLine, IconDownload } from '@tabler/icons-react';
+import {
+  IconCash,
+  IconTrendingUp,
+  IconChartBar,
+  IconArrowDownRight,
+  IconArrowUpRight,
+  IconDownload,
+  IconTable,
+  IconChartArea,
+  IconClock,
+} from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 
-export default function LoanResults({ result, inputPayload }: { result: LoanSimulationResult, inputPayload?: any }) {
-  const [chartType, setChartType] = useState<'area' | 'bar' | 'line'>('area');
-  const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable');
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const toggleExpand = (key: string) => setExpanded(e => ({ ...e, [key]: !e[key] }));
-  const dataChart = result.installments.map((i) => ({ month: i.month, Juros: i.interest, Amortizacao: i.amortization }));
-  const balanceChart = result.installments.map((i) => ({ month: i.month, Saldo: i.outstanding_balance }));
+// Metric Card Component
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+  color = 'sage',
+  subtitle,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ElementType;
+  color?: string;
+  subtitle?: string;
+}) {
+  return (
+    <Paper
+      p="md"
+      radius="lg"
+      style={{
+        border: '1px solid var(--mantine-color-sage-2)',
+        backgroundColor: 'var(--mantine-color-body)',
+      }}
+    >
+      <Group gap="sm" wrap="nowrap">
+        {Icon && (
+          <ThemeIcon size={40} radius="lg" variant="light" color={color}>
+            <Icon size={20} />
+          </ThemeIcon>
+        )}
+        <Box style={{ flex: 1, minWidth: 0 }}>
+          <Text size="xs" c="sage.5" tt="uppercase" fw={500}>
+            {label}
+          </Text>
+          <Text fw={700} size="lg" c="sage.8" style={{ lineHeight: 1.2 }}>
+            {value}
+          </Text>
+          {subtitle && (
+            <Text size="xs" c="sage.5">
+              {subtitle}
+            </Text>
+          )}
+        </Box>
+      </Group>
+    </Paper>
+  );
+}
+
+export default function LoanResults({
+  result,
+  inputPayload,
+}: {
+  result: LoanSimulationResult;
+  inputPayload?: unknown;
+}) {
+  const [chartType, setChartType] = useState<'area' | 'line'>('area');
+
+  const dataChart = result.installments.map((i) => ({
+    month: i.month,
+    Juros: i.interest,
+    Amortização: i.amortization,
+  }));
+  const balanceChart = result.installments.map((i) => ({
+    month: i.month,
+    Saldo: i.outstanding_balance,
+  }));
 
   const totalPaid = result.total_paid;
   const interestPaid = result.total_interest_paid;
-  const avgInstallment = result.installments.reduce((a, i) => a + i.installment, 0) / result.installments.length;
+  const avgInstallment =
+    result.installments.reduce((a, i) => a + i.installment, 0) / result.installments.length;
   const interestPct = totalPaid > 0 ? (interestPaid / totalPaid) * 100 : 0;
 
   const principalPaid = totalPaid - interestPaid;
@@ -25,155 +107,235 @@ export default function LoanResults({ result, inputPayload }: { result: LoanSimu
   const firstInstallment = result.installments[0];
   const lastInstallment = result.installments[result.installments.length - 1];
 
-  // Metrics for overview card
-  const overviewCore = [
-    { key:'fin', label:'Financiado', value: money(result.loan_value), icon:<IconCash size={14} /> },
-    { key:'pago', label:'Pago', value: money(totalPaid), icon:<IconTrendingUp size={14} /> },
-    { key:'juros', label:'Juros', value: money(interestPaid), icon:<IconChartBar size={14} />, accentColor:'red' },
-    { key:'media', label:'Parc. Méd', value: money(avgInstallment), icon:<IconChartLine size={14} /> }
-  ];
-  const overviewExtra = [
-    { key:'jurosPct', label:'Juros %', value: interestPct.toFixed(1)+'%' },
-    { key:'principalPct', label:'Principal %', value: (100-interestPct).toFixed(1)+'%' },
-    { key:'principal', label:'Principal', value: money(principalPaid) },
-    { key:'prazo', label:'Parcelas', value: installmentCount.toString() }
-  ];
-
-  // Metrics for extremes card
-  const extremesCore = [
-    { key:'primeira', label:'1ª Parc', value: money(firstInstallment.installment), icon:<IconArrowUpRight size={14} />, accentColor:'moss' },
-    { key:'ultima', label:'Última', value: money(lastInstallment.installment), icon:<IconArrowDownRight size={14} />, accentColor:'ember' }
-  ];
-  const extremesExtra = [
-    { key:'maiorJ', label:'Maior Juros', value: money(Math.max(...result.installments.map(i => i.interest))) },
-    { key:'menorJ', label:'Menor Juros', value: money(Math.min(...result.installments.map(i => i.interest))) },
-    { key:'maiorParc', label:'Maior Parc', value: money(Math.max(...result.installments.map(i => i.installment))) },
-    { key:'menorParc', label:'Menor Parc', value: money(Math.min(...result.installments.map(i => i.installment))) }
-  ];
-
-  const metaBadges: React.ReactNode[] = [];
-  if (result.months_saved) {
-    metaBadges.push(<Badge key="months_saved" color="moss" variant="light">-{result.months_saved} meses</Badge>);
-  }
-  if (result.total_extra_amortization) {
-    metaBadges.push(<Badge key="extra_total" color="ember" variant="light">Extra {money(result.total_extra_amortization)}</Badge>);
-  }
-  if (result.actual_term_months && result.original_term_months && result.actual_term_months !== result.original_term_months) {
-    const pct = ((result.original_term_months - result.actual_term_months) / result.original_term_months) * 100;
-    metaBadges.push(<Badge key="pct_saved" color="sand" variant="light">Prazo -{pct.toFixed(1)}%</Badge>);
-  }
+  const ChartComponent = chartType === 'area' ? AreaChart : LineChart;
 
   return (
-    <Stack>
-      <Title order={3}>Resultados</Title>
-      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-        <Title order={4}>Visão Geral</Title>
+    <Stack gap="lg">
+      {/* Badges */}
+      {(result.months_saved || result.total_extra_amortization) && (
         <Group gap="xs">
-          <SegmentedControl size="xs" value={chartType} onChange={(v)=>setChartType(v as any)} data={[{label:'Área', value:'area'},{label:'Barras', value:'bar'},{label:'Linha', value:'line'}]} />
-          <SegmentedControl size="xs" value={density} onChange={(v)=>setDensity(v as any)} data={[{label:'Conforto', value:'comfortable'},{label:'Compacto', value:'compact'}]} />
-          <Menu withinPortal position="bottom-end">
-            <Menu.Target>
-              <Button size="xs" leftSection={<IconDownload size={14} />}>Exportar</Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Label>Baixar</Menu.Label>
-              <Menu.Item onClick={()=>downloadFile('/api/simulate-loan/export?format=csv','POST', inputPayload, 'loan_simulation.csv')}>CSV</Menu.Item>
-              <Menu.Item onClick={()=>downloadFile('/api/simulate-loan/export?format=xlsx','POST', inputPayload, 'loan_simulation.xlsx')}>XLSX</Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
+          {result.months_saved && (
+            <Badge color="success" variant="light" size="lg">
+              -{result.months_saved} meses economizados
+            </Badge>
+          )}
+          {result.total_extra_amortization && result.total_extra_amortization > 0 && (
+            <Badge color="sage" variant="light" size="lg">
+              {money(result.total_extra_amortization)} em amortizações extras
+            </Badge>
+          )}
         </Group>
-      </Group>
-      {metaBadges.length > 0 && (
-        <Group gap="xs" mb={-4} wrap="wrap">{metaBadges}</Group>
       )}
-      <SimpleGrid cols={{ base: 1, md: density==='compact'?2:1, lg: density==='compact'?2:2 }} spacing="md">
-        <ScenarioSummaryCard
-          title="Resumo"
-          subtitle="Financiamento"
-          color="moss"
-          density={density}
-          expandable={density==='comfortable'}
-          expanded={!!expanded.overview}
-          onToggle={()=>toggleExpand('overview')}
-          metrics={density==='comfortable' ? overviewCore : [...overviewCore, ...overviewExtra]}
-          allMetrics={[...overviewCore, ...overviewExtra]}
-          badges={[`Juros ${interestPct.toFixed(1)}%`]}
+
+      {/* Main Metrics Grid */}
+      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+        <MetricCard
+          label="Valor Financiado"
+          value={money(result.loan_value)}
+          icon={IconCash}
+          color="sage"
         />
-        <ScenarioSummaryCard
-          title="Extremos"
-          subtitle="Parcelas e Juros"
-          color="ember"
-          density={density}
-          expandable={density==='comfortable'}
-          expanded={!!expanded.extremos}
-          onToggle={()=>toggleExpand('extremos')}
-          metrics={density==='comfortable' ? extremesCore : [...extremesCore, ...extremesExtra]}
-          allMetrics={[...extremesCore, ...extremesExtra]}
+        <MetricCard
+          label="Total Pago"
+          value={money(totalPaid)}
+          icon={IconTrendingUp}
+          color="coral"
+        />
+        <MetricCard
+          label="Total em Juros"
+          value={money(interestPaid)}
+          icon={IconChartBar}
+          color="danger"
+          subtitle={`${interestPct.toFixed(1)}% do total`}
+        />
+        <MetricCard
+          label="Parcela Média"
+          value={money(avgInstallment)}
+          icon={IconClock}
+          color="sage"
         />
       </SimpleGrid>
-      <Tabs defaultValue="fluxo" keepMounted={false} variant="pills">
-        <Tabs.List>
-          <Tabs.Tab value="fluxo">Fluxo Juros x Amortização</Tabs.Tab>
-          <Tabs.Tab value="saldo">Saldo Devedor</Tabs.Tab>
-          <Tabs.Tab value="tabela">Tabela</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="fluxo" pt="xs">
-          <Paper withBorder p="sm" radius="md">
-            {chartType === 'area' && (
-              <AreaChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'moss.6'}]} curveType="monotone" />
-            )}
-            {chartType === 'bar' && (
-              <BarChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'moss.6'}]} />
-            )}
-            {chartType === 'line' && (
-              <LineChart h={260} data={dataChart} dataKey="month" series={[{name:'Juros', color:'red.6'},{name:'Amortizacao', color:'moss.6'}]} curveType="monotone" />
-            )}
-          </Paper>
-        </Tabs.Panel>
-        <Tabs.Panel value="saldo" pt="xs">
-          <Paper withBorder p="sm" radius="md">
-            {chartType === 'area' && (
-              <AreaChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'ember.6'}]} curveType="monotone" />
-            )}
-            {chartType === 'bar' && (
-              <BarChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'ember.6'}]} />
-            )}
-            {chartType === 'line' && (
-              <LineChart h={260} data={balanceChart} dataKey="month" series={[{name:'Saldo', color:'ember.6'}]} curveType="monotone" />
-            )}
-          </Paper>
-        </Tabs.Panel>
-        <Tabs.Panel value="tabela" pt="xs">
-          <Paper withBorder radius="md" p={0} style={{ overflow: 'hidden' }}>
-            <ScrollArea h={400} type="hover" scrollbarSize={6} offsetScrollbars>
-              <Table striped withTableBorder highlightOnHover stickyHeader stickyHeaderOffset={0} fz="xs" miw={780}>
+
+      {/* Secondary Metrics */}
+      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+        <MetricCard
+          label="Principal Pago"
+          value={money(principalPaid)}
+          subtitle={`${(100 - interestPct).toFixed(1)}% do total`}
+        />
+        <MetricCard label="Número de Parcelas" value={installmentCount.toString()} />
+        <MetricCard
+          label="Primeira Parcela"
+          value={money(firstInstallment.installment)}
+          icon={IconArrowUpRight}
+          color="success"
+        />
+        <MetricCard
+          label="Última Parcela"
+          value={money(lastInstallment.installment)}
+          icon={IconArrowDownRight}
+          color="warning"
+        />
+      </SimpleGrid>
+
+      {/* Charts and Table */}
+      <Paper
+        radius="lg"
+        style={{
+          border: '1px solid var(--mantine-color-sage-2)',
+          overflow: 'hidden',
+        }}
+      >
+        <Tabs defaultValue="fluxo" variant="default">
+          <Box
+            px="lg"
+            pt="md"
+            pb={0}
+            style={{
+              borderBottom: '1px solid var(--mantine-color-sage-2)',
+            }}
+          >
+            <Group justify="space-between" align="center" mb="md">
+              <Tabs.List style={{ border: 'none' }}>
+                <Tabs.Tab value="fluxo" leftSection={<IconChartArea size={16} />}>
+                  Juros × Amortização
+                </Tabs.Tab>
+                <Tabs.Tab value="saldo" leftSection={<IconChartBar size={16} />}>
+                  Saldo Devedor
+                </Tabs.Tab>
+                <Tabs.Tab value="tabela" leftSection={<IconTable size={16} />}>
+                  Tabela Completa
+                </Tabs.Tab>
+              </Tabs.List>
+
+              <Group gap="xs">
+                <Button
+                  size="xs"
+                  variant={chartType === 'area' ? 'filled' : 'light'}
+                  color="sage"
+                  onClick={() => setChartType('area')}
+                >
+                  Área
+                </Button>
+                <Button
+                  size="xs"
+                  variant={chartType === 'line' ? 'filled' : 'light'}
+                  color="sage"
+                  onClick={() => setChartType('line')}
+                >
+                  Linha
+                </Button>
+                <Menu withinPortal position="bottom-end">
+                  <Menu.Target>
+                    <Button size="xs" variant="light" leftSection={<IconDownload size={14} />}>
+                      Exportar
+                    </Button>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>Formato</Menu.Label>
+                    <Menu.Item
+                      onClick={() =>
+                        downloadFile(
+                          '/api/simulate-loan/export?format=csv',
+                          'POST',
+                          inputPayload,
+                          'loan_simulation.csv'
+                        )
+                      }
+                    >
+                      CSV
+                    </Menu.Item>
+                    <Menu.Item
+                      onClick={() =>
+                        downloadFile(
+                          '/api/simulate-loan/export?format=xlsx',
+                          'POST',
+                          inputPayload,
+                          'loan_simulation.xlsx'
+                        )
+                      }
+                    >
+                      Excel (XLSX)
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
+            </Group>
+          </Box>
+
+          <Tabs.Panel value="fluxo" p="lg">
+            <ChartComponent
+              h={300}
+              data={dataChart}
+              dataKey="month"
+              series={[
+                { name: 'Juros', color: 'var(--mantine-color-danger-5)' },
+                { name: 'Amortização', color: 'var(--mantine-color-success-5)' },
+              ]}
+              curveType="monotone"
+              gridAxis="xy"
+              withLegend
+              legendProps={{ verticalAlign: 'bottom', height: 50 }}
+            />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="saldo" p="lg">
+            <ChartComponent
+              h={300}
+              data={balanceChart}
+              dataKey="month"
+              series={[{ name: 'Saldo', color: 'var(--mantine-color-sage-5)' }]}
+              curveType="monotone"
+              gridAxis="xy"
+              withLegend
+              legendProps={{ verticalAlign: 'bottom', height: 50 }}
+            />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="tabela" p={0}>
+            <ScrollArea h={400} type="hover" scrollbarSize={6}>
+              <Table striped highlightOnHover stickyHeader>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>Mês</Table.Th>
-                    <Table.Th>Parcela</Table.Th>
-                    <Table.Th>Amortização</Table.Th>
-                    <Table.Th>Juros</Table.Th>
-                    <Table.Th>Saldo Devedor</Table.Th>
-                    <Table.Th>Extra</Table.Th>
+                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      Mês
+                    </Table.Th>
+                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      Parcela
+                    </Table.Th>
+                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      Amortização
+                    </Table.Th>
+                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      Juros
+                    </Table.Th>
+                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      Saldo Devedor
+                    </Table.Th>
+                    <Table.Th style={{ backgroundColor: 'var(--mantine-color-sage-0)' }}>
+                      Amort. Extra
+                    </Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   {result.installments.slice(0, 600).map((i) => (
                     <Table.Tr key={i.month}>
-                      <Table.Td>{i.month}</Table.Td>
+                      <Table.Td fw={500}>{i.month}</Table.Td>
                       <Table.Td>{money(i.installment)}</Table.Td>
                       <Table.Td>{money(i.amortization)}</Table.Td>
-                      <Table.Td>{money(i.interest)}</Table.Td>
+                      <Table.Td c="danger.6">{money(i.interest)}</Table.Td>
                       <Table.Td>{money(i.outstanding_balance)}</Table.Td>
-                      <Table.Td>{money(i.extra_amortization)}</Table.Td>
+                      <Table.Td c={i.extra_amortization > 0 ? 'sage.6' : 'sage.4'}>
+                        {money(i.extra_amortization)}
+                      </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
               </Table>
             </ScrollArea>
-          </Paper>
-        </Tabs.Panel>
-      </Tabs>
+          </Tabs.Panel>
+        </Tabs>
+      </Paper>
     </Stack>
   );
 }

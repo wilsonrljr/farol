@@ -1,19 +1,46 @@
 import { useState } from 'react';
-import { Button, NumberInput, Select, Switch, Paper, Stack, Group, Divider, Checkbox, SimpleGrid, Text, SegmentedControl, Grid, Tooltip, Title, Accordion } from '@mantine/core';
+import {
+  Button,
+  NumberInput,
+  Select,
+  Paper,
+  Stack,
+  Group,
+  Checkbox,
+  Grid,
+  Text,
+  Box,
+  rem,
+  ThemeIcon,
+  Tooltip,
+  SimpleGrid,
+  Divider,
+  Tabs,
+} from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { compareScenarios } from '../api/financeApi';
-import { ComparisonInput, ComparisonResult, EnhancedComparisonResult } from '../api/types';
+import { ComparisonInput, EnhancedComparisonResult } from '../api/types';
 import { useApi } from '../hooks/useApi';
 import AmortizationsFieldArray from './AmortizationsFieldArray';
 import InvestmentReturnsFieldArray from './InvestmentReturnsFieldArray';
 import { notifications } from '@mantine/notifications';
-import ComparisonResults from './ComparisonResults';
 import EnhancedComparisonResults from './EnhancedComparisonResults';
-import { BadgeCard } from './cards/BadgeCard';
-import { CardWithStats } from './cards/CardWithStats';
-import { FeaturesCard } from './cards/FeaturesCard';
-import { IconBuildingBank, IconChartLine, IconArrowsShuffle } from '@tabler/icons-react';
+import {
+  IconBuildingBank,
+  IconChartLine,
+  IconHome2,
+  IconPercentage,
+  IconCash,
+  IconSettings,
+  IconPigMoney,
+  IconReceipt,
+  IconScale,
+  IconArrowRight,
+  IconArrowLeft,
+} from '@tabler/icons-react';
 import { LabelWithHelp } from './LabelWithHelp';
+import { FormSection, FormWizard } from './ui/FormWizard';
+import { money } from '../utils/format';
 
 export default function ComparisonForm() {
   const form = useForm<ComparisonInput>({
@@ -37,7 +64,6 @@ export default function ComparisonForm() {
       rent_reduces_investment: false,
       monthly_external_savings: 0,
       invest_external_surplus: false,
-
       fgts: {
         initial_balance: 0,
         monthly_contribution: 0,
@@ -52,284 +78,571 @@ export default function ComparisonForm() {
     }
   });
 
-  const { data, loading, call } = useApi< [ComparisonInput, boolean], ComparisonResult | EnhancedComparisonResult>(async (input: ComparisonInput, enhanced: boolean) => compareScenarios(input, enhanced));
+  const { data, loading, call } = useApi<[ComparisonInput, boolean], EnhancedComparisonResult>(
+    async (input: ComparisonInput, enhanced: boolean) => compareScenarios(input, enhanced) as Promise<EnhancedComparisonResult>
+  );
   const [lastInput, setLastInput] = useState<ComparisonInput | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [enhanced, setEnhanced] = useState(true);
+  const [activeStep, setActiveStep] = useState(0);
+
+  const propertyValue = Number(form.values.property_value || 0);
+  const downPayment = Number(form.values.down_payment || 0);
+  const loanAmount = Math.max(0, propertyValue - downPayment);
+  const downPaymentPct = propertyValue > 0 ? (downPayment / propertyValue) * 100 : 0;
+  const rentValue = Number(form.values.rent_value || 0);
 
   async function onSubmit(values: ComparisonInput) {
     try {
       setLastInput(values);
-      const res = await call(values, enhanced);
-      notifications.show({ title: 'Comparação pronta', message: 'Resultados disponíveis', color: 'green' });
+      const res = await call(values, true);
+      notifications.show({ 
+        title: 'Análise concluída', 
+        message: 'Os resultados estão prontos abaixo', 
+        color: 'sage' 
+      });
+      // Scroll to results
+      setTimeout(() => {
+        document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
       return res;
     } catch (e: any) {
       notifications.show({ title: 'Erro', message: e.toString(), color: 'red' });
     }
   }
 
-  const [layout, setLayout] = useState<'split' | 'stack'>('split');
-
-  const formEl = (
-    <Paper withBorder p="md" radius="md" shadow="sm" style={layout==='split'?{position:'sticky', top:70}:{}}>
+  return (
+    <Stack gap="xl">
+      {/* Form Section */}
       <form onSubmit={form.onSubmit(onSubmit)}>
-        <Stack gap="md">
-          <div>
-            <Title order={4}>Premissas</Title>
-            <Text size="xs" c="dimmed">Base do imóvel e do financiamento. Mantém o resto consistente.</Text>
-          </div>
+        <Grid gutter="xl" align="flex-start">
+          <Grid.Col span={{ base: 12, md: 8 }}>
+            <FormWizard
+              active={activeStep}
+              onStepClick={setActiveStep}
+              steps={[
+                { label: 'Imóvel', description: 'Entrada e prazo', icon: <IconHome2 size={16} /> },
+                { label: 'Taxa', description: 'Anual ou mensal', icon: <IconPercentage size={16} /> },
+                { label: 'Aluguel', description: 'Retornos e aluguel', icon: <IconChartLine size={16} /> },
+                { label: 'Ajustes', description: 'Opcional', icon: <IconSettings size={16} /> },
+              ]}
+            >
+              {activeStep === 0 && (
+                <FormSection
+                  title="Imóvel e financiamento"
+                  description="Defina o valor, entrada e o tipo de amortização."
+                  icon={<IconHome2 size={20} />}
+                >
+                  <Grid gutter="lg">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Valor do imóvel"
+                        description="Preço total do imóvel"
+                        placeholder="R$ 500.000"
+                        min={0}
+                        required
+                        {...form.getInputProps('property_value')}
+                        thousandSeparator="."
+                        decimalSeparator=","
+                        prefix="R$ "
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Entrada"
+                        description="Valor disponível para dar de entrada"
+                        placeholder="R$ 100.000"
+                        min={0}
+                        required
+                        {...form.getInputProps('down_payment')}
+                        thousandSeparator="."
+                        decimalSeparator=","
+                        prefix="R$ "
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Prazo do financiamento"
+                        description="Duração em anos"
+                        placeholder="30"
+                        min={1}
+                        max={35}
+                        required
+                        {...form.getInputProps('loan_term_years')}
+                        suffix=" anos"
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Select
+                        label="Sistema de amortização"
+                        description="SAC (parcelas decrescentes) ou PRICE (fixas)"
+                        data={[
+                          { value: 'SAC', label: 'SAC - Parcelas decrescentes' },
+                          { value: 'PRICE', label: 'PRICE - Parcelas fixas' },
+                        ]}
+                        {...form.getInputProps('loan_type')}
+                        size="md"
+                      />
+                    </Grid.Col>
+                  </Grid>
+                </FormSection>
+              )}
 
-          <Grid gutter="sm">
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <NumberInput label="Valor do Imóvel" min={0} required {...form.getInputProps('property_value')} thousandSeparator />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <NumberInput label="Entrada" min={0} required {...form.getInputProps('down_payment')} thousandSeparator />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <NumberInput label="Prazo (anos)" min={1} required {...form.getInputProps('loan_term_years')} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <Select label="Sistema" data={[{value:'SAC', label:'SAC'}, {value:'PRICE', label:'PRICE'}]} {...form.getInputProps('loan_type')} />
-            </Grid.Col>
-          </Grid>
+              {activeStep === 1 && (
+                <FormSection
+                  title="Taxa de juros"
+                  description="Informe a taxa anual ou mensal (apenas uma delas)."
+                  icon={<IconPercentage size={20} />}
+                >
+                  <Grid gutter="lg">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Taxa anual"
+                        description="CET ou taxa nominal anual"
+                        placeholder="10"
+                        {...form.getInputProps('annual_interest_rate')}
+                        suffix="% a.a."
+                        decimalScale={2}
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Taxa mensal"
+                        description="Alternativa à taxa anual"
+                        placeholder="0,8"
+                        {...form.getInputProps('monthly_interest_rate')}
+                        suffix="% a.m."
+                        decimalScale={4}
+                        size="md"
+                      />
+                    </Grid.Col>
+                  </Grid>
+                  <Text size="xs" c="sage.6" mt="sm">
+                    Informe apenas uma das taxas. A outra será calculada automaticamente.
+                  </Text>
+                </FormSection>
+              )}
 
-          <Divider label="Juros" />
-          <Grid gutter="sm">
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <NumberInput label="Juros Anual (%)" {...form.getInputProps('annual_interest_rate')} />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <NumberInput label="Juros Mensal (%)" {...form.getInputProps('monthly_interest_rate')} />
-            </Grid.Col>
-          </Grid>
+              {activeStep === 2 && (
+                <FormSection
+                  title="Aluguel e retornos"
+                  description="Define o aluguel e como o investimento rende ao longo do tempo."
+                  icon={<IconChartLine size={20} />}
+                >
+                  <Grid gutter="lg">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Valor do aluguel"
+                        description="Aluguel mensal de imóvel equivalente"
+                        placeholder="R$ 2.000"
+                        {...form.getInputProps('rent_value')}
+                        thousandSeparator="."
+                        decimalSeparator=","
+                        prefix="R$ "
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Aluguel como % do valor"
+                        description="Alternativa ao valor fixo"
+                        placeholder="0,4"
+                        {...form.getInputProps('rent_percentage')}
+                        suffix="%"
+                        decimalScale={2}
+                        size="md"
+                      />
+                    </Grid.Col>
+                  </Grid>
 
-          <Divider label="Aluguel e Investimento" />
-          <Grid gutter="sm">
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <NumberInput label="Aluguel (R$)" {...form.getInputProps('rent_value')} thousandSeparator />
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, sm: 6 }}>
-              <NumberInput label="Aluguel / Valor (%)" {...form.getInputProps('rent_percentage')} />
-            </Grid.Col>
-          </Grid>
-          <InvestmentReturnsFieldArray value={form.values.investment_returns} onChange={(v)=>form.setFieldValue('investment_returns', v)} />
+                  <Divider my="lg" color="sage.2" />
 
-          <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-            <Switch label="Opções avançadas" checked={showAdvanced} onChange={(e)=>setShowAdvanced(e.currentTarget.checked)} />
-            <Switch label="Métricas avançadas" checked={enhanced} onChange={(e)=>setEnhanced(e.currentTarget.checked)} />
-          </Group>
+                  <Text fw={600} size="sm" mb="sm" c="sage.8">
+                    Retornos de investimento
+                  </Text>
+                  <InvestmentReturnsFieldArray
+                    value={form.values.investment_returns}
+                    onChange={(v: any) => form.setFieldValue('investment_returns', v)}
+                  />
+                </FormSection>
+              )}
 
-          {showAdvanced && (
-            <Stack gap="sm">
-              <Divider label="Avançado" />
+              {activeStep === 3 && (
+                <FormSection
+                  title="Ajustes (opcional)"
+                  description="Refina a simulação com hipóteses e regras adicionais."
+                  icon={<IconSettings size={20} />}
+                >
+                  <Tabs defaultValue="inflacao" variant="pills" color="sage">
+                    <Tabs.List>
+                      <Tabs.Tab value="inflacao" leftSection={<IconBuildingBank size={16} />}>
+                        Inflação
+                      </Tabs.Tab>
+                      <Tabs.Tab value="estrategia" leftSection={<IconCash size={16} />}>
+                        Estratégia
+                      </Tabs.Tab>
+                      <Tabs.Tab value="fgts" leftSection={<IconPigMoney size={16} />}>
+                        FGTS
+                      </Tabs.Tab>
+                      <Tabs.Tab value="tributacao" leftSection={<IconReceipt size={16} />}>
+                        Tributação
+                      </Tabs.Tab>
+                      <Tabs.Tab value="amortizacoes" leftSection={<IconScale size={16} />}>
+                        Amortizações
+                      </Tabs.Tab>
+                    </Tabs.List>
 
-              <Accordion variant="separated" radius="md">
-                <Accordion.Item value="macro">
-                  <Accordion.Control>Inflação e valorização</Accordion.Control>
-                  <Accordion.Panel>
-                    <Grid gutter="sm" align="flex-end">
-                      <Grid.Col span={{ base: 12, sm: 4 }}>
-                        <LabelWithHelp
-                          label="Inflação Geral (% a.a.)"
-                          help="Taxa anual média usada para atualizar custos ao longo do tempo (composta mês a mês)."
-                        />
-                        <NumberInput mt={4} {...form.getInputProps('inflation_rate')} />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 4 }}>
-                        <LabelWithHelp
-                          label="Inflação do Aluguel (% a.a.)"
-                          help="Reajuste do aluguel. Use se for diferente da inflação geral."
-                        />
-                        <NumberInput mt={4} {...form.getInputProps('rent_inflation_rate')} />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 4 }}>
-                        <LabelWithHelp
-                          label="Valorização do Imóvel (% a.a.)"
-                          help="Estimativa anual de valorização do imóvel (impacta o cenário de comprar depois)."
-                        />
-                        <NumberInput mt={4} {...form.getInputProps('property_appreciation_rate')} />
-                      </Grid.Col>
-                    </Grid>
-                  </Accordion.Panel>
-                </Accordion.Item>
-
-                <Accordion.Item value="strategy">
-                  <Accordion.Control>Estratégia de investimento (diferença, aportes e renda externa)</Accordion.Control>
-                  <Accordion.Panel>
-                    <Stack gap="xs">
-                      <Checkbox label="Investir diferença de parcela vs aluguel" {...form.getInputProps('invest_loan_difference', { type: 'checkbox' })} />
-                      <Tooltip
-                        label="Se marcado, o aluguel e custos mensais são pagos retirando do saldo investido antes do rendimento. Caso contrário assumimos que o aluguel vem de renda externa e o capital fica intacto."
-                        multiline
-                        w={300}
-                        position="top-start"
-                        withArrow
-                      >
-                        <Checkbox label="Aluguel consome investimento" {...form.getInputProps('rent_reduces_investment', { type: 'checkbox' })} />
-                      </Tooltip>
-
-                      <Grid gutter="sm" align="flex-end">
-                        <Grid.Col span={{ base: 12, sm: 8 }}>
+                    <Tabs.Panel value="inflacao" pt="md">
+                      <Grid gutter="lg">
+                        <Grid.Col span={{ base: 12, sm: 4 }}>
                           <LabelWithHelp
-                            label="Renda Externa p/ Custos (R$/mês)"
-                            help={`Valor mensal externo usado primeiro para pagar aluguel e custos (condomínio/IPTU).
-Se 0:
- - Se 'Aluguel consome investimento' estiver DESMARCADO: aluguel é pago fora e não reduz investimentos.
- - Se MARCADO: aluguel/custos saem do saldo investido.
-Se maior que custos, a sobra pode ser investida se marcado 'Investir sobra externa'.`}
+                            label="Inflação geral"
+                            help="Taxa anual média usada para atualizar custos ao longo do tempo."
                           />
-                          <NumberInput mt={4} {...form.getInputProps('monthly_external_savings')} thousandSeparator min={0} />
+                          <NumberInput
+                            mt={4}
+                            placeholder="4"
+                            {...form.getInputProps('inflation_rate')}
+                            suffix="% a.a."
+                            size="md"
+                          />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, sm: 4 }}>
                           <LabelWithHelp
-                            label="Investir sobra externa"
-                            help="Se houver sobra da renda externa após pagar custos, investe automaticamente esse excedente no mês."
+                            label="Inflação do aluguel"
+                            help="Reajuste anual do aluguel. Use se diferente da inflação geral."
                           />
-                          <Checkbox mt={6} {...form.getInputProps('invest_external_surplus', { type: 'checkbox' })} />
+                          <NumberInput
+                            mt={4}
+                            placeholder="5"
+                            {...form.getInputProps('rent_inflation_rate')}
+                            suffix="% a.a."
+                            size="md"
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, sm: 4 }}>
+                          <LabelWithHelp
+                            label="Valorização do imóvel"
+                            help="Estimativa anual de valorização do imóvel no mercado."
+                          />
+                          <NumberInput
+                            mt={4}
+                            placeholder="4"
+                            {...form.getInputProps('property_appreciation_rate')}
+                            suffix="% a.a."
+                            size="md"
+                          />
                         </Grid.Col>
                       </Grid>
+                    </Tabs.Panel>
 
-                      <Grid gutter="sm">
+                    <Tabs.Panel value="estrategia" pt="md">
+                      <Stack gap="md">
+                        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                          <Checkbox
+                            label="Investir diferença de parcela vs aluguel"
+                            description="Se a parcela for maior que o aluguel, investe a diferença"
+                            {...form.getInputProps('invest_loan_difference', { type: 'checkbox' })}
+                          />
+                          <Tooltip
+                            label="Se marcado, aluguel e custos mensais são pagos do saldo investido"
+                            multiline
+                            w={280}
+                            withArrow
+                          >
+                            <Checkbox
+                              label="Aluguel consome investimento"
+                              description="Paga aluguel retirando dos investimentos"
+                              {...form.getInputProps('rent_reduces_investment', { type: 'checkbox' })}
+                            />
+                          </Tooltip>
+                        </SimpleGrid>
+
+                        <Divider color="sage.2" />
+
+                        <Grid gutter="lg">
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <LabelWithHelp
+                              label="Renda externa para custos"
+                              help="Valor mensal externo usado para pagar aluguel e custos antes de usar investimentos."
+                            />
+                            <NumberInput
+                              mt={4}
+                              placeholder="R$ 0"
+                              {...form.getInputProps('monthly_external_savings')}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              prefix="R$ "
+                              min={0}
+                              size="md"
+                            />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <LabelWithHelp
+                              label="Investir sobra externa"
+                              help="Se houver sobra da renda externa após custos, investe automaticamente."
+                            />
+                            <Box mt={12}>
+                              <Checkbox
+                                label="Sim, investir sobra"
+                                {...form.getInputProps('invest_external_surplus', { type: 'checkbox' })}
+                              />
+                            </Box>
+                          </Grid.Col>
+                        </Grid>
+
+                        <Divider color="sage.2" />
+
+                        <Grid gutter="lg">
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <NumberInput
+                              label="Aporte mensal fixo"
+                              description="Valor fixo investido todo mês"
+                              placeholder="R$ 0"
+                              {...form.getInputProps('fixed_monthly_investment')}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              prefix="R$ "
+                              size="md"
+                            />
+                          </Grid.Col>
+                          <Grid.Col span={{ base: 12, sm: 6 }}>
+                            <NumberInput
+                              label="Início do aporte"
+                              description="Mês em que começam os aportes"
+                              placeholder="1"
+                              {...form.getInputProps('fixed_investment_start_month')}
+                              suffix="º mês"
+                              min={1}
+                              size="md"
+                            />
+                          </Grid.Col>
+                        </Grid>
+                      </Stack>
+                    </Tabs.Panel>
+
+                    <Tabs.Panel value="fgts" pt="md">
+                      <Grid gutter="lg">
                         <Grid.Col span={{ base: 12, sm: 6 }}>
-                          <NumberInput label="Aporte Mensal Fixo" {...form.getInputProps('fixed_monthly_investment')} thousandSeparator />
+                          <NumberInput
+                            label="Saldo FGTS"
+                            description="Saldo disponível para uso"
+                            placeholder="R$ 0"
+                            {...form.getInputProps('fgts.initial_balance')}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            prefix="R$ "
+                            min={0}
+                            size="md"
+                          />
                         </Grid.Col>
                         <Grid.Col span={{ base: 12, sm: 6 }}>
-                          <NumberInput label="Início do Aporte (mês)" {...form.getInputProps('fixed_investment_start_month')} />
+                          <NumberInput
+                            label="Aporte mensal FGTS"
+                            description="Depósito mensal no FGTS"
+                            placeholder="R$ 0"
+                            {...form.getInputProps('fgts.monthly_contribution')}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            prefix="R$ "
+                            min={0}
+                            size="md"
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, sm: 6 }}>
+                          <NumberInput
+                            label="Rendimento FGTS"
+                            description="Taxa anual de rendimento"
+                            placeholder="3"
+                            {...form.getInputProps('fgts.annual_yield_rate')}
+                            suffix="% a.a."
+                            min={0}
+                            size="md"
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, sm: 6 }}>
+                          <NumberInput
+                            label="Limite de saque"
+                            description="Máximo a usar na compra (opcional)"
+                            placeholder="Sem limite"
+                            {...form.getInputProps('fgts.max_withdrawal_at_purchase')}
+                            thousandSeparator="."
+                            decimalSeparator=","
+                            prefix="R$ "
+                            min={0}
+                            size="md"
+                          />
                         </Grid.Col>
                       </Grid>
-                    </Stack>
-                  </Accordion.Panel>
-                </Accordion.Item>
+                      <Checkbox
+                        mt="lg"
+                        label="Usar FGTS na compra do imóvel"
+                        {...form.getInputProps('fgts.use_at_purchase', { type: 'checkbox' })}
+                      />
+                    </Tabs.Panel>
 
-                <Accordion.Item value="fgts">
-                  <Accordion.Control>FGTS</Accordion.Control>
-                  <Accordion.Panel>
-                    <Grid gutter="sm" align="flex-end">
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Saldo FGTS (R$)"
-                          help={`Saldo disponível de FGTS. Neste MVP, o FGTS é usado apenas no momento da compra (entrada/abatimento do valor necessário).
-Para simular amortizações recorrentes com dinheiro, use a seção de Amortizações.`}
-                        />
-                        <NumberInput mt={4} {...form.getInputProps('fgts.initial_balance')} min={0} thousandSeparator />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Aporte FGTS mensal (R$)"
-                          help="Opcional. Simula aportes mensais ao saldo de FGTS."
-                        />
-                        <NumberInput mt={4} {...form.getInputProps('fgts.monthly_contribution')} min={0} thousandSeparator />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Rendimento FGTS (% a.a.)"
-                          help="Opcional. Se informado, o saldo FGTS cresce mensalmente por esta taxa anual (aproximação)."
-                        />
-                        <NumberInput mt={4} {...form.getInputProps('fgts.annual_yield_rate')} min={0} />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Limite saque FGTS na compra (R$)"
-                          help="Opcional. Se definido, limita quanto do FGTS pode ser usado no evento de compra."
-                        />
-                        <NumberInput mt={4} {...form.getInputProps('fgts.max_withdrawal_at_purchase')} min={0} thousandSeparator />
-                      </Grid.Col>
-                    </Grid>
+                    <Tabs.Panel value="tributacao" pt="md">
+                      <Grid gutter="lg" align="flex-end">
+                        <Grid.Col span={{ base: 12, sm: 6 }}>
+                          <Checkbox
+                            label="Aplicar imposto sobre rendimentos"
+                            description="Aproximação simples sobre ganhos mensais"
+                            {...form.getInputProps('investment_tax.enabled', { type: 'checkbox' })}
+                          />
+                        </Grid.Col>
+                        <Grid.Col span={{ base: 12, sm: 6 }}>
+                          <NumberInput
+                            label="Alíquota efetiva"
+                            description="Percentual sobre rendimentos"
+                            placeholder="15"
+                            {...form.getInputProps('investment_tax.effective_tax_rate')}
+                            suffix="%"
+                            min={0}
+                            max={100}
+                            disabled={!form.values.investment_tax?.enabled}
+                            size="md"
+                          />
+                        </Grid.Col>
+                      </Grid>
+                      <Text size="xs" c="sage.6" mt="md">
+                        Esta é uma aproximação. O IR real depende do tipo de investimento e prazo.
+                      </Text>
+                    </Tabs.Panel>
 
-                    <Checkbox
-                      mt="sm"
-                      label="Usar FGTS na compra"
-                      {...form.getInputProps('fgts.use_at_purchase', { type: 'checkbox' })}
-                    />
-                  </Accordion.Panel>
-                </Accordion.Item>
+                    <Tabs.Panel value="amortizacoes" pt="md">
+                      <AmortizationsFieldArray
+                        value={form.values.amortizations || []}
+                        onChange={(v: any) => form.setFieldValue('amortizations', v)}
+                        inflationRate={form.values.inflation_rate || undefined}
+                        termMonths={form.values.loan_term_years * 12}
+                      />
+                    </Tabs.Panel>
+                  </Tabs>
 
-                <Accordion.Item value="tax">
-                  <Accordion.Control>Tributação (aproximação)</Accordion.Control>
-                  <Accordion.Panel>
-                    <Grid gutter="sm" align="flex-end">
-                      <Grid.Col span={{ base: 12, sm: 8 }}>
-                        <LabelWithHelp
-                          label="Tributação sobre rendimentos"
-                          help={`Aproximação simples: aplica uma alíquota efetiva sobre o rendimento positivo de cada mês e reinveste o retorno líquido.
-Na prática, o IR costuma ser cobrado no resgate e depende do produto/prazo.`}
-                        />
-                        <Checkbox
-                          mt={6}
-                          label="Aplicar imposto (aproximação)"
-                          {...form.getInputProps('investment_tax.enabled', { type: 'checkbox' })}
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 4 }}>
-                        <LabelWithHelp
-                          label="Alíquota efetiva (%)"
-                          help="Percentual aplicado sobre o rendimento mensal positivo (não é uma simulação tributária completa)."
-                        />
-                        <NumberInput
-                          mt={4}
-                          {...form.getInputProps('investment_tax.effective_tax_rate')}
-                          min={0}
-                          max={100}
-                          disabled={!form.values.investment_tax?.enabled}
-                        />
-                      </Grid.Col>
-                    </Grid>
-                  </Accordion.Panel>
-                </Accordion.Item>
+                  <Divider my="lg" color="sage.2" />
 
-                <Accordion.Item value="amort">
-                  <Accordion.Control>Amortizações extras</Accordion.Control>
-                  <Accordion.Panel>
-                    <AmortizationsFieldArray
-                      value={form.values.amortizations || []}
-                      onChange={(v)=>form.setFieldValue('amortizations', v)}
-                      inflationRate={form.values.inflation_rate || undefined}
-                      termMonths={form.values.loan_term_years * 12}
-                    />
-                  </Accordion.Panel>
-                </Accordion.Item>
-              </Accordion>
-            </Stack>
-          )}
+                  <Button
+                    type="submit"
+                    loading={loading}
+                    size="lg"
+                    radius="lg"
+                    fullWidth
+                    rightSection={<IconArrowRight size={18} />}
+                    style={{
+                      height: rem(52),
+                      fontSize: rem(15),
+                      fontWeight: 600,
+                    }}
+                  >
+                    Comparar cenários
+                  </Button>
+                </FormSection>
+              )}
 
-          <Button type="submit" loading={loading} fullWidth size="md">Comparar Cenários</Button>
-        </Stack>
-      </form>
-    </Paper>
-  );
+              <Group justify="space-between" mt="md">
+                <Button
+                  variant="default"
+                  leftSection={<IconArrowLeft size={16} />}
+                  disabled={activeStep === 0}
+                  onClick={() => setActiveStep((s: number) => Math.max(0, s - 1))}
+                >
+                  Voltar
+                </Button>
+                <Button
+                  rightSection={<IconArrowRight size={16} />}
+                  disabled={activeStep === 3}
+                  onClick={() => setActiveStep((s: number) => Math.min(3, s + 1))}
+                >
+                  Próximo
+                </Button>
+              </Group>
+            </FormWizard>
+          </Grid.Col>
 
-  const emptyState = (
-    <Stack gap="md">
-      <Text size="sm" c="dimmed">Configure os parâmetros e compare os três caminhos possíveis. Insights iniciais:</Text>
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-        <BadgeCard icon={<IconBuildingBank size={18} />} color="moss" title="Comprar" description="Construção de equity desde o primeiro mês." badges={["Equity", "Juros"]} />
-        <BadgeCard icon={<IconChartLine size={18} />} color="ember" title="Alugar + Investir" description="Liquidez e potencial de retorno sobre o capital." badges={["Liquidez", "ROI"]} />
-        <BadgeCard icon={<IconArrowsShuffle size={18} />} color="orange" title="Investir e Comprar" description="Sincronia entre valorização e acumulação de capital." badges={["Timing", "Aportes"]} />
-      </SimpleGrid>
-      <CardWithStats title="Exemplo (mock)" stats={[{ label: 'Comprar', value: 'R$ 820k' }, { label: 'Alugar', value: 'R$ 780k' }, { label: 'Investir', value: 'R$ 805k' }]} progress={{ value: 52, label: 'Melhor vs Médio %', color: 'moss' }} />
-      <FeaturesCard title="Estratégias" features={["Aportes fixos", "Diferença de parcelas", "Valorização do imóvel", "Inflação diferenciada"]} />
-    </Stack>
-  );
-
-  return (
-    <Stack gap="md">
-      <Group justify="space-between" align="center">
-        <Text fw={600}>Comparação</Text>
-        <SegmentedControl size="xs" value={layout} onChange={(v)=>setLayout(v as any)} data={[{label:'Lado a lado', value:'split'},{label:'Empilhado', value:'stack'}]} />
-      </Group>
-      {layout === 'split' ? (
-        <Grid gutter="lg">
-          <Grid.Col span={{ base: 12, md: 5 }}>{formEl}</Grid.Col>
-          <Grid.Col span={{ base: 12, md: 7 }}>
-            {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} inputPayload={lastInput || undefined} /> : <ComparisonResults result={data as ComparisonResult} inputPayload={lastInput || undefined} />) : emptyState}
+          <Grid.Col span={{ base: 12, md: 4 }}>
+            <Paper
+              p="lg"
+              radius="xl"
+              style={{
+                border: '1px solid var(--mantine-color-sage-2)',
+                position: 'sticky',
+                top: rem(92),
+              }}
+            >
+              <Group gap="sm" mb="md">
+                <ThemeIcon size={36} radius="lg" variant="light" color="sage">
+                  <IconChartLine size={18} />
+                </ThemeIcon>
+                <Box>
+                  <Text fw={600} c="sage.9">
+                    Resumo
+                  </Text>
+                  <Text size="xs" c="sage.6">
+                    O que você está comparando
+                  </Text>
+                </Box>
+              </Group>
+              <Stack gap={10}>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm" c="sage.6">
+                    Valor do imóvel
+                  </Text>
+                  <Text size="sm" fw={600} c="sage.9">
+                    {money(propertyValue)}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm" c="sage.6">
+                    Entrada
+                  </Text>
+                  <Text size="sm" fw={600} c="sage.9">
+                    {money(downPayment)}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm" c="sage.6">
+                    Entrada (% do imóvel)
+                  </Text>
+                  <Text size="sm" fw={600} c="sage.9">
+                    {Number.isFinite(downPaymentPct) ? `${downPaymentPct.toFixed(1)}%` : '—'}
+                  </Text>
+                </Group>
+                <Divider my={4} color="sage.2" />
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm" c="sage.6">
+                    Valor financiado
+                  </Text>
+                  <Text size="sm" fw={700} c="sage.9">
+                    {money(loanAmount)}
+                  </Text>
+                </Group>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm" c="sage.6">
+                    Aluguel mensal
+                  </Text>
+                  <Text size="sm" fw={700} c="sage.9">
+                    {money(rentValue)}
+                  </Text>
+                </Group>
+                <Text size="xs" c="sage.6">
+                  Ajustes finos ficam em “Ajustes”. Para começar, os 3 primeiros passos costumam ser suficientes.
+                </Text>
+              </Stack>
+            </Paper>
           </Grid.Col>
         </Grid>
-      ) : (
-        <Stack gap="xl">
-          {formEl}
-          {data ? (enhanced ? <EnhancedComparisonResults result={data as EnhancedComparisonResult} inputPayload={lastInput || undefined} /> : <ComparisonResults result={data as ComparisonResult} inputPayload={lastInput || undefined} />) : emptyState}
-        </Stack>
+      </form>
+
+      {/* Results Section */}
+      {data && (
+        <Box id="results-section" pt="xl">
+          <EnhancedComparisonResults 
+            result={data} 
+            inputPayload={lastInput || undefined} 
+          />
+        </Box>
       )}
     </Stack>
   );

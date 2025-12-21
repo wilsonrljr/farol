@@ -49,9 +49,9 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
                   <Table.Tbody>
                     {[...s.monthly_data].sort((a:any,b:any)=>a.month-b.month).slice(0, 360).map((m: any) => {
                       const purchase = m.status === 'Imóvel comprado';
-                      const phaseColor = m.phase === 'pre_purchase' ? 'var(--mantine-color-yellow-light)' : undefined;
+                      const phaseColor = m.phase === 'pre_purchase' ? 'var(--mantine-color-sage-0)' : undefined;
                       const style: React.CSSProperties = {
-                        background: purchase ? 'var(--mantine-color-green-light)' : phaseColor,
+                        background: purchase ? 'var(--mantine-color-sage-1)' : phaseColor,
                         fontWeight: m.is_milestone ? 500 : 400,
                       };
                       return (
@@ -74,8 +74,8 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
                 </Table>
                 {s.monthly_data.some((m:any)=>m.scenario_type==='invest_buy') && (
                   <Group gap="xs" mt="xs" wrap="wrap" fz="xs">
-                    <span style={{background:'var(--mantine-color-yellow-light)',padding:'2px 6px',borderRadius:4}}>Pré-compra</span>
-                    <span style={{background:'var(--mantine-color-green-light)',padding:'2px 6px',borderRadius:4}}>Compra / Pós</span>
+                    <span style={{background:'var(--mantine-color-sage-0)',padding:'2px 6px',borderRadius:4}}>Pré-compra</span>
+                    <span style={{background:'var(--mantine-color-sage-1)',padding:'2px 6px',borderRadius:4}}>Compra / Pós</span>
                     <span style={{fontWeight:500}}>Negrito = marco</span>
                   </Group>
                 )}
