@@ -663,7 +663,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     </Table.Thead>
                     <Table.Tbody>
                       {rows.slice(0, 600).map((m: any) => {
-                        const isPurchase = m.status === 'Imóvel comprado';
+                        const isPurchase =
+                          isInvestBuy && purchaseMonth != null
+                            ? m.month === purchaseMonth
+                            : m.status === 'Imóvel comprado';
+                        const isPostPurchase =
+                          isInvestBuy && purchaseMonth != null
+                            ? m.month > purchaseMonth
+                            : false;
                         const cumulativeCost =
                           m.cumulative_payments != null
                             ? m.cumulative_payments
@@ -680,7 +687,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                           <Table.Tr
                             key={m.month}
                             style={{
-                              backgroundColor: isPurchase ? 'var(--mantine-color-success-0)' : undefined,
+                              backgroundColor: isPurchase
+                                ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
+                                : isPostPurchase
+                                  ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+                                  : undefined,
                               fontWeight: m.is_milestone ? 600 : 400,
                             }}
                           >

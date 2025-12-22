@@ -56,6 +56,12 @@ export default function ComparisonForm() {
       investment_returns: [{ start_month: 1, end_month: null, annual_rate: 8 }],
       amortizations: [],
       contributions: [],
+      additional_costs: {
+        itbi_percentage: 2,
+        deed_percentage: 1,
+        monthly_hoa: 0,
+        monthly_property_tax: 0,
+      },
       inflation_rate: 4,
       rent_inflation_rate: 5,
       property_appreciation_rate: 4,
@@ -403,6 +409,9 @@ export default function ComparisonForm() {
                   >
                     Inflação
                   </Tabs.Tab>
+                  <Tabs.Tab value="custos" leftSection={<IconCash size={16} />}>
+                    Custos
+                  </Tabs.Tab>
                   <Tabs.Tab
                     value="estrategia"
                     leftSection={<IconCash size={16} />}
@@ -471,6 +480,71 @@ export default function ComparisonForm() {
                         {...form.getInputProps("property_appreciation_rate")}
                         suffix="% a.a."
                         size="md"
+                      />
+                    </Grid.Col>
+                  </Grid>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="custos" pt="md">
+                  <Text fw={600} size="sm" c="bright" mb="sm">
+                    Custos adicionais (compra e posse do imóvel)
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="md">
+                    ITBI e Escritura entram como custo de compra (no mês da compra). Condomínio e IPTU entram
+                    como custos mensais apenas quando você é proprietário (cenário de compra e pós-compra).
+                    No cenário de aluguel, Condomínio/IPTU do imóvel não são considerados.
+                  </Text>
+                  <Grid gutter="lg">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="ITBI"
+                        description="Custo de compra (percentual do valor do imóvel)"
+                        placeholder="2"
+                        min={0}
+                        suffix="%"
+                        decimalScale={2}
+                        size="md"
+                        {...form.getInputProps("additional_costs.itbi_percentage")}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Escritura"
+                        description="Custo de compra (percentual do valor do imóvel)"
+                        placeholder="1"
+                        min={0}
+                        suffix="%"
+                        decimalScale={2}
+                        size="md"
+                        {...form.getInputProps("additional_costs.deed_percentage")}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Condomínio"
+                        description="Custo mensal quando você é proprietário (não se aplica ao cenário de aluguel)"
+                        placeholder="R$ 0"
+                        min={0}
+                        thousandSeparator="."
+                        decimalSeparator="," 
+                        prefix="R$ "
+                        size="md"
+                        {...form.getInputProps("additional_costs.monthly_hoa")}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="IPTU"
+                        description="Custo mensal quando você é proprietário (não se aplica ao cenário de aluguel)"
+                        placeholder="R$ 0"
+                        min={0}
+                        thousandSeparator="."
+                        decimalSeparator="," 
+                        prefix="R$ "
+                        size="md"
+                        {...form.getInputProps(
+                          "additional_costs.monthly_property_tax",
+                        )}
                       />
                     </Grid.Col>
                   </Grid>
