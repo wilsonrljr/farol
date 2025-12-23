@@ -528,11 +528,20 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 0.0, purchase_upfront - self._upfront_baseline
             )
 
-        # When the purchase happens immediately, skip investing the baseline loan
-        # difference (upfront or installments) because the cash is being used to buy now.
+        # When the purchase happens, we still need to count any fixed_monthly_investment
+        # that was already deposited this month as an outflow. We only skip the
+        # invest_loan_difference portion (upfront/installments) since those funds are
+        # redirected to the purchase.
         additional_investment_effective = additional_investment
         if status == "Imóvel comprado":
-            additional_investment_effective = 0.0
+            # Include fixed_monthly_investment if it was deposited this month
+            if (
+                self.fixed_monthly_investment
+                and self.fixed_investment_start_month <= month
+            ):
+                additional_investment_effective = self.fixed_monthly_investment
+            else:
+                additional_investment_effective = 0.0
         elif self.invest_loan_difference and self._upfront_baseline > 0:
             additional_investment_effective = max(
                 0.0, additional_investment - self._upfront_baseline
@@ -643,6 +652,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             equity=current_property_value,
             status="Imóvel comprado",
             monthly_additional_costs=monthly_additional,
+            total_monthly_cost=total_monthly_cost,
             property_value=current_property_value,
             investment_return=investment_result.net_return,
             investment_return_gross=investment_result.gross_return,
