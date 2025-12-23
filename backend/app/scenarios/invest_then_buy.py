@@ -466,6 +466,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         # transaction costs like ITBI/escritura. Those must be covered by cash
         # (investment liquidation here).
         purchase_upfront = max(0.0, total_purchase_cost - current_property_value)
+        shortfall_for_fgts = max(0.0, total_purchase_cost - investment_available)
 
         can_cover_total = (investment_available + fgts_available) >= total_purchase_cost
         can_cover_upfront = investment_available >= purchase_upfront
@@ -474,10 +475,13 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             # Purchase!
             remaining_needed = total_purchase_cost
             if self._fgts_manager and self._fgts_manager.use_at_purchase:
-                fgts_used_this_month = self._fgts_manager.withdraw_for_purchase(
-                    current_property_value
-                )
-                remaining_needed -= fgts_used_this_month
+                fgts_request_cap = min(fgts_available, current_property_value)
+                fgts_needed = min(shortfall_for_fgts, fgts_request_cap)
+                if fgts_needed > 0:
+                    fgts_used_this_month = self._fgts_manager.withdraw_for_purchase(
+                        fgts_needed
+                    )
+                    remaining_needed -= fgts_used_this_month
 
             purchase_withdrawal = self._account.withdraw_net(remaining_needed)
             self._purchase_month = month
@@ -518,20 +522,36 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
+        purchase_upfront_effective = purchase_upfront
+        if self.invest_loan_difference and self._upfront_baseline > 0:
+            purchase_upfront_effective = max(
+                0.0, purchase_upfront - self._upfront_baseline
+            )
+
+        # When the purchase happens immediately, skip investing the baseline loan
+        # difference (upfront or installments) because the cash is being used to buy now.
+        additional_investment_effective = additional_investment
+        if status == "Imóvel comprado":
+            additional_investment_effective = 0.0
+        elif self.invest_loan_difference and self._upfront_baseline > 0:
+            additional_investment_effective = max(
+                0.0, additional_investment - self._upfront_baseline
+            )
+
         contributions_outflow = (
             initial_deposit
             + invested_from_external
             + contrib_total
-            + additional_investment
-            + purchase_upfront
+            + additional_investment_effective
+            + purchase_upfront_effective
         )
 
         total_monthly_cost = (
             rent_result["total_rent_cost"] + monthly_additional + contributions_outflow
         )
         cash_flow = -total_monthly_cost
-        if additional_investment > 0:
-            self._total_additional_investments += additional_investment
+        if additional_investment_effective > 0:
+            self._total_additional_investments += additional_investment_effective
 
         withdrawal = (
             cashflow_result["rent_withdrawal"] if self.rent_reduces_investment else 0.0
