@@ -47,6 +47,10 @@ class AmortizationInput(BaseModel):
         False,
         description="If true, fixed values are inflation-adjusted from the first occurrence month",
     )
+    funding_source: Literal["cash", "fgts"] | None = Field(
+        "cash",
+        description="Source of funds for extra amortization: cash (default) or FGTS",
+    )
 
     @model_validator(mode="after")
     def validate_recurrence(self) -> "AmortizationInput":
@@ -73,6 +77,9 @@ class AmortizationInput(BaseModel):
             raise ValueError("value must be >= 0")
         if self.value_type == "percentage" and self.value > 100:
             raise ValueError("percentage value must be <= 100")
+
+        if self.funding_source is None:
+            self.funding_source = "cash"
 
         return self
 
@@ -197,6 +204,39 @@ class FGTSInput(BaseModel):
         ge=0.0,
         description="Maximum FGTS withdrawal at purchase (R$). None means withdraw up to full balance.",
     )
+
+
+class FGTSWithdrawalRecord(BaseModel):
+    month: int
+    amount: float
+    reason: Literal["purchase", "amortization"]
+    success: bool
+    requested_amount: float | None = None
+    error: Literal["insufficient_balance", "cooldown_active", None] | None = None
+    cooldown_ends_at: int | None = None
+    balance_after: float | None = None
+
+
+class PurchaseBreakdown(BaseModel):
+    property_value: float
+    cash_down_payment: float
+    fgts_at_purchase: float
+    total_down_payment: float
+    financed_amount: float
+    upfront_costs: float
+    total_cash_needed: float
+
+
+class FGTSUsageSummary(BaseModel):
+    initial_balance: float
+    total_contributions: float
+    total_withdrawn: float
+    withdrawn_at_purchase: float
+    withdrawn_for_amortizations: float
+    blocked_count: int
+    blocked_total_value: float
+    final_balance: float
+    withdrawal_history: list[FGTSWithdrawalRecord]
 
 
 class MonthlyRecord(BaseModel):
@@ -499,6 +539,14 @@ class ComparisonScenario(BaseModel):
         None,
         description="Investment gains from initial capital kept invested (buy scenario only)",
     )
+    purchase_breakdown: PurchaseBreakdown | None = Field(
+        None,
+        description="Composition of purchase (cash vs FGTS) and financed amount",
+    )
+    fgts_summary: FGTSUsageSummary | None = Field(
+        None,
+        description="Summary of FGTS usage across the scenario",
+    )
 
 
 class ComparisonMetrics(BaseModel):
@@ -556,6 +604,8 @@ class EnhancedComparisonScenario(BaseModel):
     )
     monthly_data: list[MonthlyRecord]
     metrics: ComparisonMetrics
+    purchase_breakdown: PurchaseBreakdown | None = None
+    fgts_summary: FGTSUsageSummary | None = None
 
 
 class ComparisonResult(BaseModel):

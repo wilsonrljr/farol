@@ -1,22 +1,22 @@
+import { useMemo, useState } from 'react';
 import {
+  ActionIcon,
+  Box,
   Button,
+  Collapse,
   Group,
   NumberInput,
   Paper,
   Select,
-  Switch,
-  Tooltip,
-  Table,
-  Collapse,
-  ActionIcon,
-  Text,
-  Stack,
   SimpleGrid,
-  Box,
+  Stack,
+  Switch,
+  Table,
+  Text,
   ThemeIcon,
+  Tooltip,
 } from '@mantine/core';
-import { IconPlus, IconTrash, IconEye, IconCalendar, IconCoin } from '@tabler/icons-react';
-import { useState, useMemo } from 'react';
+import { IconCalendar, IconCoin, IconEye, IconInfoCircle, IconPlus, IconTrash } from '@tabler/icons-react';
 import type { AmortizationInput } from '../api/types';
 
 interface UIText {
@@ -220,7 +220,7 @@ export default function AmortizationsFieldArray({
               </ActionIcon>
             </Group>
 
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
+            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
               <NumberInput
                 label="Mês inicial"
                 description="Quando começa"
@@ -266,7 +266,36 @@ export default function AmortizationsFieldArray({
                   { value: 'percentage', label: '% do Saldo' },
                 ]}
               />
+              <Select
+                label="Fonte do recurso"
+                description="De onde vem o pagamento extra"
+                value={item.funding_source || 'cash'}
+                onChange={(val) => {
+                  const arr = [...value];
+                  arr[idx].funding_source = (val as 'cash' | 'fgts') || 'cash';
+                  onChange(arr);
+                }}
+                data={[
+                  { value: 'cash', label: '�� Recursos Próprios' },
+                  { value: 'fgts', label: '🏦 FGTS' },
+                ]}
+              />
             </SimpleGrid>
+
+            {item.funding_source === 'fgts' && (
+              <Paper
+                p="sm"
+                radius="md"
+                style={{ backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-6))' }}
+              >
+                <Group gap="xs" align="flex-start">
+                  <IconInfoCircle size={16} color="var(--mantine-color-sage-6)" style={{ marginTop: 2 }} />
+                  <Text size="xs" c="dimmed">
+                    FGTS só pode ser usado se houver saldo e após carência de 24 meses desde o último saque (inclui uso na entrada).
+                  </Text>
+                </Group>
+              </Paper>
+            )}
 
             {item.interval_months && (
               <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
@@ -326,7 +355,7 @@ export default function AmortizationsFieldArray({
                   onChange(arr);
                 }}
                 thousandSeparator={item.value_type !== 'percentage' ? '.' : undefined}
-                decimalSeparator=","
+                decimalSeparator="," 
                 prefix={item.value_type !== 'percentage' ? 'R$ ' : undefined}
                 suffix={item.value_type === 'percentage' ? ' %' : undefined}
               />

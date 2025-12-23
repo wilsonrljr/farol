@@ -10,6 +10,7 @@ export interface AmortizationInput {
   occurrences?: number | null; // alternative to end_month
   value_type?: 'fixed' | 'percentage';
   inflation_adjust?: boolean; // adjust fixed values by inflation
+  funding_source?: 'cash' | 'fgts';
 }
 
 // Mirrors backend ContributionInput (same recurrence fields as AmortizationInput,
@@ -36,45 +37,44 @@ export interface FGTSInput {
   max_withdrawal_at_purchase?: number | null; // R$
 }
 
+export interface FGTSWithdrawalRecord {
+  month: number;
+  amount: number;
+  requested_amount?: number | null;
+  reason: 'purchase' | 'amortization';
+  success: boolean;
+  error?: 'insufficient_balance' | 'cooldown_active' | null;
+  cooldown_ends_at?: number | null;
+  balance_after?: number | null;
+}
+
+export interface PurchaseBreakdown {
+  property_value: number;
+  cash_down_payment: number;
+  fgts_at_purchase: number;
+  total_down_payment: number;
+  financed_amount: number;
+  upfront_costs: number;
+  total_cash_needed: number;
+}
+
+export interface FGTSUsageSummary {
+  initial_balance: number;
+  total_contributions: number;
+  total_withdrawn: number;
+  withdrawn_at_purchase: number;
+  withdrawn_for_amortizations: number;
+  blocked_count: number;
+  blocked_total_value: number;
+  final_balance: number;
+  withdrawal_history: FGTSWithdrawalRecord[];
+}
+
 export interface AdditionalCostsInput {
   itbi_percentage?: number; // default 2
   deed_percentage?: number; // default 1
   monthly_hoa?: number | null;
   monthly_property_tax?: number | null;
-}
-
-export interface LoanSimulationInput {
-  property_value: number;
-  down_payment: number;
-  loan_term_years: number;
-  annual_interest_rate?: number | null;
-  monthly_interest_rate?: number | null;
-  loan_type: LoanType;
-  amortizations?: AmortizationInput[];
-  additional_costs?: AdditionalCostsInput;
-  inflation_rate?: number | null;
-  rent_inflation_rate?: number | null;
-  property_appreciation_rate?: number | null;
-}
-
-export interface LoanInstallment {
-  month: number;
-  installment: number;
-  amortization: number;
-  interest: number;
-  outstanding_balance: number;
-  extra_amortization: number;
-}
-
-export interface LoanSimulationResult {
-  loan_value: number;
-  total_paid: number;
-  total_interest_paid: number;
-  installments: LoanInstallment[];
-  original_term_months?: number | null;
-  actual_term_months?: number | null;
-  months_saved?: number | null;
-  total_extra_amortization?: number | null;
 }
 
 export interface ComparisonInput {
@@ -189,6 +189,8 @@ export interface ComparisonScenario {
   net_cost?: number;
   opportunity_cost?: number | null; // Investment gains from initial capital kept invested
   monthly_data: MonthlyRecord[];
+  purchase_breakdown?: PurchaseBreakdown;
+  fgts_summary?: FGTSUsageSummary;
 }
 
 export interface ComparisonResult {

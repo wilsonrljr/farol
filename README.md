@@ -17,13 +17,6 @@ Se preferir rodar localmente, há instruções ao longo deste README.
 
 </details>
 
-<details>
-<summary><strong>Simular financiamento</strong></summary>
-
-&nbsp;
-![Simular financiamento](docs/assets/simulacao.gif)
-
-</details>
 
 ## Autor
 Wilson Rocha Lacerda Junior – desenvolvedor da biblioteca open source de Aprendizado de Máquina [SysIdentPy](https://github.com/wilsonrljr/sysidentpy).
@@ -291,8 +284,7 @@ docker compose build --no-cache
 1. Acesse `http://localhost:5173`.
 2. Explore:
   - Início: visão geral.
-  - Simulação de Financiamento.
-  - Comparação de Cenários.
+    - Comparação de Cenários.
   - Sobre: conceitos e metodologia.
     - Docs: documentação detalhada (Quickstart, Cálculos, Glossário).
 

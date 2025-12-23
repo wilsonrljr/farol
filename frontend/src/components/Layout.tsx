@@ -22,7 +22,6 @@ import {
   IconSun,
   IconMoon,
   IconHome,
-  IconCalculator,
   IconScale,
   IconInfoCircle,
   IconBook,
@@ -37,7 +36,6 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { to: '/', label: 'Início', icon: <IconHome size={18} /> },
-  { to: '/simulacao', label: 'Simulação', icon: <IconCalculator size={18} /> },
   { to: '/comparacao', label: 'Comparação', icon: <IconScale size={18} /> },
 ];
 

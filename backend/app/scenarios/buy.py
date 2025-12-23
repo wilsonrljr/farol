@@ -21,8 +21,13 @@ from ..core.protocols import (
     InvestmentTaxLike,
 )
 from ..domain.mappers import comparison_scenario_to_api
-from ..domain.models import ComparisonScenario as DomainComparisonScenario
-from ..domain.models import MonthlyRecord as DomainMonthlyRecord
+from ..domain.models import (
+    ComparisonScenario as DomainComparisonScenario,
+    FGTSUsageSummary,
+    FGTSWithdrawalRecord,
+    MonthlyRecord as DomainMonthlyRecord,
+    PurchaseBreakdown,
+)
 from ..loans import LoanSimulator, PriceLoanSimulator, SACLoanSimulator
 from ..models import (
     ComparisonScenario,
@@ -53,6 +58,19 @@ class BuyScenarioSimulator(ScenarioSimulator):
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
     _fgts_used_at_purchase: float = field(init=False, default=0.0)
+    _fgts_withdrawals: list[FGTSWithdrawalRecord] = field(
+        init=False, default_factory=list
+    )
+    _fgts_blocked: list[FGTSWithdrawalRecord] = field(init=False, default_factory=list)
+    _purchase_breakdown: PurchaseBreakdown | None = field(init=False, default=None)
+    _fgts_summary: FGTSUsageSummary | None = field(init=False, default=None)
+    _loan_simulator: LoanSimulator | None = field(init=False, default=None)
+    _cash_amortizations: Sequence[AmortizationLike] | None = field(
+        init=False, default=None
+    )
+    _fgts_amortizations: Sequence[AmortizationLike] | None = field(
+        init=False, default=None
+    )
     _loan_value: float = field(init=False, default=0.0)
     _total_upfront_costs: float = field(init=False, default=0.0)
     _total_monthly_additional_costs: float = field(init=False, default=0.0)
@@ -91,10 +109,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self._prepare_simulation()
         self._simulate_loan()
         self._generate_monthly_data()
+        self._build_fgts_summary()
         return self._build_domain_result()
 
     def _prepare_simulation(self) -> None:
         """Prepare simulation parameters."""
+        self._split_amortizations()
         self._total_upfront_costs = self._costs["total_upfront"]
         self._calculate_fgts_usage()
         self._calculate_loan_value()
@@ -118,6 +138,32 @@ class BuyScenarioSimulator(ScenarioSimulator):
         if self._loan_value < 0:
             self._loan_value = 0.0
 
+        self._purchase_breakdown = PurchaseBreakdown(
+            property_value=self.property_value,
+            cash_down_payment=self.down_payment,
+            fgts_at_purchase=self._fgts_used_at_purchase,
+            total_down_payment=self.down_payment + self._fgts_used_at_purchase,
+            financed_amount=self._loan_value,
+            upfront_costs=self._total_upfront_costs,
+            total_cash_needed=self.down_payment + self._total_upfront_costs,
+        )
+
+    def _split_amortizations(self) -> None:
+        """Separate amortizations by funding source (cash vs FGTS)."""
+
+        cash: list[AmortizationLike] = []
+        fgts: list[AmortizationLike] = []
+
+        for amort in self.amortizations or []:
+            source = getattr(amort, "funding_source", None) or "cash"
+            if source == "fgts":
+                fgts.append(amort)
+            else:
+                cash.append(amort)
+
+        self._cash_amortizations = cash or None
+        self._fgts_amortizations = fgts or None
+
     def _simulate_loan(self) -> None:
         """Simulate the loan using appropriate method."""
         simulator: LoanSimulator
@@ -126,7 +172,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 loan_value=self._loan_value,
                 term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=self.amortizations,
+                amortizations=self._cash_amortizations,
+                fgts_amortizations=self._fgts_amortizations,
+                fgts_manager=self._fgts_manager,
                 annual_inflation_rate=self.inflation_rate,
             )
         else:
@@ -134,11 +182,42 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 loan_value=self._loan_value,
                 term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=self.amortizations,
+                amortizations=self._cash_amortizations,
+                fgts_amortizations=self._fgts_amortizations,
+                fgts_manager=self._fgts_manager,
                 annual_inflation_rate=self.inflation_rate,
             )
 
+        self._loan_simulator = simulator
         self._loan_result = simulator.simulate()
+
+        # Capture FGTS outcomes from the loan run
+        self._fgts_withdrawals = [
+            FGTSWithdrawalRecord(
+                month=w.month or 0,
+                amount=w.amount,
+                requested_amount=w.requested_amount,
+                reason="purchase" if w.reason == "purchase" else "amortization",
+                success=w.success,
+                error=w.error,
+                cooldown_ends_at=w.cooldown_ends_at,
+                balance_after=w.balance_after,
+            )
+            for w in getattr(simulator, "_fgts_withdrawals", [])
+        ]
+        self._fgts_blocked = [
+            FGTSWithdrawalRecord(
+                month=w.month or 0,
+                amount=w.amount,
+                requested_amount=w.requested_amount,
+                reason="purchase" if w.reason == "purchase" else "amortization",
+                success=w.success,
+                error=w.error,
+                cooldown_ends_at=w.cooldown_ends_at,
+                balance_after=w.balance_after,
+            )
+            for w in getattr(simulator, "_fgts_blocked", [])
+        ]
 
     def _generate_monthly_data(self) -> None:
         """Generate monthly data records."""
@@ -267,6 +346,61 @@ class BuyScenarioSimulator(ScenarioSimulator):
             ),
         )
 
+    def _build_fgts_summary(self) -> None:
+        """Compose FGTS usage summary for the scenario output."""
+
+        if self._fgts_manager is None:
+            self._fgts_summary = None
+            return
+
+        history = self._fgts_manager.withdrawal_history
+
+        withdrawal_records: list[FGTSWithdrawalRecord] = [
+            FGTSWithdrawalRecord(
+                month=rec.month or 0,
+                amount=rec.amount,
+                requested_amount=rec.requested_amount,
+                reason="purchase" if rec.reason == "purchase" else "amortization",
+                success=rec.success,
+                error=rec.error,
+                cooldown_ends_at=rec.cooldown_ends_at,
+                balance_after=rec.balance_after,
+            )
+            for rec in history
+        ]
+
+        total_withdrawn = sum(r.amount for r in withdrawal_records if r.success)
+        withdrawn_at_purchase = sum(
+            r.amount for r in withdrawal_records if r.success and r.reason == "purchase"
+        )
+        withdrawn_for_amortizations = sum(
+            r.amount
+            for r in withdrawal_records
+            if r.success and r.reason == "amortization"
+        )
+        blocked = [r for r in withdrawal_records if not r.success]
+        blocked_total_value = sum(r.requested_amount or 0.0 for r in blocked)
+
+        monthly_contribution = getattr(self.fgts, "monthly_contribution", 0.0)
+        actual_term_months = (
+            len(self._loan_result.installments)
+            if self._loan_result
+            else self.term_months
+        )
+        total_contributions = monthly_contribution * actual_term_months
+
+        self._fgts_summary = FGTSUsageSummary(
+            initial_balance=getattr(self.fgts, "initial_balance", 0.0),
+            total_contributions=total_contributions,
+            total_withdrawn=total_withdrawn,
+            withdrawn_at_purchase=withdrawn_at_purchase,
+            withdrawn_for_amortizations=withdrawn_for_amortizations,
+            blocked_count=len(blocked),
+            blocked_total_value=blocked_total_value,
+            final_balance=self.fgts_balance,
+            withdrawal_history=withdrawal_records,
+        )
+
     def _build_domain_result(self) -> DomainComparisonScenario:
         """Build the final comparison scenario result (domain)."""
         if self._loan_result is None:
@@ -308,6 +442,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
             total_outflows=total_outflows,
             net_cost=net_cost,
             opportunity_cost=opportunity_cost,
+            purchase_breakdown=self._purchase_breakdown,
+            fgts_summary=self._fgts_summary,
         )
 
 

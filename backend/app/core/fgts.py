@@ -9,11 +9,39 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Literal
 
 from .protocols import FGTSLike
 
 MONTHS_PER_YEAR = 12
 PERCENTAGE_BASE = 100
+FGTS_COOLDOWN_MONTHS = 24
+
+
+class FGTSWithdrawalReason(str, Enum):
+    """Reasons for FGTS withdrawals."""
+
+    PURCHASE = "purchase"
+    AMORTIZATION = "amortization"
+
+
+@dataclass
+class FGTSWithdrawalResult:
+    """Outcome of a FGTS withdrawal attempt."""
+
+    success: bool
+    amount: float
+    requested_amount: float | None = None
+    reason: FGTSWithdrawalReason | None = None
+    month: int | None = None
+    error: Literal[
+        "insufficient_balance",
+        "cooldown_active",
+        None,
+    ] = None
+    cooldown_ends_at: int | None = None
+    balance_after: float = 0.0
 
 
 @dataclass
@@ -31,11 +59,17 @@ class FGTSManager:
 
     _balance: float = field(init=False)
     _monthly_rate: float = field(init=False)
+    _last_withdrawal_month: int | None = field(init=False, default=None)
+    _withdrawal_history: list[FGTSWithdrawalResult] = field(
+        init=False, default_factory=list
+    )
 
     def __post_init__(self) -> None:
         """Initialize computed fields."""
         self._balance = self.initial_balance
         self._monthly_rate = self._compute_monthly_rate()
+        self._withdrawal_history = []
+        self._last_withdrawal_month = None
 
     @classmethod
     def from_input(cls, fgts_input: FGTSLike | None) -> "FGTSManager | None":
@@ -78,6 +112,70 @@ class FGTSManager:
         )
         return self._balance
 
+    def withdraw(
+        self,
+        *,
+        month: int,
+        amount: float,
+        reason: FGTSWithdrawalReason,
+    ) -> FGTSWithdrawalResult:
+        """Unified withdrawal with cooldown and balance validation."""
+
+        # Cooldown applies to amortization attempts after any withdrawal.
+        if reason == FGTSWithdrawalReason.AMORTIZATION:
+            cooldown_result = self._check_cooldown(month, amount)
+            if cooldown_result is not None:
+                self._withdrawal_history.append(cooldown_result)
+                return cooldown_result
+
+        if amount <= 0:
+            result = FGTSWithdrawalResult(
+                success=False,
+                amount=0.0,
+                requested_amount=amount,
+                reason=reason,
+                month=month,
+                balance_after=self._balance,
+            )
+            self._withdrawal_history.append(result)
+            return result
+
+        available = max(0.0, self._balance)
+        if available <= 0:
+            result = FGTSWithdrawalResult(
+                success=False,
+                amount=0.0,
+                requested_amount=amount,
+                reason=reason,
+                month=month,
+                error="insufficient_balance",
+                balance_after=self._balance,
+            )
+            self._withdrawal_history.append(result)
+            return result
+
+        allowed = min(amount, available)
+
+        # Purchase-specific cap
+        if reason == FGTSWithdrawalReason.PURCHASE and (
+            self.max_withdrawal_at_purchase is not None
+        ):
+            allowed = min(allowed, self.max_withdrawal_at_purchase)
+
+        self._balance -= allowed
+        self._last_withdrawal_month = month
+
+        result = FGTSWithdrawalResult(
+            success=True,
+            amount=allowed,
+            requested_amount=amount,
+            reason=reason,
+            month=month,
+            balance_after=self._balance,
+        )
+        self._withdrawal_history.append(result)
+        return result
+
     def withdraw_for_purchase(
         self,
         max_needed: float,
@@ -90,19 +188,49 @@ class FGTSManager:
         Returns:
             Amount actually withdrawn.
         """
-        if not self.use_at_purchase or self._balance <= 0:
+        if not self.use_at_purchase:
             return 0.0
 
-        allowed = min(self._balance, max(0.0, max_needed))
-        if self.max_withdrawal_at_purchase is not None:
-            allowed = min(allowed, self.max_withdrawal_at_purchase)
+        result = self.withdraw(
+            month=0,
+            amount=max(0.0, max_needed),
+            reason=FGTSWithdrawalReason.PURCHASE,
+        )
+        return result.amount
 
-        self._balance -= allowed
-        return allowed
+    def _check_cooldown(
+        self, month: int, requested_amount: float
+    ) -> FGTSWithdrawalResult | None:
+        """Enforce 24-month cooldown between amortization withdrawals."""
+
+        if self._last_withdrawal_month is None:
+            return None
+
+        months_since_last = month - self._last_withdrawal_month
+        if months_since_last >= FGTS_COOLDOWN_MONTHS:
+            return None
+
+        cooldown_ends_at = self._last_withdrawal_month + FGTS_COOLDOWN_MONTHS
+        return FGTSWithdrawalResult(
+            success=False,
+            amount=0.0,
+            requested_amount=requested_amount,
+            reason=FGTSWithdrawalReason.AMORTIZATION,
+            month=month,
+            error="cooldown_active",
+            cooldown_ends_at=cooldown_ends_at,
+            balance_after=self._balance,
+        )
 
     def reset_balance(self, new_balance: float) -> None:
         """Reset balance to a specific value."""
         self._balance = new_balance
+
+    @property
+    def withdrawal_history(self) -> list[FGTSWithdrawalResult]:
+        """Return a copy of withdrawal history."""
+
+        return list(self._withdrawal_history)
 
 
 def compute_fgts_monthly_rate(fgts: FGTSLike | None) -> float:

@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
+from ..core.fgts import FGTSManager, FGTSWithdrawalReason, FGTSWithdrawalResult
 from ..core.protocols import AmortizationLike
 from ..models import LoanInstallment, LoanSimulationResult
 
@@ -32,6 +33,8 @@ class LoanSimulator(ABC):
     monthly_interest_rate: float
     amortizations: Sequence[AmortizationLike] | None = None
     annual_inflation_rate: float | None = None
+    fgts_amortizations: Sequence[AmortizationLike] | None = None
+    fgts_manager: FGTSManager | None = None
 
     # Internal state
     _installments: list[LoanInstallment] = field(init=False, default_factory=list)
@@ -43,6 +46,14 @@ class LoanSimulator(ABC):
     _percent_extra_by_month: dict[int, list[float]] = field(
         init=False, default_factory=dict
     )
+    _fgts_fixed_by_month: dict[int, float] = field(init=False, default_factory=dict)
+    _fgts_percent_by_month: dict[int, list[float]] = field(
+        init=False, default_factory=dict
+    )
+    _fgts_withdrawals: list[FGTSWithdrawalResult] = field(
+        init=False, default_factory=list
+    )
+    _fgts_blocked: list[FGTSWithdrawalResult] = field(init=False, default_factory=list)
 
     def __post_init__(self) -> None:
         """Initialize computed fields."""
@@ -54,9 +65,10 @@ class LoanSimulator(ABC):
             raise ValueError("monthly_interest_rate must be >= 0")
         self._outstanding_balance = self.loan_value
         self._preprocess_amortizations()
+        self._preprocess_fgts_amortizations()
 
     def _preprocess_amortizations(self) -> None:
-        """Preprocess amortization schedule."""
+        """Preprocess amortization schedule (cash)."""
         fixed, percent = preprocess_amortizations(
             self.amortizations,
             self.term_months,
@@ -64,6 +76,17 @@ class LoanSimulator(ABC):
         )
         self._fixed_extra_by_month = fixed
         self._percent_extra_by_month = percent
+
+    def _preprocess_fgts_amortizations(self) -> None:
+        """Preprocess FGTS-backed amortizations separately."""
+
+        fixed, percent = preprocess_amortizations(
+            self.fgts_amortizations,
+            self.term_months,
+            self.annual_inflation_rate,
+        )
+        self._fgts_fixed_by_month = fixed
+        self._fgts_percent_by_month = percent
 
     @property
     def monthly_rate_decimal(self) -> float:
@@ -85,28 +108,49 @@ class LoanSimulator(ABC):
         return self._build_result()
 
     def _calculate_month(self, month: int) -> LoanInstallment:
-        """Calculate a single month's installment."""
+        """Calculate a single month's installment (cash + optional FGTS)."""
+
         starting_balance = self._outstanding_balance
-        extra_amortization = self._calculate_extra_amortization(month)
         interest = starting_balance * self.monthly_rate_decimal
 
         regular_amortization = self._calculate_regular_amortization(month)
         if regular_amortization < 0:
             regular_amortization = 0.0
-
-        # Cap amortizations so we never amortize more than the outstanding balance.
         regular_amortization = min(regular_amortization, starting_balance)
-        remaining_for_extra = max(0.0, starting_balance - regular_amortization)
-        extra_amortization = min(max(0.0, extra_amortization), remaining_for_extra)
 
-        total_amortization = regular_amortization + extra_amortization
+        # Remaining balance after regular amortization
+        remaining_for_extra = max(0.0, starting_balance - regular_amortization)
+
+        # Cash-backed extra amortization
+        cash_extra = self._calculate_cash_extra(month, starting_balance)
+        cash_extra = min(max(0.0, cash_extra), remaining_for_extra)
+        remaining_after_cash = max(0.0, remaining_for_extra - cash_extra)
+
+        # FGTS-backed extra amortization (subject to cooldown/saldo)
+        fgts_extra = 0.0
+        if self.fgts_manager:
+            requested_fgts = self._calculate_fgts_extra(month, starting_balance)
+            if requested_fgts > 0 and remaining_after_cash > 0:
+                allowed_request = min(requested_fgts, remaining_after_cash)
+                result = self.fgts_manager.withdraw(
+                    month=month,
+                    amount=allowed_request,
+                    reason=FGTSWithdrawalReason.AMORTIZATION,
+                )
+                self._fgts_withdrawals.append(result)
+                if result.success:
+                    fgts_extra = min(result.amount, remaining_after_cash)
+                else:
+                    self._fgts_blocked.append(result)
+
+        total_extra_amortization = cash_extra + fgts_extra
+        total_amortization = regular_amortization + total_extra_amortization
 
         installment_value = interest + total_amortization
         self._outstanding_balance -= total_amortization
 
-        # Update totals
-        if extra_amortization > 0:
-            self._total_extra_amortization += extra_amortization
+        if total_extra_amortization > 0:
+            self._total_extra_amortization += total_extra_amortization
         self._total_paid += installment_value
         self._total_interest_paid += interest
 
@@ -116,16 +160,31 @@ class LoanSimulator(ABC):
             amortization=total_amortization,
             interest=interest,
             outstanding_balance=self._outstanding_balance,
-            extra_amortization=extra_amortization,
+            extra_amortization=total_extra_amortization,
         )
 
-    def _calculate_extra_amortization(self, month: int) -> float:
-        """Calculate extra amortization for a month."""
+    def _calculate_cash_extra(self, month: int, starting_balance: float) -> float:
+        """Calculate extra amortization funded by cash for a month."""
+
         extra = self._fixed_extra_by_month.get(month, 0.0)
 
-        if month in self._percent_extra_by_month and self._outstanding_balance > 0:
+        if month in self._percent_extra_by_month and starting_balance > 0:
             for pct in self._percent_extra_by_month[month]:
-                extra += self._outstanding_balance * (pct / PERCENTAGE_BASE)
+                extra += starting_balance * (pct / PERCENTAGE_BASE)
+
+        return extra
+
+    def _calculate_fgts_extra(self, month: int, starting_balance: float) -> float:
+        """Calculate requested FGTS extra amortization for a month."""
+
+        if not self._fgts_fixed_by_month and not self._fgts_percent_by_month:
+            return 0.0
+
+        extra = self._fgts_fixed_by_month.get(month, 0.0)
+
+        if month in self._fgts_percent_by_month and starting_balance > 0:
+            for pct in self._fgts_percent_by_month[month]:
+                extra += starting_balance * (pct / PERCENTAGE_BASE)
 
         return extra
 

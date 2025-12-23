@@ -1,6 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
 import Home from './routes/Home';
-import LoanSimulation from './routes/LoanSimulation';
 import ScenarioComparison from './routes/ScenarioComparison';
 import About from './routes/About';
 import DocsLayout from './routes/docs/DocsLayout';
@@ -14,7 +13,6 @@ export default function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/simulacao" element={<LoanSimulation />} />
         <Route path="/comparacao" element={<ScenarioComparison />} />
         <Route path="/sobre" element={<About />} />
         <Route path="/docs" element={<DocsLayout />}>

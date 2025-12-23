@@ -24,6 +24,7 @@ class AmortizationLike(Protocol):
     occurrences: int | None
     value_type: str | None
     inflation_adjust: bool | None
+    funding_source: str | None
 
 
 class ContributionLike(Protocol):

@@ -289,6 +289,8 @@ def _enhanced_compare_scenarios_domain(
             net_cost=sc.net_cost,
             monthly_data=sc.monthly_data,
             metrics=metrics_calculator.calculate(sc),
+            purchase_breakdown=sc.purchase_breakdown,
+            fgts_summary=sc.fgts_summary,
         )
         for sc in basic.scenarios
     ]

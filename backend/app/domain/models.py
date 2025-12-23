@@ -12,6 +12,42 @@ from typing import Literal
 
 
 @dataclass
+class FGTSWithdrawalRecord:
+    month: int
+    amount: float
+    reason: Literal["purchase", "amortization"]
+    success: bool
+    requested_amount: float | None = None
+    error: str | None = None
+    cooldown_ends_at: int | None = None
+    balance_after: float | None = None
+
+
+@dataclass
+class PurchaseBreakdown:
+    property_value: float
+    cash_down_payment: float
+    fgts_at_purchase: float
+    total_down_payment: float
+    financed_amount: float
+    upfront_costs: float
+    total_cash_needed: float
+
+
+@dataclass
+class FGTSUsageSummary:
+    initial_balance: float
+    total_contributions: float
+    total_withdrawn: float
+    withdrawn_at_purchase: float
+    withdrawn_for_amortizations: float
+    blocked_count: int
+    blocked_total_value: float
+    final_balance: float
+    withdrawal_history: list[FGTSWithdrawalRecord]
+
+
+@dataclass
 class MonthlyRecord:
     month: int
     cash_flow: float
@@ -100,6 +136,8 @@ class ComparisonScenario:
     total_outflows: float | None = None
     net_cost: float | None = None
     opportunity_cost: float | None = None
+    purchase_breakdown: PurchaseBreakdown | None = None
+    fgts_summary: FGTSUsageSummary | None = None
 
 
 @dataclass
@@ -126,6 +164,8 @@ class EnhancedComparisonScenario:
     metrics: ComparisonMetrics
     total_outflows: float | None = None
     net_cost: float | None = None
+    purchase_breakdown: PurchaseBreakdown | None = None
+    fgts_summary: FGTSUsageSummary | None = None
 
 
 @dataclass

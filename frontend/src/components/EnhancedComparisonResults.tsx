@@ -49,6 +49,7 @@ import {
   IconChartArea,
   IconPigMoney,
   IconHelpCircle,
+  IconAlertCircle,
 } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 
@@ -234,6 +235,87 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           </Text>
         </Box>
       </SimpleGrid>
+
+      {/* Purchase breakdown (buy scenario) */}
+      {s.purchase_breakdown && (
+        <Box
+          p="md"
+          mt="md"
+          style={{
+            backgroundColor: 'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))',
+            borderRadius: rem(10),
+          }}
+        >
+          <Text size="xs" c="dimmed" fw={600} mb={6}>
+            Composição da compra
+          </Text>
+          <SimpleGrid cols={2} spacing="xs">
+            <Group gap={6} align="center">
+              <Text size="sm" c="sage.7">Entrada em dinheiro</Text>
+              <Text size="sm" fw={700}>{money(s.purchase_breakdown.cash_down_payment)}</Text>
+            </Group>
+            <Group gap={6} align="center">
+              <Text size="sm" c="sage.7">FGTS na entrada</Text>
+              <Text size="sm" fw={700}>{money(s.purchase_breakdown.fgts_at_purchase)}</Text>
+            </Group>
+            <Group gap={6} align="center">
+              <Text size="sm" c="sage.7">Financiado</Text>
+              <Text size="sm" fw={700}>{money(s.purchase_breakdown.financed_amount)}</Text>
+            </Group>
+            <Group gap={6} align="center">
+              <Text size="sm" c="sage.7">Custos (ITBI+escritura)</Text>
+              <Text size="sm" fw={700}>{money(s.purchase_breakdown.upfront_costs)}</Text>
+            </Group>
+          </SimpleGrid>
+        </Box>
+      )}
+
+      {/* FGTS summary */}
+      {s.fgts_summary && (
+        <Box
+          p="md"
+          mt="md"
+          style={{
+            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+            borderRadius: rem(10),
+          }}
+        >
+          <Group gap={8} mb={8}>
+            <ThemeIcon size={28} radius="xl" color="sage" variant="filled">
+              <IconPigMoney size={16} />
+            </ThemeIcon>
+            <Box>
+              <Text size="sm" fw={700}>FGTS</Text>
+              <Text size="xs" c="dimmed">Saldo final {money(s.fgts_summary.final_balance)} | Saques {money(s.fgts_summary.total_withdrawn)}</Text>
+            </Box>
+          </Group>
+          <SimpleGrid cols={2} spacing="xs">
+            <Group gap={6} align="center">
+              <Text size="sm" c="sage.7">Usado na entrada</Text>
+              <Text size="sm" fw={700}>{money(s.fgts_summary.withdrawn_at_purchase)}</Text>
+            </Group>
+            <Group gap={6} align="center">
+              <Text size="sm" c="sage.7">Amortizações FGTS</Text>
+              <Text size="sm" fw={700}>{money(s.fgts_summary.withdrawn_for_amortizations)}</Text>
+            </Group>
+          </SimpleGrid>
+          {s.fgts_summary.blocked_count > 0 && (
+            <Alert
+              mt={10}
+              color="warning"
+              variant="light"
+              icon={<IconAlertCircle size={14} />}
+            >
+              <Text size="xs" fw={600} c="warning.7">
+                {s.fgts_summary.blocked_count} amortização(ões) FGTS não aplicada(s)
+              </Text>
+              <Text size="xs" c="dimmed">
+                Valor solicitado: {money(s.fgts_summary.blocked_total_value)} (carência de 24 meses ou saldo insuficiente).
+              </Text>
+            </Alert>
+          )}
+        </Box>
+      )}
 
       {/* Additional info */}
       <Divider my="md" color="sage.2" />

@@ -128,13 +128,13 @@ export default function Home() {
               </Button>
               <Button
                 component={Link}
-                to="/simulacao"
+                to="/docs/quickstart"
                 size="lg"
                 radius="xl"
                 variant="outline"
                 color="sage"
               >
-                Simular Financiamento
+                Como funciona
               </Button>
             </Group>
           </Box>
@@ -227,7 +227,7 @@ export default function Home() {
             icon={<IconBuildingBank size={24} />}
             title="Financiamento SAC e PRICE"
             description="Simule financiamentos com sistemas SAC ou PRICE, incluindo amortizações extras."
-            link="/simulacao"
+            link="/comparacao"
             color="sage"
           />
           <FeatureCard
