@@ -100,11 +100,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         # As a renter, we do not pay ownership costs (HOA/IPTU). Keep them zero here.
         monthly_hoa, monthly_property_tax, monthly_additional = 0.0, 0.0, 0.0
-        total_monthly_cost = current_rent
-        self._total_rent_paid += total_monthly_cost
 
         # Process cashflows (external cover, optional investing surplus, optional withdrawal)
-        cashflow_result = self._process_monthly_cashflows(total_monthly_cost)
+        cashflow_result = self._process_monthly_cashflows(current_rent)
+        self._total_rent_paid += cashflow_result["actual_rent_paid"]
 
         # Apply investment returns
         investment_result = self._account.apply_monthly_return(month)
@@ -115,7 +114,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional=monthly_additional,
-            total_monthly_cost=total_monthly_cost,
+            actual_rent_paid=cashflow_result["actual_rent_paid"],
+            rent_shortfall=cashflow_result["rent_shortfall"],
             cashflow_result=cashflow_result,
             investment_result=investment_result,
             property_value=current_property_value,
@@ -123,7 +123,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     def _process_monthly_cashflows(
         self,
-        total_monthly_cost: float,
+        rent_due: float,
     ) -> dict[str, float]:
         """Process monthly cashflows including external savings and rent withdrawal."""
         rent_withdrawal = 0.0
@@ -136,7 +136,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         remaining_before_return = self._account.balance
 
         if self.rent_reduces_investment:
-            cost_remaining = total_monthly_cost
+            cost_remaining = rent_due
 
             if self.monthly_external_savings and self.monthly_external_savings > 0:
                 external_cover = min(cost_remaining, self.monthly_external_savings)
@@ -153,11 +153,16 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             withdrawal_tax_paid = withdrawal.tax_paid
             withdrawal_realized_gain = withdrawal.realized_gain
             remaining_before_return = self._account.balance
+        else:
+            if self.monthly_external_savings and self.monthly_external_savings > 0:
+                self._account.deposit(self.monthly_external_savings)
+                external_surplus_invested = self.monthly_external_savings
+                remaining_before_return = self._account.balance
 
-        # If rent is paid externally (rent_reduces_investment=False), we should NOT
-        # also invest the external savings, otherwise we double-count the same cash
-        # (paga o aluguel fora e ainda investe o mesmo valor). So we only invest
-        # surplus when it first tried to cover the rent (branch above).
+        actual_rent_paid = (
+            external_cover + rent_withdrawal if self.rent_reduces_investment else rent_due
+        )
+        rent_shortfall = max(0.0, rent_due - actual_rent_paid)
 
         return {
             "rent_withdrawal": rent_withdrawal,
@@ -168,6 +173,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             "investment_withdrawal_net": rent_withdrawal,
             "investment_withdrawal_realized_gain": withdrawal_realized_gain,
             "investment_withdrawal_tax_paid": withdrawal_tax_paid,
+            "actual_rent_paid": actual_rent_paid,
+            "rent_shortfall": rent_shortfall,
         }
 
     def _create_monthly_record(
@@ -175,10 +182,11 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         *,
         month: int,
         current_rent: float,
+        actual_rent_paid: float,
         monthly_hoa: float,
         monthly_property_tax: float,
         monthly_additional: float,
-        total_monthly_cost: float,
+        rent_shortfall: float,
         cashflow_result: dict[str, float],
         investment_result: InvestmentResult,
         property_value: float,
@@ -200,14 +208,14 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
-        total_monthly_cost = current_rent + initial_deposit + invested_from_external
+        total_monthly_cost = actual_rent_paid + initial_deposit + invested_from_external
 
         return DomainMonthlyRecord(
             month=month,
             cash_flow=-total_monthly_cost,
             investment_balance=self._account.balance,
             investment_return=investment_return,
-            rent_paid=current_rent,
+            rent_paid=actual_rent_paid,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
