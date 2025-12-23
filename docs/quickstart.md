@@ -88,6 +88,7 @@ Consulte:
 | Aluguel consome investimento | rent_reduces_investment |
 | Renda Externa p/ Custos | monthly_external_savings |
 | Investir sobra externa | invest_external_surplus |
+Nota: a sobra da renda externa só é investida quando o aluguel/custos são pagos a partir do investimento (rent_reduces_investment=true). Se você paga aluguel totalmente por fora e quer investir um valor mensal, prefira um aporte fixo.
 
 Esse quadro é apenas para usuários avançados / integração.
 
