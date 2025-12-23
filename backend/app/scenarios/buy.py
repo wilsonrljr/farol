@@ -254,7 +254,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
             # Running totals (new semantics): include all cash allocations/outflows.
             # Month 1 includes down payment + upfront costs.
             if month == 1:
-                cumulative_payments += self.down_payment + self._total_upfront_costs
+                cumulative_payments += (
+                    self.down_payment
+                    + self._total_upfront_costs
+                    + self._fgts_used_at_purchase
+                )
                 if self.initial_investment > 0:
                     cumulative_payments += self.initial_investment
 
@@ -306,7 +310,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
         equity = property_value - outstanding_balance
         upfront_and_initial = 0.0
         if month == 1:
-            upfront_and_initial = self.down_payment + self._total_upfront_costs
+            upfront_and_initial = (
+                self.down_payment
+                + self._total_upfront_costs
+                + self._fgts_used_at_purchase
+            )
             if self.initial_investment > 0:
                 upfront_and_initial += self.initial_investment
 

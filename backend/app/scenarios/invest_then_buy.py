@@ -453,11 +453,16 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         monthly_additional = rent_result["monthly_additional"]
 
         investment_available = self._account.liquidation_net_value()
-        fgts_available = (
-            self.fgts_balance
-            if (self._fgts_manager and self._fgts_manager.use_at_purchase)
-            else 0.0
-        )
+        withdrawable_fgts = 0.0
+        if self._fgts_manager and self._fgts_manager.use_at_purchase:
+            withdrawable_fgts = min(self.fgts_balance, current_property_value)
+            max_withdrawal = getattr(
+                self._fgts_manager, "max_withdrawal_at_purchase", None
+            )
+            if max_withdrawal is not None:
+                withdrawable_fgts = min(withdrawable_fgts, float(max_withdrawal))
+
+        fgts_available = withdrawable_fgts
 
         # Business rule: FGTS can help with the property price, but not with
         # transaction costs like ITBI/escritura. Those must be covered by cash

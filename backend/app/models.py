@@ -396,7 +396,7 @@ class ComparisonInput(BaseModel):
     loan_type: Literal["SAC", "PRICE"] = Field(
         ..., description="Loan type: SAC or PRICE"
     )
-    rent_value: float | None = Field(None, description="Monthly rent value")
+    rent_value: float | None = Field(None, ge=0.0, description="Monthly rent value")
     rent_percentage: float | None = Field(
         None, ge=0.0, description="Rent as percentage of property value"
     )
