@@ -154,11 +154,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             withdrawal_realized_gain = withdrawal.realized_gain
             remaining_before_return = self._account.balance
 
-        elif self.invest_external_surplus and self.monthly_external_savings:
-            if self.monthly_external_savings > 0:
-                self._account.deposit(self.monthly_external_savings)
-                external_surplus_invested = self.monthly_external_savings
-                remaining_before_return = self._account.balance
+        # If rent is paid externally (rent_reduces_investment=False), we should NOT
+        # also invest the external savings, otherwise we double-count the same cash
+        # (paga o aluguel fora e ainda investe o mesmo valor). So we only invest
+        # surplus when it first tried to cover the rent (branch above).
 
         return {
             "rent_withdrawal": rent_withdrawal,
