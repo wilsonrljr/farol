@@ -54,6 +54,9 @@ class LoanSimulator(ABC):
         init=False, default_factory=list
     )
     _fgts_blocked: list[FGTSWithdrawalResult] = field(init=False, default_factory=list)
+    _fgts_balance_timeline: list[tuple[int, float]] = field(
+        init=False, default_factory=list
+    )
 
     def __post_init__(self) -> None:
         """Initialize computed fields."""
@@ -99,8 +102,15 @@ class LoanSimulator(ABC):
         Template method that defines the simulation algorithm.
         """
         for month in range(1, self.term_months + 1):
+            if self.fgts_manager:
+                # Accrue FGTS before using it for amortization in the same month.
+                self.fgts_manager.accumulate_monthly()
             installment = self._calculate_month(month)
             self._installments.append(installment)
+
+            if self.fgts_manager:
+                # Capture end-of-month FGTS balance (post-withdrawal for this month).
+                self._fgts_balance_timeline.append((month, self.fgts_manager.balance))
 
             if self._outstanding_balance <= 0:
                 break

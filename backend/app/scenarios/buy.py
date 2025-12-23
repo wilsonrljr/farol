@@ -232,11 +232,23 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
         installments = self._loan_result.installments
         actual_term_months = len(installments)
+        fgts_balance_timeline = (
+            dict(getattr(self._loan_simulator, "_fgts_balance_timeline", []))
+            if self._loan_simulator
+            else {}
+        )
 
         for month in range(1, self.term_months + 1):
             inst = installments[month - 1] if month <= actual_term_months else None
 
-            self.accumulate_fgts()
+            fgts_balance_current = None
+            if self._fgts_manager:
+                if month <= actual_term_months:
+                    fgts_balance_current = fgts_balance_timeline.get(
+                        month, self._fgts_manager.balance
+                    )
+                else:
+                    fgts_balance_current = self.accumulate_fgts()
 
             property_value = apply_property_appreciation(
                 self.property_value,
@@ -289,6 +301,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 amortization_value,
                 interest_value,
                 outstanding_balance,
+                fgts_balance_current,
             )
             self._monthly_data.append(record)
 
@@ -305,6 +318,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         amortization_value: float,
         interest_value: float,
         outstanding_balance: float,
+        fgts_balance_current: float | None,
     ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment."""
         equity = property_value - outstanding_balance
@@ -325,6 +339,13 @@ class BuyScenarioSimulator(ScenarioSimulator):
         # Include investment balance only if tracking opportunity cost
         investment_balance = (
             self._investment_balance if self.initial_investment > 0 else None
+        )
+
+        # Prefer per-mês FGTS balance when disponível; mantém None quando não há FGTS.
+        fgts_balance_value = (
+            fgts_balance_current
+            if self.fgts and fgts_balance_current is not None
+            else (self.fgts_balance if self.fgts else None)
         )
 
         return DomainMonthlyRecord(
@@ -348,7 +369,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
             ),
             scenario_type="buy",
             upfront_additional_costs=self._total_upfront_costs if month == 1 else 0.0,
-            fgts_balance=self.fgts_balance if self.fgts else None,
+            fgts_balance=fgts_balance_value,
             fgts_used=(
                 self._fgts_used_at_purchase if (self.fgts and month == 1) else 0.0
             ),
@@ -390,12 +411,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         blocked_total_value = sum(r.requested_amount or 0.0 for r in blocked)
 
         monthly_contribution = getattr(self.fgts, "monthly_contribution", 0.0)
-        actual_term_months = (
-            len(self._loan_result.installments)
-            if self._loan_result
-            else self.term_months
-        )
-        total_contributions = monthly_contribution * actual_term_months
+        total_contributions = monthly_contribution * self.term_months
 
         self._fgts_summary = FGTSUsageSummary(
             initial_balance=getattr(self.fgts, "initial_balance", 0.0),
