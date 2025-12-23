@@ -276,7 +276,7 @@ export default function AmortizationsFieldArray({
                   onChange(arr);
                 }}
                 data={[
-                  { value: 'cash', label: '�� Recursos Próprios' },
+                  { value: 'cash', label: '💵 Recursos Próprios' },
                   { value: 'fgts', label: '🏦 FGTS' },
                 ]}
               />
