@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.scenarios.comparison import compare_scenarios
-from app.models import InvestmentReturnInput
+from backend.app.scenarios.comparison import compare_scenarios
+from backend.app.models import InvestmentReturnInput
 
 
 def base_params() -> dict[str, Any]:

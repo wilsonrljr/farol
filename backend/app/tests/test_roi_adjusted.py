@@ -1,5 +1,5 @@
-from app.scenarios.comparison import enhanced_compare_scenarios
-from app.models import InvestmentReturnInput
+from backend.app.scenarios.comparison import enhanced_compare_scenarios
+from backend.app.models import InvestmentReturnInput
 
 
 def test_roi_adjusted_present_when_withdrawals():

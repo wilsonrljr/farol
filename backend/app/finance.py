@@ -20,6 +20,9 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+from collections.abc import Sequence
+
+from .core.protocols import AmortizationLike
 from .loans import PriceLoanSimulator, SACLoanSimulator
 from .models import AmortizationInput, LoanSimulationResult
 
@@ -28,7 +31,7 @@ def simulate_sac_loan(
     loan_value: float,
     term_months: int,
     monthly_interest_rate: float,
-    amortizations: list[AmortizationInput] | None = None,
+    amortizations: Sequence[AmortizationLike] | None = None,
     annual_inflation_rate: float | None = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the SAC (Sistema de Amortização Constante) method.
@@ -57,7 +60,7 @@ def simulate_price_loan(
     loan_value: float,
     term_months: int,
     monthly_interest_rate: float,
-    amortizations: list[AmortizationInput] | None = None,
+    amortizations: Sequence[AmortizationLike] | None = None,
     annual_inflation_rate: float | None = None,
 ) -> LoanSimulationResult:
     """Simulate a loan using the PRICE (French) method.

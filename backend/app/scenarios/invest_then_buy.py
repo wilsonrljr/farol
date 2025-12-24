@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
 from ..core.costs import CostsBreakdown, calculate_additional_costs
+from ..core.fgts import FGTSManager
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount, InvestmentResult
 from ..core.protocols import (
@@ -111,20 +112,33 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         self._upfront_baseline = costs["total_upfront"]
 
         # Baseline should mirror a "buy now" financing decision as closely as possible.
-        # If FGTS is configured to be used at purchase, it reduces the financed amount.
+        # Important: baseline must NOT mutate the scenario's FGTS manager/balance, so we
+        # create an isolated manager instance here.
+        baseline_fgts_manager = FGTSManager.from_input(self.fgts)
+
         fgts_used_at_purchase = 0.0
-        if self.fgts and getattr(self.fgts, "use_at_purchase", False):
+        if baseline_fgts_manager and baseline_fgts_manager.use_at_purchase:
             max_needed = max(0.0, self.property_value - self.down_payment)
-            fgts_available = float(getattr(self.fgts, "initial_balance", 0.0) or 0.0)
-            allowed = min(fgts_available, max_needed)
-            max_withdrawal = getattr(self.fgts, "max_withdrawal_at_purchase", None)
-            if max_withdrawal is not None:
-                allowed = min(allowed, float(max_withdrawal))
-            fgts_used_at_purchase = max(0.0, allowed)
+            # Purchase is assumed at month 1 (same semantics as BuyScenarioSimulator).
+            fgts_used_at_purchase = baseline_fgts_manager.withdraw_for_purchase(
+                max_needed,
+                month=1,
+            )
 
         loan_value = self.property_value - self.down_payment - fgts_used_at_purchase
         if loan_value < 0:
             loan_value = 0.0
+
+        # Split amortizations by funding source so FGTS amortizations obey cooldown/saldo
+        # rules in the baseline as they do in the real buy scenario.
+        cash_amortizations: list[AmortizationLike] = []
+        fgts_amortizations: list[AmortizationLike] = []
+        for amort in self.loan_amortizations or []:
+            source = getattr(amort, "funding_source", None) or "cash"
+            if source == "fgts":
+                fgts_amortizations.append(amort)
+            else:
+                cash_amortizations.append(amort)
 
         simulator: LoanSimulator
         if self.loan_type == "SAC":
@@ -132,9 +146,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 loan_value=loan_value,
                 term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=(
-                    list(self.loan_amortizations) if self.loan_amortizations else None
-                ),
+                amortizations=cash_amortizations or None,
+                fgts_amortizations=fgts_amortizations or None,
+                fgts_manager=baseline_fgts_manager,
                 annual_inflation_rate=self.inflation_rate,
             )
         else:
@@ -142,9 +156,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 loan_value=loan_value,
                 term_months=self.term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=(
-                    list(self.loan_amortizations) if self.loan_amortizations else None
-                ),
+                amortizations=cash_amortizations or None,
+                fgts_amortizations=fgts_amortizations or None,
+                fgts_manager=baseline_fgts_manager,
                 annual_inflation_rate=self.inflation_rate,
             )
 
@@ -753,6 +767,3 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             total_outflows=total_outflows,
             net_cost=net_cost,
         )
-
-
-
