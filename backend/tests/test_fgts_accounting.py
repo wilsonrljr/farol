@@ -1,22 +1,19 @@
 import pytest
 
-from backend.app.finance import (
-    simulate_buy_scenario,
-    simulate_invest_then_buy_scenario,
-)
+from backend.app.scenarios.buy import BuyScenarioSimulator
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
 
 
 def test_buy_fgts_withdrawal_counts_as_outflow():
     """FGTS usado na compra deve aparecer em total_outflows."""
 
-    result = simulate_buy_scenario(
+    result = BuyScenarioSimulator(
         property_value=100_000,
         down_payment=10_000,
         loan_term_years=1,
         monthly_interest_rate=0.0,
         loan_type="SAC",
-        amortizations=None,
         additional_costs=AdditionalCostsInput(
             itbi_percentage=0.0,
             deed_percentage=0.0,
@@ -32,7 +29,7 @@ def test_buy_fgts_withdrawal_counts_as_outflow():
             use_at_purchase=True,
             max_withdrawal_at_purchase=None,
         ),
-    )
+    ).simulate()
 
     fgts_used = result.purchase_breakdown.fgts_at_purchase
     sum_installments = sum(m.installment or 0.0 for m in result.monthly_data)
@@ -48,7 +45,7 @@ def test_buy_fgts_withdrawal_counts_as_outflow():
 def test_invest_then_buy_respects_fgts_withdrawal_cap():
     """Compra à vista não deve ocorrer se o FGTS sacável + caixa for insuficiente."""
 
-    result = simulate_invest_then_buy_scenario(
+    result = InvestThenBuyScenarioSimulator(
         property_value=100_000,
         down_payment=85_000,  # saldo em caixa/investimento
         term_months=6,
@@ -68,7 +65,7 @@ def test_invest_then_buy_respects_fgts_withdrawal_cap():
             use_at_purchase=True,
             max_withdrawal_at_purchase=10_000.0,
         ),
-    )
+    ).simulate()
 
     # Só 85k em caixa + 10k de FGTS liberado < 100k do imóvel => compra não deve ocorrer.
     assert all(m.status != "Imóvel comprado" for m in result.monthly_data)

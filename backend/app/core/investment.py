@@ -229,31 +229,3 @@ class InvestmentAccount:
             realized_gain=realized_gain,
             tax_paid=tax_paid,
         )
-
-
-def apply_investment_return_with_tax(
-    investment_balance: float,
-    *,
-    investment_returns: Sequence[InvestmentReturnLike],
-    month: int,
-    investment_tax: InvestmentTaxLike | None,
-) -> tuple[float, float, float, float]:
-    """Apply investment return with optional taxation.
-
-    Legacy function for backward compatibility.
-
-    Returns:
-        Tuple of (new_balance, gross_return, tax_paid, net_return).
-    """
-    calculator = InvestmentCalculator(
-        investment_returns=investment_returns,
-        investment_tax=investment_tax,
-    )
-    result = calculator.calculate_monthly_return(investment_balance, month)
-
-    return (
-        result.new_balance,
-        result.gross_return,
-        result.tax_paid,
-        result.net_return,
-    )

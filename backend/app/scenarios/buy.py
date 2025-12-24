@@ -472,35 +472,3 @@ class BuyScenarioSimulator(ScenarioSimulator):
             fgts_summary=self._fgts_summary,
         )
 
-
-def simulate_buy_scenario(
-    property_value: float,
-    down_payment: float,
-    loan_term_years: int,
-    monthly_interest_rate: float,
-    loan_type: str,
-    amortizations: Sequence[AmortizationLike] | None = None,
-    _investment_returns: object = None,  # Not used, kept for API compatibility
-    additional_costs: AdditionalCostsLike | None = None,
-    inflation_rate: float | None = None,
-    property_appreciation_rate: float | None = None,
-    _investment_tax: object = None,  # Not used
-    fgts: FGTSLike | None = None,
-) -> ComparisonScenario:
-    """Simulate buying a property with a loan.
-
-    Legacy function for backward compatibility.
-    """
-    simulator = BuyScenarioSimulator(
-        property_value=property_value,
-        down_payment=down_payment,
-        loan_term_years=loan_term_years,
-        monthly_interest_rate=monthly_interest_rate,
-        loan_type=loan_type,
-        amortizations=amortizations,
-        property_appreciation_rate=property_appreciation_rate,
-        additional_costs=additional_costs,
-        inflation_rate=inflation_rate,
-        fgts=fgts,
-    )
-    return simulator.simulate()

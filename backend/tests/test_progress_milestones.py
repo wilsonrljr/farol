@@ -1,6 +1,6 @@
 import unittest
 
-from app.finance import compare_scenarios
+from app.scenarios.comparison import compare_scenarios
 from app.models import InvestmentReturnInput
 
 

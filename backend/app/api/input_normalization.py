@@ -9,7 +9,7 @@ This keeps frontend error handling ergonomic.
 
 from __future__ import annotations
 
-from ..finance import convert_interest_rate
+from ..core.rates import convert_interest_rate
 
 
 def resolve_monthly_interest_rate(

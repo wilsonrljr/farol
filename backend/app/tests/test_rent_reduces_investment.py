@@ -1,9 +1,9 @@
-from backend.app.finance import simulate_rent_and_invest_scenario
+from backend.app.scenarios.rent_and_invest import RentAndInvestScenarioSimulator
 from backend.app.models import AdditionalCostsInput, InvestmentReturnInput
 
 
 def test_rent_does_not_reduce_when_flag_false():
-    scenario = simulate_rent_and_invest_scenario(
+    scenario = RentAndInvestScenarioSimulator(
         property_value=300000,
         down_payment=50000,
         term_months=12,
@@ -14,7 +14,7 @@ def test_rent_does_not_reduce_when_flag_false():
         rent_inflation_rate=0,
         property_appreciation_rate=0,
         rent_reduces_investment=False,
-    )
+    ).simulate()
     # Investment should only grow (no withdrawals)
     balances = [m.investment_balance or 0.0 for m in scenario.monthly_data]
     assert all(balances[i] <= balances[i + 1] for i in range(len(balances) - 1))
@@ -24,7 +24,7 @@ def test_rent_does_not_reduce_when_flag_false():
 
 
 def test_rent_reduces_when_flag_true():
-    scenario = simulate_rent_and_invest_scenario(
+    scenario = RentAndInvestScenarioSimulator(
         property_value=300000,
         down_payment=50000,
         term_months=12,
@@ -35,7 +35,7 @@ def test_rent_reduces_when_flag_true():
         rent_inflation_rate=0,
         property_appreciation_rate=0,
         rent_reduces_investment=True,
-    )
+    ).simulate()
     withdrawals = [
         (m.rent_withdrawal_from_investment or 0) for m in scenario.monthly_data
     ]

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from backend.app.finance import InvestThenBuyScenarioSimulator
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
 
 

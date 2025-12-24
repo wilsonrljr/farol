@@ -2,7 +2,7 @@
 Derived from prior verbose script `test_property_appreciation.py`.
 """
 
-from backend.app.finance import simulate_invest_then_buy_scenario
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import InvestmentReturnInput
 
 
@@ -14,14 +14,14 @@ def test_invest_then_buy_property_follows_inflation():
     inflation_rate = 4.0
     investment_returns = [InvestmentReturnInput(start_month=1, annual_rate=12.0)]
 
-    result = simulate_invest_then_buy_scenario(
+    result = InvestThenBuyScenarioSimulator(
         property_value=property_value,
         down_payment=down_payment,
         term_months=term_months,
         investment_returns=investment_returns,
         rent_value=rent_value,
         inflation_rate=inflation_rate,
-    )
+    ).simulate()
 
     purchase_month = None
     for m in result.monthly_data:

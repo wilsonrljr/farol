@@ -9,16 +9,10 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from .base import ScenarioSimulator
-from .buy import BuyScenarioSimulator, simulate_buy_scenario
+from .buy import BuyScenarioSimulator
 from .comparison import compare_scenarios, enhanced_compare_scenarios
-from .invest_then_buy import (
-    InvestThenBuyScenarioSimulator,
-    simulate_invest_then_buy_scenario,
-)
-from .rent_and_invest import (
-    RentAndInvestScenarioSimulator,
-    simulate_rent_and_invest_scenario,
-)
+from .invest_then_buy import InvestThenBuyScenarioSimulator
+from .rent_and_invest import RentAndInvestScenarioSimulator
 
 __all__ = [
     "BuyScenarioSimulator",
@@ -27,7 +21,4 @@ __all__ = [
     "ScenarioSimulator",
     "compare_scenarios",
     "enhanced_compare_scenarios",
-    "simulate_buy_scenario",
-    "simulate_invest_then_buy_scenario",
-    "simulate_rent_and_invest_scenario",
 ]

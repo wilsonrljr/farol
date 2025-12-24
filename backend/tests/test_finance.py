@@ -5,13 +5,9 @@ import unittest
 # Add the parent directory to the path so we can import the app modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.finance import (
-    compare_scenarios,
-    convert_interest_rate,
-    get_monthly_investment_rate,
-    simulate_price_loan,
-    simulate_sac_loan,
-)
+from app.core.rates import convert_interest_rate, get_monthly_investment_rate
+from app.finance import simulate_price_loan, simulate_sac_loan
+from app.scenarios.comparison import compare_scenarios
 from app.models import AmortizationInput, InvestmentReturnInput
 
 

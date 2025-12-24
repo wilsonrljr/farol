@@ -3,7 +3,7 @@
 Converted from the previous root-level script `test_additional_costs.py`.
 """
 
-from backend.app.finance import calculate_additional_costs
+from backend.app.core.costs import calculate_additional_costs
 from backend.app.models import AdditionalCostsInput
 
 

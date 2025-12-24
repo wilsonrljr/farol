@@ -288,40 +288,4 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
 
 
-def simulate_rent_and_invest_scenario(
-    property_value: float,
-    down_payment: float,
-    term_months: int,
-    rent_value: float,
-    investment_returns: Sequence[InvestmentReturnLike],
-    additional_costs: AdditionalCostsLike | None = None,
-    inflation_rate: float | None = None,
-    rent_inflation_rate: float | None = None,
-    property_appreciation_rate: float | None = None,
-    rent_reduces_investment: bool = False,
-    monthly_external_savings: float | None = None,
-    invest_external_surplus: bool = False,
-    investment_tax: InvestmentTaxLike | None = None,
-    fgts: FGTSLike | None = None,
-) -> ComparisonScenario:
-    """Simulate renting and investing the down payment.
 
-    Legacy function for backward compatibility.
-    """
-    simulator = RentAndInvestScenarioSimulator(
-        property_value=property_value,
-        down_payment=down_payment,
-        term_months=term_months,
-        rent_value=rent_value,
-        investment_returns=investment_returns,
-        additional_costs=additional_costs,
-        inflation_rate=inflation_rate,
-        rent_inflation_rate=rent_inflation_rate,
-        property_appreciation_rate=property_appreciation_rate,
-        rent_reduces_investment=rent_reduces_investment,
-        monthly_external_savings=monthly_external_savings,
-        invest_external_surplus=invest_external_surplus,
-        investment_tax=investment_tax,
-        fgts=fgts,
-    )
-    return simulator.simulate()

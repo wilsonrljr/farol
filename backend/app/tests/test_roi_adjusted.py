@@ -1,4 +1,4 @@
-from app.finance import enhanced_compare_scenarios
+from app.scenarios.comparison import enhanced_compare_scenarios
 from app.models import InvestmentReturnInput
 
 

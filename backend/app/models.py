@@ -20,6 +20,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from .core.costs import AdditionalCostsCalculator
+
 
 def _validate_investment_return_ranges(returns: list["InvestmentReturnInput"]) -> None:
     """Validate that investment return ranges do not overlap.
@@ -423,7 +425,11 @@ class ComparisonInput(BaseModel):
     total_savings: float | None = Field(
         None,
         ge=0.0,
-        description="Total available savings. If provided, initial_investment = total_savings - down_payment",
+        description=(
+            "Total liquid savings available at month 1 (cash). If provided, it must cover the cash down payment "
+            "AND the upfront transaction costs (ITBI + deed) calculated from additional_costs. "
+            "The remaining amount becomes initial_investment."
+        ),
     )
     loan_term_years: int = Field(..., gt=0, description="Loan term in years")
     annual_interest_rate: float | None = Field(
@@ -514,17 +520,36 @@ class ComparisonInput(BaseModel):
             and self.fixed_investment_start_month < 1
         ):
             raise ValueError("fixed_investment_start_month must be >= 1")
-        if self.total_savings is not None and self.total_savings < self.down_payment:
-            raise ValueError("total_savings must be >= down_payment")
+        if self.total_savings is not None:
+            # total_savings represents the user's total liquid cash available at month 1.
+            # It must cover the cash down payment and the upfront transaction costs.
+            costs = AdditionalCostsCalculator.from_input(self.additional_costs).calculate(
+                self.property_value
+            )
+            total_upfront = float(costs["total_upfront"])
+            min_required = self.down_payment + total_upfront
+            if self.total_savings < min_required:
+                raise ValueError(
+                    "total_savings must be >= down_payment + upfront_costs (ITBI + deed)"
+                )
 
         _validate_investment_return_ranges(list(self.investment_returns or []))
         return self
 
     @property
     def initial_investment(self) -> float:
-        """Calculated initial investment capital (total_savings - down_payment)."""
+        """Calculated initial investment capital.
+
+        When total_savings is provided, we treat it as the user's total liquid cash
+        available at month 1. The cash down payment and upfront transaction costs
+        are paid from this pool; whatever remains is invested (initial_investment).
+        """
         if self.total_savings is not None:
-            return self.total_savings - self.down_payment
+            costs = AdditionalCostsCalculator.from_input(self.additional_costs).calculate(
+                self.property_value
+            )
+            total_upfront = float(costs["total_upfront"])
+            return self.total_savings - self.down_payment - total_upfront
         return 0.0
 
 

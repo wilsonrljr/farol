@@ -4,14 +4,14 @@ The invest-then-buy scenario should only allow a purchase when the upfront costs
 are covered by liquid cash (investment liquidation), even if FGTS balance is large.
 """
 
-from backend.app.finance import simulate_invest_then_buy_scenario
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
 
 
 def test_invest_then_buy_requires_cash_for_upfront_costs_even_with_fgts():
     # Property price is 100k; upfront costs are 50% => 50k upfront.
     # Investment cash is only 20k, so purchase must NOT happen even if FGTS is huge.
-    result = simulate_invest_then_buy_scenario(
+    result = InvestThenBuyScenarioSimulator(
         property_value=100_000,
         down_payment=20_000,
         term_months=6,
@@ -31,7 +31,7 @@ def test_invest_then_buy_requires_cash_for_upfront_costs_even_with_fgts():
             use_at_purchase=True,
             max_withdrawal_at_purchase=None,
         ),
-    )
+    ).simulate()
 
     assert all(m.status != "Imóvel comprado" for m in result.monthly_data)
     assert result.monthly_data[0].purchase_month is None

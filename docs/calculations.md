@@ -22,8 +22,21 @@ O simulador calcula mês a mês: saldo devedor restante, juros do mês e amortiz
 ## 4. Investimentos e Aportes
 O saldo investido cresce com: aportes mensais + retornos + reinvestimento de sobras (se configurado) – retiradas para pagar despesas (quando você escolhe “Viver de Renda”). Faixas de retorno permitem simular períodos com taxas diferentes (ex: 12% ao ano depois 8%).
 
+Nota sobre capital inicial (comparação justa):
+- Se você informar **Poupança Total (total_savings)**, o simulador trata isso como o seu **caixa total disponível no mês 1**.
+- Desse caixa, ele “separa” o que seria gasto imediatamente numa compra: **Entrada (down_payment)** + **custos upfront (ITBI + escritura)**.
+- O restante vira o **Investimento Inicial (initial_investment)**, e é esse valor que é carregado como capital investido no início dos três cenários.
+
+Em termos práticos:
+```
+initial_investment = total_savings - down_payment - custos_upfront
+```
+E existe validação: `total_savings` precisa ser **>= down_payment + custos_upfront**.
+
 ## 5. Custos de Compra e Manutenção
 Ao comprar: Entrada + ITBI + Escritura formam o custo inicial. Depois vêm custos mensais como condomínio e IPTU (corrigidos por inflação se informado). Esses valores entram no fluxo de caixa do cenário de compra.
+
+Importante: custos upfront (ITBI + escritura) são custos de transação e não são “investidos”. Na comparação, eles entram como saída de caixa quando a compra acontece.
 
 ## 6. Cenário Comprar Financiado
 Mostra:
@@ -58,6 +71,11 @@ Principais números exibidos:
 - Não modela vacância de aluguel nem manutenção extraordinária
 - Valor temporal do dinheiro (desconto a valor presente) não é aplicado nas métricas básicas
 - ROI usa as saídas totais (total_outflows) como base
+
+FGTS (cronologia simplificada usada no simulador):
+- Quando há **amortização via FGTS** no financiamento, o FGTS é **atualizado no início do mês** (contribuição mensal + rendimento) e só depois pode ser sacado naquele mês.
+- Quando há **uso de FGTS na compra** no cenário de compra financiada, a compra é tratada como evento no **início do mês 1**, então o saque de FGTS na compra não “pega” o rendimento do próprio mês 1.
+- Após qualquer saque, existe janela de **carência (cooldown) de 24 meses** para novos saques com finalidade de amortização.
 
 ## 11. Como Conferir (Auditabilidade Rápida)
 Para validar: compare a parcela inicial com uma calculadora PRICE/SAC externa; confira que retiradas nunca excedem o saldo disponível; observe que valorização e inflação crescem de forma composta.
@@ -132,7 +150,10 @@ Sustentabilidade agregada:
 - average_sustainable_withdrawal_ratio = média(ratio válidos)
 
 ### Onde o Código Mora
-Implementações em `backend/app/finance.py`.
+Implementações principais ficam em:
+- Cenários: `backend/app/scenarios/` (comparação em `backend/app/scenarios/comparison.py`)
+- Empréstimos (SAC/PRICE): `backend/app/loans/`
+- Núcleo (taxas/inflação/investimentos/FGTS/custos): `backend/app/core/`
 
 ---
 ## Mapa de Termos (Interface ↔ Técnico)

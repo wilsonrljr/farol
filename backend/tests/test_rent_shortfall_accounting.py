@@ -9,15 +9,13 @@ And, importantly, total_monthly_cost should always include rent_due so scenarios
 aren't artificially improved when rent can't be fully covered.
 """
 
-from backend.app.finance import (
-    simulate_invest_then_buy_scenario,
-    simulate_rent_and_invest_scenario,
-)
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
+from backend.app.scenarios.rent_and_invest import RentAndInvestScenarioSimulator
 from backend.app.models import InvestmentReturnInput
 
 
 def test_rent_and_invest_shortfall_is_exposed_and_cost_counts_rent_due():
-    result = simulate_rent_and_invest_scenario(
+    result = RentAndInvestScenarioSimulator(
         property_value=300_000,
         down_payment=0.0,
         term_months=1,
@@ -25,7 +23,7 @@ def test_rent_and_invest_shortfall_is_exposed_and_cost_counts_rent_due():
         investment_returns=[InvestmentReturnInput(start_month=1, annual_rate=0.0)],
         rent_reduces_investment=True,
         monthly_external_savings=0.0,
-    )
+    ).simulate()
 
     m1 = result.monthly_data[0]
     assert m1.rent_due == 1_000.0
@@ -40,7 +38,7 @@ def test_rent_and_invest_shortfall_is_exposed_and_cost_counts_rent_due():
 
 
 def test_invest_then_buy_shortfall_is_exposed_and_cost_counts_rent_due_pre_purchase():
-    result = simulate_invest_then_buy_scenario(
+    result = InvestThenBuyScenarioSimulator(
         property_value=300_000,
         down_payment=0.0,
         term_months=1,
@@ -49,7 +47,7 @@ def test_invest_then_buy_shortfall_is_exposed_and_cost_counts_rent_due_pre_purch
         rent_reduces_investment=True,
         monthly_external_savings=0.0,
         invest_loan_difference=False,
-    )
+    ).simulate()
 
     m1 = result.monthly_data[0]
     assert m1.rent_due == 1_000.0

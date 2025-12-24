@@ -1,5 +1,7 @@
 import pytest
-from app.finance import compare_scenarios, convert_interest_rate
+
+from app.core.rates import convert_interest_rate
+from app.scenarios.comparison import compare_scenarios
 from app.models import InvestmentReturnInput
 
 
