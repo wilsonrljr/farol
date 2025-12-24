@@ -175,7 +175,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
             </Text>
             <Help
               label="Custo Líquido"
-              help="Custo total ao longo do tempo (saídas de caixa), considerando entradas/aportes e regras do cenário. Observação: o 'melhor cenário' é escolhido por variação de patrimônio (net_worth_change), não por menor custo líquido."
+              help="Custo líquido estimado no horizonte: total de saídas/alocações (total_outflows) menos o patrimônio final (final_equity). Observação: o 'melhor cenário' é escolhido por variação de patrimônio (net_worth_change), não por menor custo líquido."
             />
           </Group>
           <Group gap={4} align="center">
