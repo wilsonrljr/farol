@@ -56,10 +56,6 @@ class BuyScenarioSimulator(ScenarioSimulator):
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
     _fgts_used_at_purchase: float = field(init=False, default=0.0)
-    _fgts_withdrawals: list[FGTSWithdrawalRecord] = field(
-        init=False, default_factory=list
-    )
-    _fgts_blocked: list[FGTSWithdrawalRecord] = field(init=False, default_factory=list)
     _purchase_breakdown: PurchaseBreakdown | None = field(init=False, default=None)
     _fgts_summary: FGTSUsageSummary | None = field(init=False, default=None)
     _loan_simulator: LoanSimulator | None = field(init=False, default=None)
@@ -190,34 +186,6 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
         self._loan_simulator = simulator
         self._loan_result = simulator.simulate()
-
-        # Capture FGTS outcomes from the loan run
-        self._fgts_withdrawals = [
-            FGTSWithdrawalRecord(
-                month=w.month or 0,
-                amount=w.amount,
-                requested_amount=w.requested_amount,
-                reason="purchase" if w.reason == "purchase" else "amortization",
-                success=w.success,
-                error=w.error,
-                cooldown_ends_at=w.cooldown_ends_at,
-                balance_after=w.balance_after,
-            )
-            for w in getattr(simulator, "_fgts_withdrawals", [])
-        ]
-        self._fgts_blocked = [
-            FGTSWithdrawalRecord(
-                month=w.month or 0,
-                amount=w.amount,
-                requested_amount=w.requested_amount,
-                reason="purchase" if w.reason == "purchase" else "amortization",
-                success=w.success,
-                error=w.error,
-                cooldown_ends_at=w.cooldown_ends_at,
-                balance_after=w.balance_after,
-            )
-            for w in getattr(simulator, "_fgts_blocked", [])
-        ]
 
     def _generate_monthly_data(self) -> None:
         """Generate monthly data records."""

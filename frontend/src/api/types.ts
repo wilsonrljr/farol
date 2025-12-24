@@ -125,7 +125,9 @@ export interface MonthlyRecord {
   equity_percentage?: number;
 
   // Rent/Invest
+  rent_due?: number;
   rent_paid?: number;
+  rent_shortfall?: number;
   liquid_wealth?: number;
   cumulative_rent_paid?: number;
   cumulative_investment_gains?: number;

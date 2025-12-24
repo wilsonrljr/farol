@@ -66,8 +66,18 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
   const color = colorMap[index % colorMap.length];
   const iconMap = [<IconBuildingBank size={24} />, <IconChartLine size={24} />, <IconPigMoney size={24} />];
   
-  const wealthDelta = s.metrics.wealth_accumulation - bestScenario.metrics.wealth_accumulation;
+  // Backend semantics:
+  // - final_equity (a.k.a. final_wealth) represents total wealth at the end (imóvel + investimentos + FGTS).
+  // - equity (monthly record) represents property equity only (imóvel - saldo devedor).
+  const finalWealth = (s.final_wealth ?? s.final_equity) as number;
+  const bestFinalWealth = (bestScenario.final_wealth ?? bestScenario.final_equity) as number;
+  const wealthDelta = finalWealth - bestFinalWealth;
   const costDelta = s.total_cost - bestScenario.total_cost;
+
+  const lastMonth = Array.isArray(s.monthly_data) && s.monthly_data.length > 0
+    ? s.monthly_data[s.monthly_data.length - 1]
+    : null;
+  const propertyEquity = (lastMonth?.equity ?? 0) as number;
 
   const Help = ({ label, help }: { label: string; help: ReactNode }) => (
     <Tooltip label={help} multiline w={320} withArrow position="top-start">
@@ -150,7 +160,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           />
         </Group>
         <Text fw={700} style={{ fontSize: rem(32), lineHeight: 1.1 }} c="bright">
-          {money(s.metrics.wealth_accumulation)}
+          {money(finalWealth)}
         </Text>
         {!isBest && wealthDelta !== 0 && (
           <Group gap={4} mt={4}>
@@ -196,11 +206,11 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
             </Text>
             <Help
               label="Equidade"
-              help="Parcela do imóvel que já é sua (valor do imóvel menos o saldo devedor). Para cenários sem financiamento, representa o valor do imóvel após compra."
+              help="Equidade do imóvel (valor do imóvel menos saldo devedor). Não inclui investimentos nem FGTS. Em cenários sem compra, fica 0."
             />
           </Group>
           <Text fw={600} size="md" c="sage.8">
-            {money(s.final_equity)}
+            {money(propertyEquity)}
           </Text>
         </Box>
         <Box>
