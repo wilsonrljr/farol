@@ -133,6 +133,8 @@ def export_compare_scenarios(
     )
 
     amortizations = cast(Any, input_data.amortizations)
+    contributions = cast(Any, input_data.contributions)
+    investment_tax = cast(Any, input_data.investment_tax)
     result = compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,
@@ -142,7 +144,7 @@ def export_compare_scenarios(
         rent_value=rent_value,
         investment_returns=input_data.investment_returns,
         amortizations=amortizations,
-        contributions=input_data.contributions,
+        contributions=contributions,
         additional_costs=input_data.additional_costs,
         inflation_rate=input_data.inflation_rate,
         rent_inflation_rate=input_data.rent_inflation_rate,
@@ -153,8 +155,9 @@ def export_compare_scenarios(
         rent_reduces_investment=input_data.rent_reduces_investment,
         monthly_external_savings=input_data.monthly_external_savings,
         invest_external_surplus=input_data.invest_external_surplus,
-        investment_tax=input_data.investment_tax,
+        investment_tax=investment_tax,
         fgts=input_data.fgts,
+        initial_investment=input_data.initial_investment,
     )
 
     long_rows: list[dict] = []
@@ -277,6 +280,8 @@ def export_compare_scenarios_enhanced(
     )
 
     amortizations = cast(Any, input_data.amortizations)
+    contributions = cast(Any, input_data.contributions)
+    investment_tax = cast(Any, input_data.investment_tax)
     result = enhanced_compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,
@@ -286,7 +291,7 @@ def export_compare_scenarios_enhanced(
         rent_value=rent_value,
         investment_returns=input_data.investment_returns,
         amortizations=amortizations,
-        contributions=input_data.contributions,
+        contributions=contributions,
         additional_costs=input_data.additional_costs,
         inflation_rate=input_data.inflation_rate,
         rent_inflation_rate=input_data.rent_inflation_rate,
@@ -297,8 +302,9 @@ def export_compare_scenarios_enhanced(
         rent_reduces_investment=input_data.rent_reduces_investment,
         monthly_external_savings=input_data.monthly_external_savings,
         invest_external_surplus=input_data.invest_external_surplus,
-        investment_tax=input_data.investment_tax,
+        investment_tax=investment_tax,
         fgts=input_data.fgts,
+        initial_investment=input_data.initial_investment,
     )
 
     long_rows: list[dict] = []

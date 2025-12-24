@@ -30,7 +30,9 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Saldo Investido: total aplicado após aportes, retiradas e retorno do mês.
 - Valor do Imóvel: preço projetado naquele mês.
 - Juros / Amortização: componentes da parcela (quando financiado).
-- Aluguel Pago: valor do aluguel nesse mês (já com reajuste, se houver).
+- Aluguel Devido: valor do aluguel previsto para aquele mês (já com reajuste, se houver).
+- Aluguel Pago: valor efetivamente pago a partir das fontes modeladas (renda externa + retiradas do investimento, quando habilitado).
+- Shortfall do Aluguel: diferença quando o aluguel devido não conseguiu ser totalmente coberto pelas fontes modeladas (indica necessidade de caixa/crédito fora do modelo).
 - Retirada para Aluguel: quanto saiu do investimento para pagar aluguel/custos.
 - Saldo Antes do Retorno: quanto de capital ficou investido antes de aplicar o rendimento do mês.
 - Razão Retorno/Retirada: quão perto você está da sustentabilidade (>=1 indica que o rendimento daquele mês cobriu a retirada).
@@ -66,6 +68,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Todos os valores são nominais (sem desconto a valor presente).
 - Inflação e valorização são aplicadas de forma composta (juros sobre juros) mês a mês.
 - Retornos de investimento presumem liquidez e reinvestimento imediato.
+- Imposto sobre investimento (quando configurado) pode reduzir o retorno líquido mostrado.
 
 ---
 ## Mapeamento Técnico (Interface ↔ Campos Internos)
@@ -98,6 +101,8 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 | Juros do Mês | interest_payment |
 | Amortização do Mês | amortization |
 | Aluguel Pago | rent_paid |
+| Aluguel Devido | rent_due |
+| Shortfall do Aluguel | rent_shortfall |
 | Retirada para Aluguel | rent_withdrawal_from_investment |
 | Saldo Antes do Retorno | remaining_investment_before_return |
 | Razão Retorno/Retirada | sustainable_withdrawal_ratio |

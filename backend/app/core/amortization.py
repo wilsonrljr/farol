@@ -12,11 +12,13 @@ from collections import defaultdict
 from collections.abc import Sequence
 
 from .inflation import apply_inflation
-from .protocols import AmortizationLike
+from .protocols import AmortizationLike, ContributionLike
+
+AmortizationOrContributionLike = AmortizationLike | ContributionLike
 
 
 def preprocess_amortizations(
-    amortizations: Sequence[AmortizationLike] | None,
+    amortizations: Sequence[AmortizationOrContributionLike] | None,
     term_months: int,
     annual_inflation_rate: float | None = None,
 ) -> tuple[dict[int, float], dict[int, list[float]]]:
@@ -58,7 +60,7 @@ def preprocess_amortizations(
 
 
 def _get_amortization_months(
-    amort: AmortizationLike,
+    amort: AmortizationOrContributionLike,
     term_months: int,
 ) -> list[int]:
     """Determine which months an amortization applies to.
@@ -80,7 +82,7 @@ def _get_amortization_months(
 
 
 def _get_recurring_months(
-    amort: AmortizationLike,
+    amort: AmortizationOrContributionLike,
     term_months: int,
 ) -> list[int]:
     """Get months for recurring amortization.
@@ -103,7 +105,7 @@ def _get_recurring_months(
 
 
 def _distribute_amortization(
-    amort: AmortizationLike,
+    amort: AmortizationOrContributionLike,
     months: list[int],
     base_month: int,
     term_months: int,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.finance import InvestThenBuyScenarioSimulator
-from app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
+from backend.app.finance import InvestThenBuyScenarioSimulator
+from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
 
 
 def test_invest_loan_difference_upfront_not_double_counted():

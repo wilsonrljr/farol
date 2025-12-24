@@ -68,7 +68,9 @@ class MonthlyRecord:
     equity_percentage: float | None = None
 
     # Rent/invest-related
+    rent_due: float | None = None
     rent_paid: float | None = None
+    rent_shortfall: float | None = None
     investment_return: float | None = None
     liquid_wealth: float | None = None
     cumulative_rent_paid: float | None = None

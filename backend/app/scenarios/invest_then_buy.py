@@ -161,7 +161,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             return
 
         fixed, percent = preprocess_amortizations(
-            list(self.contributions) if self.contributions else None,
+            self.contributions,
             self.term_months,
             self.inflation_rate,
         )
@@ -561,9 +561,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             + purchase_upfront_effective
         )
 
-        total_monthly_cost = (
-            actual_rent_paid + monthly_additional + contributions_outflow
-        )
+        # Robustness rule: rent is always due. If it couldn't be fully paid from modeled
+        # sources, the shortfall must still be counted as an outflow.
+        rent_due = current_rent
+        total_monthly_cost = rent_due + monthly_additional + contributions_outflow
         cash_flow = -total_monthly_cost
         if additional_investment_effective > 0:
             self._total_additional_investments += additional_investment_effective
@@ -583,7 +584,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             cash_flow=cash_flow,
             investment_balance=self._account.balance,
             investment_return=investment_return,
+            rent_due=rent_due,
             rent_paid=actual_rent_paid,
+            rent_shortfall=rent_shortfall,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,

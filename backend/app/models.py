@@ -21,6 +21,39 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 
+def _validate_investment_return_ranges(returns: list["InvestmentReturnInput"]) -> None:
+    """Validate that investment return ranges do not overlap.
+
+    The core engine also enforces this month-by-month, but validating up-front
+    yields clearer API errors.
+    """
+
+    if not returns:
+        return
+
+    ordered = sorted(returns, key=lambda r: r.start_month)
+    prev_start = ordered[0].start_month
+    prev_end = ordered[0].end_month
+
+    for r in ordered[1:]:
+        # If the previous range is open-ended, everything after overlaps.
+        if prev_end is None:
+            raise ValueError(
+                "Overlapping investment return ranges are not allowed: "
+                f"[{prev_start}-{prev_end or '∞'}] overlaps with [{r.start_month}-{r.end_month or '∞'}]"
+            )
+
+        # Overlap exists if the next range starts on/before the previous end.
+        if r.start_month <= prev_end:
+            raise ValueError(
+                "Overlapping investment return ranges are not allowed: "
+                f"[{prev_start}-{prev_end}] overlaps with [{r.start_month}-{r.end_month or '∞'}]"
+            )
+
+        prev_start = r.start_month
+        prev_end = r.end_month
+
+
 class AmortizationInput(BaseModel):
     # Original fields (backward compatibility): single event when only month + value provided
     month: int | None = Field(
@@ -160,6 +193,10 @@ class InvestmentReturnInput(BaseModel):
             raise ValueError("end_month must be >= 1")
         if self.end_month is not None and self.end_month < self.start_month:
             raise ValueError("end_month must be >= start_month")
+
+        # Avoid invalid compounding math for rates <= -100% (base <= 0).
+        if self.annual_rate <= -100.0:
+            raise ValueError("annual_rate must be > -100")
         return self
 
 
@@ -259,7 +296,9 @@ class MonthlyRecord(BaseModel):
     equity_percentage: float | None = None
 
     # Rent/invest-related
+    rent_due: float | None = None
     rent_paid: float | None = None
+    rent_shortfall: float | None = None
     investment_return: float | None = None
     liquid_wealth: float | None = None
     cumulative_rent_paid: float | None = None
@@ -477,6 +516,8 @@ class ComparisonInput(BaseModel):
             raise ValueError("fixed_investment_start_month must be >= 1")
         if self.total_savings is not None and self.total_savings < self.down_payment:
             raise ValueError("total_savings must be >= down_payment")
+
+        _validate_investment_return_ranges(list(self.investment_returns or []))
         return self
 
     @property

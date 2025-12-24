@@ -49,15 +49,15 @@ Principais números exibidos:
 - Custo Mensal Médio: média dos fluxos de saída (parcelas, aluguel, custos) no período
 - Custo Líquido (Net Cost): tudo que saiu menos o patrimônio final (imóvel + investimentos)
 - Patrimônio Final: valor do imóvel ajustado + saldo investido remanescente
-- ROI: retorno percentual sobre o capital inicial efetivo
+- ROI: retorno percentual sobre as saídas totais (total_outflows) no período
 - Mês de Equilíbrio (Break-even aproximado): primeiro mês em que o acumulado dos fluxos deixa de ser negativo
 - Sustentabilidade (quando aplicável): total retirado, meses insustentáveis, razão média retorno/retirada
 
 ## 10. Limitações e Simplificações
-- Não considera impostos sobre ganhos de investimento ou venda do imóvel
+- Imposto sobre investimentos pode ser considerado se configurado (por padrão pode estar desativado); imposto sobre venda do imóvel não é modelado
 - Não modela vacância de aluguel nem manutenção extraordinária
 - Valor temporal do dinheiro (desconto a valor presente) não é aplicado nas métricas básicas
-- ROI simplificado assume capital inicial como base única
+- ROI usa as saídas totais (total_outflows) como base
 
 ## 11. Como Conferir (Auditabilidade Rápida)
 Para validar: compare a parcela inicial com uma calculadora PRICE/SAC externa; confira que retiradas nunca excedem o saldo disponível; observe que valorização e inflação crescem de forma composta.
@@ -107,6 +107,11 @@ retorno = (saldo_prev + aportes - retirada) * taxa_mensal
 saldo = saldo_prev + aportes - retirada + retorno (+ surplus_investido)
 ratio = retorno / retirada (se retirada > 0)
 burn = ratio < 1
+
+# Semântica de aluguel devido vs. pago
+rent_due = custo_total
+rent_paid = min(rent_due, cover + retirada)
+rent_shortfall = rent_due - rent_paid
 ```
 
 ### Critério de Compra à Vista
@@ -116,7 +121,7 @@ saldo >= valor_imovel_ajustado + custos_upfront
 
 ### Métricas
 ```
-ROI = (final_equity - investimento_inicial) / investimento_inicial * 100
+ROI = (final_equity - total_outflows) / total_outflows * 100
 average_monthly_cost = media(cash_flow)
 net_cost = total_outflows - final_equity
 break_even ≈ primeiro mês cumulativo(cash_flow) >= 0

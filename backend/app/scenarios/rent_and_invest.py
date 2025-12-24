@@ -160,7 +160,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 remaining_before_return = self._account.balance
 
         actual_rent_paid = (
-            external_cover + rent_withdrawal if self.rent_reduces_investment else rent_due
+            external_cover + rent_withdrawal
+            if self.rent_reduces_investment
+            else rent_due
         )
         rent_shortfall = max(0.0, rent_due - actual_rent_paid)
 
@@ -208,14 +210,20 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
-        total_monthly_cost = actual_rent_paid + initial_deposit + invested_from_external
+        # Robustness rule: rent is always due; if it couldn't be fully paid from modeled
+        # sources (external_cover + withdrawals), the remaining shortfall must still be
+        # counted as an outflow (implicitly covered by unmodeled cash/credit).
+        rent_due = current_rent
+        total_monthly_cost = rent_due + initial_deposit + invested_from_external
 
         return DomainMonthlyRecord(
             month=month,
             cash_flow=-total_monthly_cost,
             investment_balance=self._account.balance,
             investment_return=investment_return,
+            rent_due=rent_due,
             rent_paid=actual_rent_paid,
+            rent_shortfall=rent_shortfall,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
