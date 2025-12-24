@@ -523,7 +523,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 + purchase_withdrawal.tax_paid
             )
 
-            # Begin paying ownership monthly costs from the purchase month onward.
+            # Regra de negócio (conservadora): no mês da compra ainda pode existir
+            # sobreposição de despesas (ex.: aluguel do mês já contratado/pago e,
+            # ao mesmo tempo, início de custos como condomínio/IPTU).
+            # Modelar essa sobreposição evita subestimar o custo real do mês da compra.
             monthly_hoa, monthly_property_tax, monthly_additional = (
                 self.get_inflated_monthly_costs(month)
             )
