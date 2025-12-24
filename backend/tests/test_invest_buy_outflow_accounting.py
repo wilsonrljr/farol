@@ -34,9 +34,9 @@ class TestInvestBuyOutflowAccounting:
 
         # All post-purchase months should have total_monthly_cost set
         for record in result.monthly_data[1:]:
-            assert (
-                record.total_monthly_cost is not None
-            ), f"Month {record.month} should have total_monthly_cost set"
+            assert record.total_monthly_cost is not None, (
+                f"Month {record.month} should have total_monthly_cost set"
+            )
             # Post-purchase costs should include fixed_monthly_investment (1000)
             # plus any monthly additional costs (HOA/IPTU)
             assert record.total_monthly_cost >= 1_000, (
@@ -129,6 +129,6 @@ class TestInvestBuyOutflowAccounting:
 
         # Months 6+: should include fixed investment
         for record in result.monthly_data[5:]:
-            assert (
-                record.additional_investment == 5_000
-            ), f"Month {record.month} should have additional_investment of 5000"
+            assert record.additional_investment == 5_000, (
+                f"Month {record.month} should have additional_investment of 5000"
+            )

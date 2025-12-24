@@ -421,14 +421,16 @@ class BuyScenarioSimulator(ScenarioSimulator):
         # Principal payments (amortization) and equity building are not consumption.
         total_consumption = 0.0
         for d in self._monthly_data:
-            total_consumption += (d.interest_payment or 0.0)
-            total_consumption += (d.monthly_additional_costs or 0.0)
-            total_consumption += (d.upfront_additional_costs or 0.0)
+            total_consumption += d.interest_payment or 0.0
+            total_consumption += d.monthly_additional_costs or 0.0
+            total_consumption += d.upfront_additional_costs or 0.0
 
         # Calculate opportunity cost (what initial investment would have grown to)
         opportunity_cost: float | None = None
         if self._investment_account is not None and self.initial_investment > 0:
-            opportunity_cost = self._investment_account.balance - self.initial_investment
+            opportunity_cost = (
+                self._investment_account.balance - self.initial_investment
+            )
             # Include investment balance in final equity for fair comparison
             final_equity += self._investment_account.balance
 
@@ -445,4 +447,3 @@ class BuyScenarioSimulator(ScenarioSimulator):
             purchase_breakdown=self._purchase_breakdown,
             fgts_summary=self._fgts_summary,
         )
-

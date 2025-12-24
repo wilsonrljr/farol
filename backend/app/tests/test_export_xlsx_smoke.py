@@ -40,12 +40,9 @@ def test_export_compare_scenarios_enhanced_xlsx_smoke():
     assert r.status_code == 200, r.text
 
     # Basic content checks (avoid overfitting exact bytes).
-    assert (
-        r.headers.get("content-type", "").startswith(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        or r.headers.get("content-type", "").startswith("application/octet-stream")
-    )
+    assert r.headers.get("content-type", "").startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ) or r.headers.get("content-type", "").startswith("application/octet-stream")
     assert len(r.content) > 1000
 
     # Verify workbook structure.

@@ -282,6 +282,3 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             total_outflows=total_outflows,
             net_cost=net_cost,
         )
-
-
-

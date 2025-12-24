@@ -56,7 +56,9 @@ def _validate_investment_return_ranges(returns: list["InvestmentReturnInput"]) -
         prev_end = r.end_month
 
 
-def _validate_investment_return_coverage(returns: list["InvestmentReturnInput"]) -> None:
+def _validate_investment_return_coverage(
+    returns: list["InvestmentReturnInput"],
+) -> None:
     """Validate that investment return ranges cover the whole horizon continuously.
 
     Business rule for UX/safety:
@@ -88,7 +90,9 @@ def _validate_investment_return_coverage(returns: list["InvestmentReturnInput"])
             )
 
     if ordered[-1].end_month is not None:
-        raise ValueError("investment_returns must end with an open-ended range (end_month=null)")
+        raise ValueError(
+            "investment_returns must end with an open-ended range (end_month=null)"
+        )
 
 
 class AmortizationInput(BaseModel):
@@ -577,9 +581,9 @@ class ComparisonInput(BaseModel):
         if self.total_savings is not None:
             # total_savings represents the user's total liquid cash available at month 1.
             # It must cover the cash down payment and the upfront transaction costs.
-            costs = AdditionalCostsCalculator.from_input(self.additional_costs).calculate(
-                self.property_value
-            )
+            costs = AdditionalCostsCalculator.from_input(
+                self.additional_costs
+            ).calculate(self.property_value)
             total_upfront = float(costs["total_upfront"])
             min_required = self.down_payment + total_upfront
             if self.total_savings < min_required:
@@ -591,7 +595,9 @@ class ComparisonInput(BaseModel):
         # as being paid from modeled sources (external cover + optional withdrawal).
         # If rent is assumed external (rent_reduces_investment=False), providing
         # monthly_external_savings would be ambiguous (is it income? a contribution?).
-        if (self.monthly_external_savings is not None) and (not self.rent_reduces_investment):
+        if (self.monthly_external_savings is not None) and (
+            not self.rent_reduces_investment
+        ):
             raise ValueError(
                 "monthly_external_savings requires rent_reduces_investment=true (otherwise the meaning is ambiguous)"
             )
@@ -618,9 +624,9 @@ class ComparisonInput(BaseModel):
         are paid from this pool; whatever remains is invested (initial_investment).
         """
         if self.total_savings is not None:
-            costs = AdditionalCostsCalculator.from_input(self.additional_costs).calculate(
-                self.property_value
-            )
+            costs = AdditionalCostsCalculator.from_input(
+                self.additional_costs
+            ).calculate(self.property_value)
             total_upfront = float(costs["total_upfront"])
             return self.total_savings - self.down_payment - total_upfront
         return 0.0

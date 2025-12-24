@@ -544,7 +544,6 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             )
             self._total_monthly_additional_costs += monthly_additional
 
-
         # New semantics: cash_flow/total_monthly_cost represent all monthly outflows and cash allocations.
         initial_deposit = (
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
@@ -634,7 +633,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_return_net=investment_result.net_return,
             fgts_balance=self.fgts_balance if self.fgts else None,
             fgts_used=fgts_used_this_month if self.fgts else 0.0,
-            upfront_additional_costs=(purchase_upfront if status == "Imóvel comprado" else 0.0),
+            upfront_additional_costs=(
+                purchase_upfront if status == "Imóvel comprado" else 0.0
+            ),
         )
 
     def _handle_post_purchase_month(
@@ -755,9 +756,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         # Consumption approximation: rent due + ownership monthly costs + transaction costs.
         total_consumption = 0.0
         for d in self._monthly_data:
-            total_consumption += (d.rent_due or 0.0)
-            total_consumption += (d.monthly_additional_costs or 0.0)
-            total_consumption += (d.upfront_additional_costs or 0.0)
+            total_consumption += d.rent_due or 0.0
+            total_consumption += d.monthly_additional_costs or 0.0
+            total_consumption += d.upfront_additional_costs or 0.0
 
         # Ensure chronological ordering
         self._monthly_data.sort(key=lambda d: d.month)

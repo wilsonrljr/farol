@@ -404,7 +404,9 @@ def export_compare_scenarios_enhanced(
                     comp_df["__m"] = (
                         comp_df["key"].str.extract(r"month_(\d+)").astype(float)
                     )
-                    comp_df = comp_df.sort_values("__m", na_position="last").drop(columns=["__m"])  # type: ignore
+                    comp_df = comp_df.sort_values("__m", na_position="last").drop(
+                        columns=["__m"]
+                    )  # type: ignore
                 except (TypeError, ValueError):
                     pass
             comp_df.to_excel(writer, index=False, sheet_name="comparative_summary")

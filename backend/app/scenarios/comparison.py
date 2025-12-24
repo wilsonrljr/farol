@@ -112,8 +112,12 @@ def _compare_scenarios_domain(
     # Reporting-only: baseline initial wealth estimate (does not change simulation).
     # - cash: total_savings if provided, otherwise down_payment (legacy mode)
     # - fgts: initial FGTS balance if provided
-    cash_initial = float(total_savings) if total_savings is not None else float(down_payment)
-    fgts_initial = float(getattr(fgts, "initial_balance", 0.0) or 0.0) if fgts is not None else 0.0
+    cash_initial = (
+        float(total_savings) if total_savings is not None else float(down_payment)
+    )
+    fgts_initial = (
+        float(getattr(fgts, "initial_balance", 0.0) or 0.0) if fgts is not None else 0.0
+    )
     initial_wealth = cash_initial + fgts_initial
 
     buy_initial, rent_initial, invest_buy_initial = _resolve_initial_investments(
@@ -361,15 +365,15 @@ def _resolve_initial_investments(
 ) -> tuple[float, float, float]:
     """Resolve per-scenario initial investment capital.
 
-        Why this exists:
-        - For the buy scenario, upfront transaction costs (ITBI/escritura) are paid at month 1,
-            so only the remaining cash is invested as an opportunity-cost tracker.
-        - For rent/invest and invest-then-buy, there is no purchase at month 1, so the full
-            total_savings (if provided) should remain modeled (typically invested), otherwise
-            part of the user's cash would disappear from the simulation.
+    Why this exists:
+    - For the buy scenario, upfront transaction costs (ITBI/escritura) are paid at month 1,
+        so only the remaining cash is invested as an opportunity-cost tracker.
+    - For rent/invest and invest-then-buy, there is no purchase at month 1, so the full
+        total_savings (if provided) should remain modeled (typically invested), otherwise
+        part of the user's cash would disappear from the simulation.
 
-        If total_savings is not provided, we assume no extra liquid cash beyond the
-        down_payment is being tracked/invested (initial_investment = 0).
+    If total_savings is not provided, we assume no extra liquid cash beyond the
+    down_payment is being tracked/invested (initial_investment = 0).
     """
 
     if total_savings is None:

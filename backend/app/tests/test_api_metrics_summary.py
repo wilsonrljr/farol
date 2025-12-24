@@ -32,7 +32,8 @@ def test_metrics_summary_with_adjusted_roi():
     assert rent_entry["roi_percentage"] is not None
     assert rent_entry["roi_including_withdrawals_percentage"] is not None
     assert (
-        rent_entry["roi_including_withdrawals_percentage"] > rent_entry["roi_percentage"]
+        rent_entry["roi_including_withdrawals_percentage"]
+        > rent_entry["roi_percentage"]
     )
 
 
