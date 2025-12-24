@@ -25,7 +25,9 @@ O saldo investido cresce com: aportes mensais + retornos + reinvestimento de sob
 Nota sobre capital inicial (comparação justa):
 - Se você informar **Poupança Total (total_savings)**, o simulador trata isso como o seu **caixa total disponível no mês 1**.
 - Desse caixa, ele “separa” o que seria gasto imediatamente numa compra: **Entrada (down_payment)** + **custos upfront (ITBI + escritura)**.
-- O restante vira o **Investimento Inicial (initial_investment)**, e é esse valor que é carregado como capital investido no início dos três cenários.
+- O restante vira o **Investimento Inicial (initial_investment)** (um valor *derivado internamente*), e é esse valor que é carregado como capital investido no início dos três cenários.
+
+Nota importante (API/contrato): você **não informa** `initial_investment` diretamente nas requisições. Para representar “capital extra além da entrada”, informe `total_savings` e o simulador deriva o investimento inicial automaticamente.
 
 Em termos práticos:
 ```
@@ -63,8 +65,11 @@ Principais números exibidos:
 - Custo Líquido (Net Cost): tudo que saiu menos o patrimônio final (imóvel + investimentos)
 - Patrimônio Final: valor do imóvel ajustado + saldo investido remanescente
 - ROI: retorno percentual sobre as saídas totais (total_outflows) no período
+- ROI (incl. saques): variação do ROI que soma de volta retiradas feitas para pagar aluguel/custos (útil quando o aluguel é pago a partir do investimento)
 - Mês de Equilíbrio (Break-even aproximado): primeiro mês em que o acumulado dos fluxos deixa de ser negativo
 - Sustentabilidade (quando aplicável): total retirado, meses insustentáveis, razão média retorno/retirada
+
+Resumo comparativo (tabela “Comprar − Alugar”): o campo de percentual pode ficar **indisponível** quando o custo do aluguel no ponto analisado é 0. Nesse caso, o sistema retorna “sem valor” (e a interface pode mostrar “—”) para não mascarar o caso com 0%.
 
 ## 10. Limitações e Simplificações
 - Imposto sobre investimentos pode ser considerado se configurado (por padrão pode estar desativado); imposto sobre venda do imóvel não é modelado

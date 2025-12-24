@@ -632,8 +632,12 @@ class ComparisonMetrics(BaseModel):
         None, description="Month when this scenario becomes profitable"
     )
     roi_percentage: float = Field(..., description="Return on investment percentage")
-    roi_adjusted_percentage: float | None = Field(
-        None, description="Adjusted ROI adding back withdrawals used to pay rent/costs"
+    roi_including_withdrawals_percentage: float | None = Field(
+        None,
+        description=(
+            "ROI that adds back withdrawals used to pay rent/costs (when rent is paid from the investment). "
+            "This is useful to compare 'wealth + consumed withdrawals' vs total_outflows."
+        ),
     )
     average_monthly_cost: float = Field(..., description="Average monthly cost")
     total_interest_or_rent_paid: float = Field(
@@ -693,7 +697,7 @@ class ScenarioMetricsSummary(BaseModel):
     final_equity: float
     total_outflows: float | None = None
     roi_percentage: float
-    roi_adjusted_percentage: float | None = None
+    roi_including_withdrawals_percentage: float | None = None
     total_rent_withdrawn_from_investment: float | None = None
     months_with_burn: int | None = None
     average_sustainable_withdrawal_ratio: float | None = None

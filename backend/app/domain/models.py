@@ -148,7 +148,7 @@ class ComparisonMetrics:
     total_cost_percentage_difference: float | None
     break_even_month: int | None
     roi_percentage: float
-    roi_adjusted_percentage: float | None
+    roi_including_withdrawals_percentage: float | None
     average_monthly_cost: float
     total_interest_or_rent_paid: float
     wealth_accumulation: float

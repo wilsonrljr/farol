@@ -96,7 +96,6 @@ def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
-        initial_investment=input_data.initial_investment,
     )
 
 
@@ -140,7 +139,6 @@ def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
-        initial_investment=input_data.initial_investment,
     )
 
     summaries: list[ScenarioMetricsSummary] = []
@@ -155,7 +153,7 @@ def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
                     sc.total_outflows if hasattr(sc, "total_outflows") else None
                 ),
                 roi_percentage=m.roi_percentage,
-                roi_adjusted_percentage=m.roi_adjusted_percentage,
+                roi_including_withdrawals_percentage=m.roi_including_withdrawals_percentage,
                 total_rent_withdrawn_from_investment=m.total_rent_withdrawn_from_investment,
                 months_with_burn=m.months_with_burn,
                 average_sustainable_withdrawal_ratio=m.average_sustainable_withdrawal_ratio,
@@ -209,5 +207,4 @@ def compare_housing_scenarios_enhanced(
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
-        initial_investment=input_data.initial_investment,
     )

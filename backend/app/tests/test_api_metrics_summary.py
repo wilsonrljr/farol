@@ -24,8 +24,10 @@ def test_metrics_summary_with_adjusted_roi():
     assert "metrics" in data
     rent_entry = next(m for m in data["metrics"] if m["name"] == "Alugar e investir")
     assert rent_entry["roi_percentage"] is not None
-    assert rent_entry["roi_adjusted_percentage"] is not None
-    assert rent_entry["roi_adjusted_percentage"] > rent_entry["roi_percentage"]
+    assert rent_entry["roi_including_withdrawals_percentage"] is not None
+    assert (
+        rent_entry["roi_including_withdrawals_percentage"] > rent_entry["roi_percentage"]
+    )
 
 
 def test_metrics_summary_without_adjusted_roi():
@@ -40,4 +42,4 @@ def test_metrics_summary_without_adjusted_roi():
     data = r.json()
     rent_entry = next(m for m in data["metrics"] if m["name"] == "Alugar e investir")
     # No withdrawals, so adjusted ROI should be null
-    assert rent_entry.get("roi_adjusted_percentage") is None
+    assert rent_entry.get("roi_including_withdrawals_percentage") is None

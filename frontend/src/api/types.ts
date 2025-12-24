@@ -203,7 +203,7 @@ export interface ComparisonMetrics {
   total_cost_percentage_difference: number | null;
   break_even_month: number | null;
   roi_percentage: number;
-  roi_adjusted_percentage?: number | null;
+  roi_including_withdrawals_percentage?: number | null;
   average_monthly_cost: number;
   total_interest_or_rent_paid: number;
   wealth_accumulation: number;

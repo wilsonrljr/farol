@@ -3,7 +3,7 @@ from app.models import InvestmentReturnInput
 
 
 def test_roi_adjusted_present_when_withdrawals():
-    """When there are rent withdrawals, roi_adjusted_percentage should be > roi_percentage."""
+    """When there are rent withdrawals, roi_including_withdrawals_percentage should be > roi_percentage."""
     result = enhanced_compare_scenarios(
         property_value=300000.0,
         down_payment=60000.0,
@@ -34,12 +34,12 @@ def test_roi_adjusted_present_when_withdrawals():
     assert metrics.total_rent_withdrawn_from_investment
     assert metrics.total_rent_withdrawn_from_investment > 0
     # Adjusted ROI should be higher than gross ROI due to adding back withdrawals
-    assert metrics.roi_adjusted_percentage is not None
-    assert metrics.roi_adjusted_percentage > metrics.roi_percentage
+    assert metrics.roi_including_withdrawals_percentage is not None
+    assert metrics.roi_including_withdrawals_percentage > metrics.roi_percentage
 
 
 def test_roi_adjusted_absent_without_withdrawals():
-    """When no withdrawals occur, roi_adjusted_percentage should be None or equal to roi (but we expect None)."""
+    """When no withdrawals occur, roi_including_withdrawals_percentage should be None."""
     result = enhanced_compare_scenarios(
         property_value=300000.0,
         down_payment=60000.0,
@@ -66,4 +66,4 @@ def test_roi_adjusted_absent_without_withdrawals():
     rent_scenario = next(s for s in result.scenarios if s.name == "Alugar e investir")
     metrics = rent_scenario.metrics
     assert metrics.total_rent_withdrawn_from_investment is None
-    assert metrics.roi_adjusted_percentage is None
+    assert metrics.roi_including_withdrawals_percentage is None

@@ -6,7 +6,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Valor do Imóvel Inicial: preço usado no mês 1 para começar a simulação.
 - Poupança Total (mês 1): caixa total disponível no início da simulação. Quando informada, precisa cobrir **Entrada + custos upfront (ITBI + escritura)**; o restante vira **Investimento Inicial**.
 - Entrada (Down payment): parte da poupança destinada à compra no cenário de financiamento (sai do caixa no momento da compra).
-- Investimento Inicial: capital que começa aplicado no mês 1 para fins de comparação (derivado de `total_savings` quando fornecido).
+- Investimento Inicial: capital que começa aplicado no mês 1 para fins de comparação (derivado de `total_savings` quando fornecido; não é um campo de entrada da API).
 - Prazo do Financiamento (anos): duração do empréstimo (se houver).
 - Sistema de Amortização: SAC ou PRICE.
 - Taxa de Juros Anual (ou Mensal): informe apenas uma; a outra é calculada.
@@ -51,6 +51,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Meses Insustentáveis: quantidade de meses em que a retirada não foi totalmente coberta pelo retorno.
 - Razão Média Retorno/Retirada: média das razões mensais onde houve retirada.
 - ROI: retorno percentual sobre as saídas totais do período (total_outflows).
+- ROI (incl. saques): ROI que soma de volta retiradas feitas para pagar aluguel/custos quando o cenário usa o investimento para pagar despesas.
 - Mês de Equilíbrio: primeiro mês em que o acumulado de fluxos deixa de ser negativo.
 
 ## Progresso (Investir para Comprar à Vista)
@@ -79,7 +80,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 | Valor do Imóvel Inicial | property_value |
 | Poupança Total (mês 1) | total_savings |
 | Entrada (Down payment) | down_payment |
-| Investimento Inicial | initial_investment |
+| Investimento Inicial (derivado) | initial_investment |
 | Prazo do Financiamento | loan_term_years |
 | Sistema de Amortização | loan_type |
 | Taxa de Juros Anual | annual_interest_rate |
@@ -117,6 +118,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 | Saídas Totais | total_outflows |
 | Patrimônio Final | final_equity |
 | ROI | roi_percentage |
+| ROI (incl. saques) | roi_including_withdrawals_percentage |
 | Custo Mensal Médio | average_monthly_cost |
 | Total Juros ou Aluguel | total_interest_or_rent_paid |
 | Total Retirado para Custos | total_rent_withdrawn_from_investment |

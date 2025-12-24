@@ -158,7 +158,6 @@ def export_compare_scenarios(
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
-        initial_investment=input_data.initial_investment,
     )
 
     long_rows: list[dict] = []
@@ -306,7 +305,6 @@ def export_compare_scenarios_enhanced(
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
-        initial_investment=input_data.initial_investment,
     )
 
     long_rows: list[dict] = []
@@ -328,7 +326,7 @@ def export_compare_scenarios_enhanced(
                 "total_cost_percentage_difference": sc.metrics.total_cost_percentage_difference,
                 "break_even_month": sc.metrics.break_even_month,
                 "roi_percentage": sc.metrics.roi_percentage,
-                "roi_adjusted_percentage": sc.metrics.roi_adjusted_percentage,
+                "roi_including_withdrawals_percentage": sc.metrics.roi_including_withdrawals_percentage,
                 "average_monthly_cost": sc.metrics.average_monthly_cost,
                 "total_interest_or_rent_paid": sc.metrics.total_interest_or_rent_paid,
                 "wealth_accumulation": sc.metrics.wealth_accumulation,

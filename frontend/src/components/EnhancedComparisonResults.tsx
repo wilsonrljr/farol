@@ -518,8 +518,20 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     <Table.Td c={r.buy_vs_rent_difference > 0 ? 'danger.6' : r.buy_vs_rent_difference < 0 ? 'success.7' : 'sage.6'}>
                       {signedMoney(r.buy_vs_rent_difference)}
                     </Table.Td>
-                    <Table.Td c={r.buy_vs_rent_percentage > 0 ? 'danger.6' : r.buy_vs_rent_percentage < 0 ? 'success.7' : 'sage.6'}>
-                      {signedPercent(r.buy_vs_rent_percentage, 1)}
+                    <Table.Td
+                      c={
+                        r.buy_vs_rent_percentage == null
+                          ? 'dimmed'
+                          : r.buy_vs_rent_percentage > 0
+                            ? 'danger.6'
+                            : r.buy_vs_rent_percentage < 0
+                              ? 'success.7'
+                              : 'sage.6'
+                      }
+                    >
+                      {r.buy_vs_rent_percentage == null
+                        ? '—'
+                        : signedPercent(r.buy_vs_rent_percentage, 1)}
                     </Table.Td>
                     <Table.Td>{moneySafe(r.buy_total_wealth)}</Table.Td>
                     <Table.Td>{moneySafe(r.rent_total_wealth)}</Table.Td>
@@ -826,9 +838,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     <Text fw={600} c="sage.8">{percent(s.metrics.roi_percentage)}</Text>
                   </Box>
                   <Box>
-                    <Text size="xs" c="sage.5">ROI (ajustado)</Text>
+                    <Text size="xs" c="sage.5">ROI (incl. saques)</Text>
                     <Text fw={600} c="sage.8">
-                      {s.metrics.roi_adjusted_percentage != null ? percent(s.metrics.roi_adjusted_percentage) : '—'}
+                      {s.metrics.roi_including_withdrawals_percentage != null ? percent(s.metrics.roi_including_withdrawals_percentage) : '—'}
                     </Text>
                   </Box>
                   <Box>

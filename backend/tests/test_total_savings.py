@@ -67,12 +67,12 @@ def test_rent_invest_scenario_uses_initial_investment():
     result = compare_scenarios(
         property_value=500000,
         down_payment=100000,
+        total_savings=150000,
         loan_term_years=10,
         monthly_interest_rate=0.8,
         loan_type="SAC",
         rent_value=2000,
         investment_returns=investment_returns,
-        initial_investment=50000.0,
     )
 
     rent_scenario = next(s for s in result.scenarios if s.name == "Alugar e investir")
@@ -90,12 +90,12 @@ def test_buy_scenario_tracks_opportunity_cost():
     result = enhanced_compare_scenarios(
         property_value=500000,
         down_payment=100000,
+        total_savings=150000,
         loan_term_years=10,
         monthly_interest_rate=0.8,
         loan_type="SAC",
         rent_value=2000,
         investment_returns=investment_returns,
-        initial_investment=50000.0,
     )
 
     buy_scenario = next(

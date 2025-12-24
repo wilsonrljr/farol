@@ -53,7 +53,6 @@ def compare_scenarios(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
-    initial_investment: float = 0.0,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     result = _compare_scenarios_domain(
@@ -79,7 +78,6 @@ def compare_scenarios(
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
-        initial_investment=initial_investment,
     )
     return comparison_result_to_api(result)
 
@@ -108,7 +106,6 @@ def _compare_scenarios_domain(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
-    initial_investment: float = 0.0,
 ) -> domain.ComparisonResult:
     term_months = loan_term_years * 12
 
@@ -117,7 +114,6 @@ def _compare_scenarios_domain(
         down_payment=down_payment,
         additional_costs=additional_costs,
         total_savings=total_savings,
-        fallback_initial_investment=initial_investment,
     )
 
     buy = BuyScenarioSimulator(
@@ -207,7 +203,6 @@ def enhanced_compare_scenarios(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
-    initial_investment: float = 0.0,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
     result = _enhanced_compare_scenarios_domain(
@@ -233,7 +228,6 @@ def enhanced_compare_scenarios(
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
-        initial_investment=initial_investment,
     )
     return enhanced_comparison_result_to_api(result)
 
@@ -262,7 +256,6 @@ def _enhanced_compare_scenarios_domain(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
-    initial_investment: float = 0.0,
 ) -> domain.EnhancedComparisonResult:
     basic = _compare_scenarios_domain(
         property_value=property_value,
@@ -287,7 +280,6 @@ def _enhanced_compare_scenarios_domain(
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
-        initial_investment=initial_investment,
     )
 
     best_cost = min(s.total_cost for s in basic.scenarios)
@@ -332,7 +324,6 @@ def _resolve_initial_investments(
     down_payment: float,
     additional_costs: AdditionalCostsLike | None,
     total_savings: float | None,
-    fallback_initial_investment: float,
 ) -> tuple[float, float, float]:
     """Resolve per-scenario initial investment capital.
 
@@ -343,14 +334,12 @@ def _resolve_initial_investments(
             total_savings (if provided) should remain modeled (typically invested), otherwise
             part of the user's cash would disappear from the simulation.
 
-    Backward compatibility:
-    - When total_savings is not provided, we fall back to the legacy single
-      initial_investment value for all scenarios.
+        If total_savings is not provided, we assume no extra liquid cash beyond the
+        down_payment is being tracked/invested (initial_investment = 0).
     """
 
     if total_savings is None:
-        v = float(fallback_initial_investment or 0.0)
-        return v, v, v
+                return 0.0, 0.0, 0.0
 
     costs = AdditionalCostsCalculator.from_input(additional_costs).calculate(
         property_value
@@ -425,7 +414,7 @@ class _DomainMetricsCalculator:
             total_cost_percentage_difference=total_cost_pct_diff,
             break_even_month=break_even_month,
             roi_percentage=roi_pct,
-            roi_adjusted_percentage=roi_adjusted,
+            roi_including_withdrawals_percentage=roi_adjusted,
             average_monthly_cost=avg_monthly_cost,
             total_interest_or_rent_paid=total_interest_rent,
             wealth_accumulation=scenario.final_equity,
@@ -547,7 +536,7 @@ def _build_comparative_summary(
             "month": month,
             "buy_vs_rent_difference": buy_cost - rent_cost,
             "buy_vs_rent_percentage": (
-                ((buy_cost - rent_cost) / rent_cost * 100) if rent_cost > 0 else 0
+                ((buy_cost - rent_cost) / rent_cost * 100) if rent_cost > 0 else None
             ),
             "buy_monthly_cash_flow": buy_cost,
             "rent_monthly_cash_flow": rent_cost,
