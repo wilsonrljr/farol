@@ -549,6 +549,10 @@ def _build_comparative_summary(
     invest_buy_scenario: DomainComparisonScenario,
 ) -> dict[str, dict[str, object]]:
     """Build month-by-month comparative summary."""
+    buy_by_month = {d.month: d for d in buy_scenario.monthly_data}
+    rent_by_month = {d.month: d for d in rent_scenario.monthly_data}
+    invest_by_month = {d.month: d for d in invest_buy_scenario.monthly_data}
+
     max_months = max(
         len(buy_scenario.monthly_data),
         len(rent_scenario.monthly_data),
@@ -558,9 +562,9 @@ def _build_comparative_summary(
     comparative_summary: dict[str, dict[str, object]] = {}
 
     for month in range(1, max_months + 1):
-        buy_data = _find_month_data(buy_scenario.monthly_data, month)
-        rent_data = _find_month_data(rent_scenario.monthly_data, month)
-        invest_data = _find_month_data(invest_buy_scenario.monthly_data, month)
+        buy_data = buy_by_month.get(month)
+        rent_data = rent_by_month.get(month)
+        invest_data = invest_by_month.get(month)
 
         buy_cost = _get_monthly_cost(buy_data)
         rent_cost = _get_monthly_cost(rent_data)
@@ -608,14 +612,6 @@ def _get_monthly_cost(row: object | None) -> float:
         return float(-cash_flow)
 
     return 0.0
-
-
-def _find_month_data(
-    monthly_data: list[domain.MonthlyRecord],
-    month: int,
-) -> domain.MonthlyRecord | None:
-    """Find monthly data for a specific month."""
-    return next((d for d in monthly_data if d.month == month), None)
 
 
 def _get_value(
