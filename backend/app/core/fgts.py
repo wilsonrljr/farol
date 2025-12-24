@@ -179,6 +179,8 @@ class FGTSManager:
     def withdraw_for_purchase(
         self,
         max_needed: float,
+        *,
+        month: int,
     ) -> float:
         """Withdraw FGTS for property purchase.
 
@@ -192,7 +194,7 @@ class FGTSManager:
             return 0.0
 
         result = self.withdraw(
-            month=0,
+            month=month,
             amount=max(0.0, max_needed),
             reason=FGTSWithdrawalReason.PURCHASE,
         )

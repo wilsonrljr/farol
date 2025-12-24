@@ -493,7 +493,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 fgts_needed = min(shortfall_for_fgts, fgts_request_cap)
                 if fgts_needed > 0:
                     fgts_used_this_month = self._fgts_manager.withdraw_for_purchase(
-                        fgts_needed
+                        fgts_needed, month=month
                     )
                     remaining_needed -= fgts_used_this_month
 

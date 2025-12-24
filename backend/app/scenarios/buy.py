@@ -126,8 +126,10 @@ class BuyScenarioSimulator(ScenarioSimulator):
             return
 
         max_needed = max(0.0, self.property_value - self.down_payment)
+        # Purchase happens at the start of the simulation (month 1), so use that
+        # month to correctly seed the amortization cooldown window.
         self._fgts_used_at_purchase = self._fgts_manager.withdraw_for_purchase(
-            max_needed
+            max_needed, month=1
         )
 
     def _calculate_loan_value(self) -> None:
