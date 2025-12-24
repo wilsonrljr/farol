@@ -387,7 +387,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 remaining_before_return = self._account.balance
 
         actual_rent_paid = (
-            external_cover + rent_withdrawal if self.rent_reduces_investment else rent_due
+            external_cover + rent_withdrawal
+            if self.rent_reduces_investment
+            else rent_due
         )
         rent_shortfall = max(0.0, rent_due - actual_rent_paid)
 
@@ -535,29 +537,18 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
         purchase_upfront_effective = purchase_upfront
-        if self.invest_loan_difference and self._upfront_baseline > 0:
-            purchase_upfront_effective = max(
-                0.0, purchase_upfront - self._upfront_baseline
-            )
 
-        # When the purchase happens, we still need to count any fixed_monthly_investment
-        # that was already deposited this month as an outflow. We only skip the
-        # invest_loan_difference portion (upfront/installments) since those funds are
-        # redirected to the purchase.
+        # Count every deposit made this month as outflow; do not net out the baseline.
+        # Deposits made because of invest_loan_difference are real cash allocations
+        # and should appear in total_monthly_cost for correct ROI/cost accounting.
         additional_investment_effective = additional_investment
+
+        # If the purchase happens now, the initial capital already covers the price and
+        # upfront costs. Avoid double-counting by zeroing extra deposits tied to the
+        # loan-difference strategy and the explicit purchase_upfront component.
         if status == "Imóvel comprado":
-            # Include fixed_monthly_investment if it was deposited this month
-            if (
-                self.fixed_monthly_investment
-                and self.fixed_investment_start_month <= month
-            ):
-                additional_investment_effective = self.fixed_monthly_investment
-            else:
-                additional_investment_effective = 0.0
-        elif self.invest_loan_difference and self._upfront_baseline > 0:
-            additional_investment_effective = max(
-                0.0, additional_investment - self._upfront_baseline
-            )
+            purchase_upfront_effective = 0.0
+            additional_investment_effective = 0.0
 
         contributions_outflow = (
             initial_deposit
