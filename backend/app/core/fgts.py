@@ -233,30 +233,3 @@ class FGTSManager:
         """Return a copy of withdrawal history."""
 
         return list(self._withdrawal_history)
-
-
-def compute_fgts_monthly_rate(fgts: FGTSLike | None) -> float:
-    """Compute monthly FGTS yield rate.
-
-    Legacy function for backward compatibility.
-    """
-    if fgts and fgts.annual_yield_rate:
-        return (1 + (fgts.annual_yield_rate or 0.0) / PERCENTAGE_BASE) ** (
-            1 / MONTHS_PER_YEAR
-        ) - 1
-    return 0.0
-
-
-def accumulate_fgts_balance(
-    fgts_balance: float,
-    *,
-    fgts: FGTSLike | None,
-    fgts_monthly_rate: float,
-) -> float:
-    """Accumulate FGTS balance for one month.
-
-    Legacy function for backward compatibility.
-    """
-    if not fgts:
-        return fgts_balance
-    return (fgts_balance + (fgts.monthly_contribution or 0.0)) * (1 + fgts_monthly_rate)

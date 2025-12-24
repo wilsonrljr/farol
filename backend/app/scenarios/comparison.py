@@ -27,6 +27,8 @@ from .buy import BuyScenarioSimulator
 from .invest_then_buy import InvestThenBuyScenarioSimulator
 from .rent_and_invest import RentAndInvestScenarioSimulator
 
+from ..core.costs import AdditionalCostsCalculator
+
 
 def compare_scenarios(
     property_value: float,
@@ -50,6 +52,7 @@ def compare_scenarios(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    total_savings: float | None = None,
     initial_investment: float = 0.0,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
@@ -75,6 +78,7 @@ def compare_scenarios(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        total_savings=total_savings,
         initial_investment=initial_investment,
     )
     return comparison_result_to_api(result)
@@ -103,9 +107,18 @@ def _compare_scenarios_domain(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    total_savings: float | None = None,
     initial_investment: float = 0.0,
 ) -> domain.ComparisonResult:
     term_months = loan_term_years * 12
+
+    buy_initial, rent_initial, invest_buy_initial = _resolve_initial_investments(
+        property_value=property_value,
+        down_payment=down_payment,
+        additional_costs=additional_costs,
+        total_savings=total_savings,
+        fallback_initial_investment=initial_investment,
+    )
 
     buy = BuyScenarioSimulator(
         property_value=property_value,
@@ -118,7 +131,7 @@ def _compare_scenarios_domain(
         additional_costs=additional_costs,
         inflation_rate=inflation_rate,
         fgts=fgts,
-        initial_investment=initial_investment,
+        initial_investment=buy_initial,
         investment_returns=list(investment_returns) if investment_returns else None,
         investment_tax=investment_tax,
     ).simulate_domain()
@@ -138,7 +151,7 @@ def _compare_scenarios_domain(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
-        initial_investment=initial_investment,
+        initial_investment=rent_initial,
     ).simulate_domain()
 
     invest_buy = InvestThenBuyScenarioSimulator(
@@ -163,7 +176,7 @@ def _compare_scenarios_domain(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
-        initial_investment=initial_investment,
+        initial_investment=invest_buy_initial,
     ).simulate_domain()
 
     scenarios = [buy, rent, invest_buy]
@@ -193,6 +206,7 @@ def enhanced_compare_scenarios(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    total_savings: float | None = None,
     initial_investment: float = 0.0,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
@@ -218,6 +232,7 @@ def enhanced_compare_scenarios(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        total_savings=total_savings,
         initial_investment=initial_investment,
     )
     return enhanced_comparison_result_to_api(result)
@@ -246,6 +261,7 @@ def _enhanced_compare_scenarios_domain(
     invest_external_surplus: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
+    total_savings: float | None = None,
     initial_investment: float = 0.0,
 ) -> domain.EnhancedComparisonResult:
     basic = _compare_scenarios_domain(
@@ -270,6 +286,7 @@ def _enhanced_compare_scenarios_domain(
         invest_external_surplus=invest_external_surplus,
         investment_tax=investment_tax,
         fgts=fgts,
+        total_savings=total_savings,
         initial_investment=initial_investment,
     )
 
@@ -307,6 +324,45 @@ def _enhanced_compare_scenarios_domain(
         scenarios=enhanced_scenarios,
         comparative_summary=comparative_summary,
     )
+
+
+def _resolve_initial_investments(
+    *,
+    property_value: float,
+    down_payment: float,
+    additional_costs: AdditionalCostsLike | None,
+    total_savings: float | None,
+    fallback_initial_investment: float,
+) -> tuple[float, float, float]:
+    """Resolve per-scenario initial investment capital.
+
+        Why this exists:
+        - For the buy scenario, upfront transaction costs (ITBI/escritura) are paid at month 1,
+            so only the remaining cash is invested as an opportunity-cost tracker.
+        - For rent/invest and invest-then-buy, there is no purchase at month 1, so the full
+            total_savings (if provided) should remain modeled (typically invested), otherwise
+            part of the user's cash would disappear from the simulation.
+
+    Backward compatibility:
+    - When total_savings is not provided, we fall back to the legacy single
+      initial_investment value for all scenarios.
+    """
+
+    if total_savings is None:
+        v = float(fallback_initial_investment or 0.0)
+        return v, v, v
+
+    costs = AdditionalCostsCalculator.from_input(additional_costs).calculate(
+        property_value
+    )
+    upfront = float(costs["total_upfront"])
+
+    buy_initial = float(total_savings) - float(down_payment) - upfront
+    # Other scenarios invest/track the full cash available at month 1.
+    rent_initial = float(total_savings) - float(down_payment)
+    invest_buy_initial = float(total_savings) - float(down_payment)
+
+    return max(0.0, buy_initial), max(0.0, rent_initial), max(0.0, invest_buy_initial)
 
 
 class _SustainabilityMetrics(TypedDict):
