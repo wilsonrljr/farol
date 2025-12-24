@@ -26,6 +26,9 @@ import {
   IconInfoCircle,
   IconBook,
   IconLeaf,
+  IconShieldCheck,
+  IconPigMoney,
+  IconCar,
 } from '@tabler/icons-react';
 
 interface NavItem {
@@ -36,7 +39,10 @@ interface NavItem {
 
 const mainNavItems: NavItem[] = [
   { to: '/', label: 'Início', icon: <IconHome size={18} /> },
-  { to: '/comparacao', label: 'Comparação', icon: <IconScale size={18} /> },
+  { to: '/comparacao', label: 'Comprar vs Alugar', icon: <IconScale size={18} /> },
+  { to: '/estresse', label: 'Teste de estresse', icon: <IconShieldCheck size={18} /> },
+  { to: '/reserva', label: 'Reserva', icon: <IconPigMoney size={18} /> },
+  { to: '/veiculos', label: 'Veículos', icon: <IconCar size={18} /> },
 ];
 
 const secondaryNavItems: NavItem[] = [

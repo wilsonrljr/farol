@@ -227,3 +227,123 @@ export interface EnhancedComparisonResult {
   scenarios: EnhancedComparisonScenario[];
   comparative_summary: Record<string, any>;
 }
+
+// --- Tools: Stress Test ---
+
+export interface StressTestInput {
+  monthly_income: number;
+  monthly_expenses: number;
+  initial_emergency_fund: number;
+
+  horizon_months?: number;
+  income_drop_percentage?: number;
+  shock_duration_months?: number;
+  shock_start_month?: number;
+
+  annual_inflation_rate?: number | null;
+  annual_emergency_fund_yield_rate?: number | null;
+}
+
+export interface StressTestMonth {
+  month: number;
+  income: number;
+  expenses: number;
+  net_cash_flow: number;
+  emergency_fund_balance: number;
+  depleted: boolean;
+  uncovered_deficit: number;
+}
+
+export interface StressTestResult {
+  months_survived: number;
+  depleted_at_month?: number | null;
+  final_emergency_fund_balance: number;
+  min_emergency_fund_balance: number;
+  total_uncovered_deficit: number;
+  monthly_data: StressTestMonth[];
+}
+
+export interface EmergencyFundPlanInput {
+  monthly_expenses: number;
+  initial_emergency_fund: number;
+  target_months_of_expenses?: number;
+  monthly_contribution?: number;
+  horizon_months?: number;
+  annual_inflation_rate?: number | null;
+  annual_emergency_fund_yield_rate?: number | null;
+}
+
+export interface EmergencyFundPlanMonth {
+  month: number;
+  expenses: number;
+  target_amount: number;
+  contribution: number;
+  investment_return: number;
+  emergency_fund_balance: number;
+  progress_percent: number;
+  achieved: boolean;
+}
+
+export interface EmergencyFundPlanResult {
+  achieved_at_month?: number | null;
+  months_to_goal?: number | null;
+  final_emergency_fund_balance: number;
+  target_amount_end: number;
+  monthly_data: EmergencyFundPlanMonth[];
+}
+
+export interface VehicleFinancingConfig {
+  enabled?: boolean;
+  down_payment?: number;
+  term_months?: number;
+  annual_interest_rate?: number | null;
+  monthly_interest_rate?: number | null;
+  loan_type?: 'PRICE' | 'SAC';
+}
+
+export interface VehicleConsortiumConfig {
+  enabled?: boolean;
+  term_months?: number;
+  admin_fee_percentage?: number;
+  contemplation_month?: number;
+}
+
+export interface VehicleSubscriptionConfig {
+  enabled?: boolean;
+  monthly_fee: number;
+}
+
+export interface VehicleComparisonInput {
+  vehicle_price: number;
+  horizon_months?: number;
+  annual_depreciation_rate?: number | null;
+  annual_inflation_rate?: number | null;
+  monthly_insurance?: number;
+  monthly_maintenance?: number;
+  monthly_fuel?: number;
+  annual_ipva_percentage?: number;
+  include_cash?: boolean;
+  financing?: VehicleFinancingConfig | null;
+  consortium?: VehicleConsortiumConfig | null;
+  subscription?: VehicleSubscriptionConfig | null;
+}
+
+export interface VehicleComparisonMonth {
+  month: number;
+  cash_flow: number;
+  cumulative_outflow: number;
+  asset_value: number;
+  net_position: number;
+}
+
+export interface VehicleComparisonScenario {
+  name: string;
+  total_outflows: number;
+  final_asset_value: number;
+  net_cost: number;
+  monthly_data: VehicleComparisonMonth[];
+}
+
+export interface VehicleComparisonResult {
+  scenarios: VehicleComparisonScenario[];
+}

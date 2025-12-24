@@ -5,7 +5,7 @@ const data = [
   { icon: IconBuildingBank, title: 'SAC e PRICE', desc: 'Simulação detalhada dos principais sistemas de amortização.' },
   { icon: IconAdjustmentsDollar, title: 'Amortizações Extras', desc: 'Inclua aportes para reduzir saldo devedor.' },
   { icon: IconChartLine, title: 'Investimentos', desc: 'Retornos variáveis ao longo do tempo com capitalização composta.' },
-  { icon: IconArrowsShuffle, title: 'Comparação Completa', desc: 'Comprar, alugar e investir ou investir para comprar à vista.' },
+  { icon: IconArrowsShuffle, title: 'Comprar vs Alugar', desc: 'Comprar, alugar e investir ou investir para comprar à vista.' },
   { icon: IconTrendingUp, title: 'Inflação e Valorização', desc: 'Considere inflação, aluguel e valorização do imóvel.' },
   { icon: IconReportAnalytics, title: 'Métricas Avançadas', desc: 'ROI, custo médio mensal, riqueza acumulada e mais.' }
 ];

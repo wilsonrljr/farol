@@ -10,10 +10,10 @@ Disponível em: [Aplicação Web](https://farol-web.onrender.com/)
 Se preferir rodar localmente, há instruções ao longo deste README.
 
 <details open>
-<summary><strong>Comparação de cenários</strong></summary>
+<summary><strong>Comprar vs Alugar</strong></summary>
 
 &nbsp;
-![Comparação de cenários](docs/assets/comparacao.gif)
+![Comprar vs Alugar](docs/assets/comparacao.gif)
 
 </details>
 
@@ -30,7 +30,7 @@ Para conversar: abra uma discussão, issue ou mande um PR. Ideias e feedback sã
 
 ## Funcionalidades
 - Simulação de financiamentos imobiliários nos sistemas SAC e PRICE.
-- Comparação entre diferentes estratégias:
+- Comprar vs Alugar (comparação entre estratégias):
   - Comprar um imóvel com financiamento.
   - Alugar e investir o valor da entrada.
   - Investir até comprar à vista.
@@ -284,7 +284,7 @@ docker compose build --no-cache
 1. Acesse `http://localhost:5173`.
 2. Explore:
   - Início: visão geral.
-    - Comparação de Cenários.
+    - Comprar vs Alugar.
   - Sobre: conceitos e metodologia.
     - Docs: documentação detalhada (Quickstart, Cálculos, Glossário).
 

@@ -16,7 +16,7 @@ export default function ScenarioComparison() {
         <Container size="lg">
           <Stack gap="md" align="center" ta="center">
             <Badge size="lg" variant="light" color="sage" radius="sm">
-              Comparador de Cenários
+              Comprar vs Alugar
             </Badge>
             <ThemeIcon 
               size={64} 
@@ -27,7 +27,7 @@ export default function ScenarioComparison() {
               <IconScale size={32} />
             </ThemeIcon>
             <Title order={1} fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
-              Comparação de Cenários
+              Comprar vs Alugar
             </Title>
             <Text size="lg" c="dimmed" maw={600}>
               Analise e compare três estratégias de aquisição imobiliária para descobrir

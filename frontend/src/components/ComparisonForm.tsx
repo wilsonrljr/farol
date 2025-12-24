@@ -148,10 +148,10 @@ export default function ComparisonForm() {
             </ThemeIcon>
             <Box>
               <Text fw={600} c="bright">
-                Resumo da comparação
+                Resumo da simulação
               </Text>
               <Text size="xs" c="dimmed">
-                O que você está comparando
+                O que você está simulando
               </Text>
             </Box>
           </Group>
@@ -802,7 +802,7 @@ export default function ComparisonForm() {
                   fontWeight: 600,
                 }}
               >
-                Comparar cenários
+                Simular Comprar vs Alugar
               </Button>
             </FormSection>
           )}

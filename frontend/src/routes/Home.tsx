@@ -124,7 +124,7 @@ export default function Home() {
                   },
                 }}
               >
-                Comparar Cenários
+                Comprar vs Alugar
               </Button>
               <Button
                 component={Link}
@@ -232,7 +232,7 @@ export default function Home() {
           />
           <FeatureCard
             icon={<IconScale size={24} />}
-            title="Comparação de Cenários"
+            title="Comprar vs Alugar"
             description="Compare três estratégias: comprar financiado, alugar e investir, ou investir para comprar à vista."
             link="/comparacao"
             color="sage"

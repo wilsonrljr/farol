@@ -24,6 +24,7 @@ from .api.errors import configure_logging, install_exception_handlers
 from .api.middleware import install_request_context_middleware
 from .api.routers.exports import router as exports_router
 from .api.routers.simulations import router as simulations_router
+from .api.routers.tools import router as tools_router
 from .config import load_config
 
 config = load_config()
@@ -49,6 +50,7 @@ app.add_middleware(
 
 app.include_router(simulations_router)
 app.include_router(exports_router)
+app.include_router(tools_router)
 
 
 @app.get("/")

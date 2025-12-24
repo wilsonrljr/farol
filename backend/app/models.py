@@ -843,3 +843,249 @@ class ScenarioMetricsSummary(BaseModel):
 class ScenariosMetricsResult(BaseModel):
     best_scenario: str
     metrics: list[ScenarioMetricsSummary]
+
+
+class StressTestInput(BaseModel):
+    """Inputs for the Stress Test tool.
+
+    This is intentionally independent from the housing scenarios: it models a
+    household monthly cashflow and how long an emergency fund can sustain a
+    deficit under an income shock.
+    """
+
+    monthly_income: float = Field(
+        ..., ge=0.0, description="Base monthly net income (R$)"
+    )
+    monthly_expenses: float = Field(
+        ..., ge=0.0, description="Base monthly expenses (R$) at month 1"
+    )
+    initial_emergency_fund: float = Field(
+        ..., ge=0.0, description="Emergency fund balance at month 1 (R$)"
+    )
+
+    horizon_months: int = Field(
+        60, ge=1, le=600, description="Simulation horizon in months"
+    )
+
+    income_drop_percentage: float = Field(
+        30.0,
+        ge=0.0,
+        le=100.0,
+        description="Income drop during the shock (percentage, e.g. 30 for 30%)",
+    )
+    shock_duration_months: int = Field(
+        6,
+        ge=0,
+        le=600,
+        description="Shock duration in months (0 disables the shock)",
+    )
+    shock_start_month: int = Field(
+        1,
+        ge=1,
+        le=600,
+        description="Month when the shock starts (1-based)",
+    )
+
+    annual_inflation_rate: float | None = Field(
+        None,
+        ge=-100.0,
+        le=1000.0,
+        description="Annual inflation rate applied to expenses (percentage)",
+    )
+    annual_emergency_fund_yield_rate: float | None = Field(
+        None,
+        gt=-100.0,
+        le=1000.0,
+        description="Annual yield rate applied to the emergency fund balance (percentage)",
+    )
+
+    @model_validator(mode="after")
+    def validate_shock_window(self) -> "StressTestInput":
+        if self.shock_start_month > self.horizon_months:
+            raise ValueError("shock_start_month must be <= horizon_months")
+        if self.shock_duration_months > 0:
+            shock_end = self.shock_start_month + self.shock_duration_months - 1
+            if shock_end > self.horizon_months:
+                raise ValueError(
+                    "shock_start_month + shock_duration_months - 1 must be <= horizon_months"
+                )
+        return self
+
+
+class StressTestMonth(BaseModel):
+    month: int
+    income: float
+    expenses: float
+    net_cash_flow: float
+    emergency_fund_balance: float
+    depleted: bool
+    uncovered_deficit: float = Field(
+        0.0,
+        ge=0.0,
+        description="Deficit not covered after the fund reached zero (R$)",
+    )
+
+
+class StressTestResult(BaseModel):
+    months_survived: int = Field(
+        ...,
+        ge=0,
+        description="Number of months until depletion (0 if depleted at month 1)",
+    )
+    depleted_at_month: int | None = Field(
+        None, description="Month when the emergency fund hits zero (inclusive)"
+    )
+    final_emergency_fund_balance: float
+    min_emergency_fund_balance: float
+    total_uncovered_deficit: float
+    monthly_data: list[StressTestMonth]
+
+
+class EmergencyFundPlanInput(BaseModel):
+    """Inputs for the Emergency Fund planner.
+
+    Goal is expressed as a multiple of monthly expenses (e.g. 6 months).
+    """
+
+    monthly_expenses: float = Field(
+        ..., ge=0.0, description="Base monthly expenses at month 1 (R$)"
+    )
+    initial_emergency_fund: float = Field(
+        ..., ge=0.0, description="Initial emergency fund balance at month 1 (R$)"
+    )
+    target_months_of_expenses: int = Field(
+        6, ge=1, le=60, description="Target reserve as N months of expenses"
+    )
+
+    monthly_contribution: float = Field(
+        0.0, ge=0.0, description="Monthly contribution to the fund (R$)"
+    )
+    horizon_months: int = Field(60, ge=1, le=600, description="Planning horizon")
+
+    annual_inflation_rate: float | None = Field(
+        None,
+        ge=-100.0,
+        le=1000.0,
+        description="Annual inflation rate applied to expenses/target (percentage)",
+    )
+    annual_emergency_fund_yield_rate: float | None = Field(
+        None,
+        gt=-100.0,
+        le=1000.0,
+        description="Annual yield rate applied to the fund balance (percentage)",
+    )
+
+
+class EmergencyFundPlanMonth(BaseModel):
+    month: int
+    expenses: float
+    target_amount: float
+    contribution: float
+    investment_return: float
+    emergency_fund_balance: float
+    progress_percent: float
+    achieved: bool
+
+
+class EmergencyFundPlanResult(BaseModel):
+    achieved_at_month: int | None = None
+    months_to_goal: int | None = None
+    final_emergency_fund_balance: float
+    target_amount_end: float
+    monthly_data: list[EmergencyFundPlanMonth]
+
+
+class VehicleFinancingConfig(BaseModel):
+    enabled: bool = Field(True, description="Include financing option")
+    down_payment: float = Field(0.0, ge=0.0, description="Down payment (R$)")
+    term_months: int = Field(48, ge=1, le=120, description="Loan term in months")
+    annual_interest_rate: float | None = Field(
+        None, ge=-100.0, le=1000.0, description="Annual interest rate (percentage)"
+    )
+    monthly_interest_rate: float | None = Field(
+        None, ge=-100.0, le=1000.0, description="Monthly interest rate (percentage)"
+    )
+    loan_type: Literal["PRICE", "SAC"] = Field(
+        "PRICE", description="Amortization system for the loan"
+    )
+
+
+class VehicleConsortiumConfig(BaseModel):
+    enabled: bool = Field(True, description="Include consortium option")
+    term_months: int = Field(60, ge=1, le=120, description="Consortium term in months")
+    admin_fee_percentage: float = Field(
+        18.0,
+        ge=0.0,
+        le=200.0,
+        description="Total administration fee over the full term (percentage)",
+    )
+    contemplation_month: int = Field(
+        24,
+        ge=1,
+        le=120,
+        description="Month when the participant is contemplated and gets the vehicle",
+    )
+
+    @model_validator(mode="after")
+    def validate_contemplation(self) -> "VehicleConsortiumConfig":
+        if self.contemplation_month > self.term_months:
+            raise ValueError("contemplation_month must be <= term_months")
+        return self
+
+
+class VehicleSubscriptionConfig(BaseModel):
+    enabled: bool = Field(True, description="Include subscription option")
+    monthly_fee: float = Field(..., ge=0.0, description="Monthly subscription fee (R$)")
+
+
+class VehicleComparisonInput(BaseModel):
+    vehicle_price: float = Field(..., ge=0.0, description="Vehicle price (R$)")
+    horizon_months: int = Field(60, ge=1, le=240, description="Comparison horizon")
+
+    annual_depreciation_rate: float | None = Field(
+        12.0,
+        ge=0.0,
+        le=100.0,
+        description="Annual depreciation rate for the vehicle (percentage)",
+    )
+    annual_inflation_rate: float | None = Field(
+        None,
+        ge=-100.0,
+        le=1000.0,
+        description="Annual inflation applied to recurring costs (percentage)",
+    )
+
+    monthly_insurance: float = Field(0.0, ge=0.0, description="Monthly insurance (R$)")
+    monthly_maintenance: float = Field(
+        0.0, ge=0.0, description="Monthly maintenance (R$)"
+    )
+    monthly_fuel: float = Field(0.0, ge=0.0, description="Monthly fuel (R$)")
+
+    annual_ipva_percentage: float = Field(
+        0.0, ge=0.0, le=50.0, description="Annual IPVA as percentage of vehicle value"
+    )
+
+    include_cash: bool = Field(True, description="Include cash purchase option")
+    financing: VehicleFinancingConfig | None = None
+    consortium: VehicleConsortiumConfig | None = None
+    subscription: VehicleSubscriptionConfig | None = None
+
+
+class VehicleComparisonMonth(BaseModel):
+    month: int
+    cash_flow: float
+    cumulative_outflow: float
+    asset_value: float
+    net_position: float
+
+
+class VehicleComparisonScenario(BaseModel):
+    name: str
+    total_outflows: float
+    final_asset_value: float
+    net_cost: float
+    monthly_data: list[VehicleComparisonMonth]
+
+
+class VehicleComparisonResult(BaseModel):
+    scenarios: list[VehicleComparisonScenario]
