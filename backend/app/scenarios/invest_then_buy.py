@@ -543,15 +543,13 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 self.get_inflated_monthly_costs(month)
             )
             self._total_monthly_additional_costs += monthly_additional
-        else:
-            purchase_upfront = 0.0
+
 
         # New semantics: cash_flow/total_monthly_cost represent all monthly outflows and cash allocations.
         initial_deposit = (
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
-        purchase_upfront_effective = purchase_upfront
 
         # Count every deposit made this month as outflow; do not net out the baseline.
         # Deposits made because of invest_loan_difference are real cash allocations
@@ -560,9 +558,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         # If the purchase happens now, the initial capital already covers the price and
         # upfront costs. Avoid double-counting by zeroing extra deposits tied to the
-        # loan-difference strategy and the explicit purchase_upfront component.
+        # loan-difference strategy.
         if status == "Imóvel comprado":
-            purchase_upfront_effective = 0.0
             additional_investment_effective = 0.0
 
         contributions_outflow = (
@@ -570,7 +567,6 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             + invested_from_external
             + contrib_total
             + additional_investment_effective
-            + purchase_upfront_effective
         )
 
         # Robustness rule: rent is always due. If it couldn't be fully paid from modeled
@@ -638,6 +634,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_return_net=investment_result.net_return,
             fgts_balance=self.fgts_balance if self.fgts else None,
             fgts_used=fgts_used_this_month if self.fgts else 0.0,
+            upfront_additional_costs=(purchase_upfront if status == "Imóvel comprado" else 0.0),
         )
 
     def _handle_post_purchase_month(
@@ -755,6 +752,13 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         net_cost = total_outflows - final_equity
 
+        # Consumption approximation: rent due + ownership monthly costs + transaction costs.
+        total_consumption = 0.0
+        for d in self._monthly_data:
+            total_consumption += (d.rent_due or 0.0)
+            total_consumption += (d.monthly_additional_costs or 0.0)
+            total_consumption += (d.upfront_additional_costs or 0.0)
+
         # Ensure chronological ordering
         self._monthly_data.sort(key=lambda d: d.month)
 
@@ -763,6 +767,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             scenario_type="invest_buy",
             total_cost=net_cost,
             final_equity=final_equity,
+            total_consumption=total_consumption,
             monthly_data=self._monthly_data,
             total_outflows=total_outflows,
             net_cost=net_cost,

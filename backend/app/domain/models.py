@@ -139,6 +139,11 @@ class ComparisonScenario:
     opportunity_cost: float | None = None
     purchase_breakdown: PurchaseBreakdown | None = None
     fgts_summary: FGTSUsageSummary | None = None
+    # New: explicit wealth/consumption semantics (additive, backward-compatible)
+    initial_wealth: float | None = None
+    final_wealth: float | None = None
+    net_worth_change: float | None = None
+    total_consumption: float | None = None
 
 
 @dataclass
@@ -167,6 +172,11 @@ class EnhancedComparisonScenario:
     net_cost: float | None = None
     purchase_breakdown: PurchaseBreakdown | None = None
     fgts_summary: FGTSUsageSummary | None = None
+    # New: explicit wealth/consumption semantics (additive, backward-compatible)
+    initial_wealth: float | None = None
+    final_wealth: float | None = None
+    net_worth_change: float | None = None
+    total_consumption: float | None = None
 
 
 @dataclass

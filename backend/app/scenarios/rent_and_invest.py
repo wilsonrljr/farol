@@ -269,11 +269,15 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_outflows = sum((d.total_monthly_cost or 0.0) for d in self._monthly_data)
         net_cost = total_outflows - final_equity
 
+        # Consumption approximation: rent due is treated as spending.
+        total_consumption = sum((d.rent_due or 0.0) for d in self._monthly_data)
+
         return DomainComparisonScenario(
             name=self.scenario_name,
             scenario_type="rent_invest",
             total_cost=net_cost,
             final_equity=final_equity,
+            total_consumption=total_consumption,
             monthly_data=self._monthly_data,
             total_outflows=total_outflows,
             net_cost=net_cost,

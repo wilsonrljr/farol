@@ -160,7 +160,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
               <IconArrowUpRight size={14} color="var(--mantine-color-sage-7)" />
             )}
             <Text size="xs" c={wealthDelta < 0 ? 'danger.6' : 'sage.7'} fw={500}>
-              {wealthDelta > 0 ? '+' : ''}{money(wealthDelta)} vs melhor (menor custo)
+              {wealthDelta > 0 ? '+' : ''}{money(wealthDelta)} vs melhor
             </Text>
           </Group>
         )}
@@ -175,7 +175,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
             </Text>
             <Help
               label="Custo Líquido"
-              help="Custo total ao longo do tempo (saídas de caixa), considerando entradas/aportes e regras do cenário. O 'melhor' cenário do backend hoje é o de menor custo líquido."
+              help="Custo total ao longo do tempo (saídas de caixa), considerando entradas/aportes e regras do cenário. Observação: o 'melhor cenário' é escolhido por variação de patrimônio (net_worth_change), não por menor custo líquido."
             />
           </Group>
           <Group gap={4} align="center">
@@ -383,15 +383,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     return row;
   });
 
-  // Best scenario comes from the backend decision rule (currently: lowest total_cost).
+  // Canonical rule: backend selects `best_scenario` by highest net_worth_change.
   // Keep UI highlight consistent with `result.best_scenario`.
   const bestScenario =
     result.scenarios.find((s) => s.name === result.best_scenario) ??
-    [...result.scenarios].sort((a, b) => a.total_cost - b.total_cost)[0];
-
-  const maxWealthScenario = [...result.scenarios].sort(
-    (a, b) => (b.metrics?.wealth_accumulation ?? 0) - (a.metrics?.wealth_accumulation ?? 0)
-  )[0];
+    [...result.scenarios].sort((a, b) => (b.net_worth_change ?? -Infinity) - (a.net_worth_change ?? -Infinity))[0];
 
   const comparativeRowsRaw = Object.values(result.comparative_summary || {}).filter(
     (v: any) => v && typeof v === 'object' && typeof v.month === 'number'
@@ -424,18 +420,12 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             </Title>
           </Group>
           <Text size="md" c="sage.6">
-            Melhor cenário (critério: menor custo líquido):{' '}
+            Melhor cenário (critério: maior variação de patrimônio):{' '}
             <Text component="span" fw={600} c="sage.8">{result.best_scenario}</Text>
           </Text>
           <Text size="xs" c="sage.6" mt={4}>
-            O critério “melhor” pode diferir do maior patrimônio final.
+            “Melhor” aqui significa maior variação de patrimônio (não menor desembolso/custo líquido).
           </Text>
-          {maxWealthScenario?.name && maxWealthScenario.name !== bestScenario.name && (
-            <Text size="sm" c="sage.6" mt={4}>
-              Maior patrimônio final:{' '}
-              <Text component="span" fw={600} c="sage.8">{maxWealthScenario.name}</Text>
-            </Text>
-          )}
         </Box>
         <Menu withinPortal position="bottom-end">
           <Menu.Target>

@@ -663,6 +663,29 @@ class ComparisonScenario(BaseModel):
     )
     total_cost: float
     final_equity: float
+    # New: explicit wealth/consumption semantics (backward-compatible)
+    initial_wealth: float | None = Field(
+        None,
+        description=(
+            "Estimated wealth available at month 1 (cash + FGTS initial balance when provided). "
+            "This is a reporting field and does not change simulation behavior."
+        ),
+    )
+    final_wealth: float | None = Field(
+        None,
+        description="Alias for final_equity for clarity in wealth reporting.",
+    )
+    net_worth_change: float | None = Field(
+        None,
+        description="final_wealth - initial_wealth (positive means wealth increased).",
+    )
+    total_consumption: float | None = Field(
+        None,
+        description=(
+            "Approximation of 'non-asset' spending (e.g., rent, interest, HOA/IPTU, transaction costs). "
+            "Excludes principal transfers into assets."
+        ),
+    )
     monthly_data: list[MonthlyRecord]
     # New fields for clearer cost semantics. total_outflows = sum of all cash out (gross).
     # net_cost = total_outflows - final_equity (net of assets). Kept optional for backward compatibility.
@@ -737,6 +760,29 @@ class EnhancedComparisonScenario(BaseModel):
     name: str
     total_cost: float
     final_equity: float
+    # New: explicit wealth/consumption semantics (backward-compatible)
+    initial_wealth: float | None = Field(
+        None,
+        description=(
+            "Estimated wealth available at month 1 (cash + FGTS initial balance when provided). "
+            "This is a reporting field and does not change simulation behavior."
+        ),
+    )
+    final_wealth: float | None = Field(
+        None,
+        description="Alias for final_equity for clarity in wealth reporting.",
+    )
+    net_worth_change: float | None = Field(
+        None,
+        description="final_wealth - initial_wealth (positive means wealth increased).",
+    )
+    total_consumption: float | None = Field(
+        None,
+        description=(
+            "Approximation of 'non-asset' spending (e.g., rent, interest, HOA/IPTU, transaction costs). "
+            "Excludes principal transfers into assets."
+        ),
+    )
     total_outflows: float | None = Field(
         None,
         description="Gross outflows (down payment + payments + rent + costs + investments)",
@@ -752,12 +798,24 @@ class EnhancedComparisonScenario(BaseModel):
 
 
 class ComparisonResult(BaseModel):
-    best_scenario: str
+    best_scenario: str = Field(
+        ...,
+        description=(
+            "Scenario with the highest net_worth_change (equivalently: highest final_wealth, "
+            "since all scenarios share the same initial_wealth baseline)."
+        ),
+    )
     scenarios: list[ComparisonScenario]
 
 
 class EnhancedComparisonResult(BaseModel):
-    best_scenario: str
+    best_scenario: str = Field(
+        ...,
+        description=(
+            "Scenario with the highest net_worth_change (equivalently: highest final_wealth, "
+            "since all scenarios share the same initial_wealth baseline)."
+        ),
+    )
     scenarios: list[EnhancedComparisonScenario]
     comparative_summary: dict[str, dict[str, object]] = Field(
         ..., description="Month-by-month comparison between scenarios"

@@ -19,7 +19,9 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
         <div>
           <Title order={3}>Resultados</Title>
-          <Text size="sm">Melhor cenário: <strong>{result.best_scenario}</strong></Text>
+          <Text size="sm">
+            Melhor cenário (critério: maior variação de patrimônio): <strong>{result.best_scenario}</strong>
+          </Text>
         </div>
         <Menu withinPortal position="bottom-end">
           <Menu.Target>
@@ -71,8 +73,8 @@ export default function ComparisonResults({ result, inputPayload }: { result: Co
                         <Table.Tr key={m.month} style={style}>
                           <Table.Td>{m.month}</Table.Td>
                           <Table.Td>{monthToYear(m.month)}</Table.Td>
-                          <Table.Td>{money(wealthAt(m))}</Table.Td>
                           <Table.Td>{money(monthlyOutflow(m))}</Table.Td>
+                          <Table.Td>{money(wealthAt(m))}</Table.Td>
                           <Table.Td>{money(m.equity)}</Table.Td>
                           <Table.Td>{money(m.investment_balance)}</Table.Td>
                           <Table.Td>{money(m.property_value)}</Table.Td>

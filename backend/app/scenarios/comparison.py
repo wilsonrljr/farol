@@ -109,6 +109,13 @@ def _compare_scenarios_domain(
 ) -> domain.ComparisonResult:
     term_months = loan_term_years * 12
 
+    # Reporting-only: baseline initial wealth estimate (does not change simulation).
+    # - cash: total_savings if provided, otherwise down_payment (legacy mode)
+    # - fgts: initial FGTS balance if provided
+    cash_initial = float(total_savings) if total_savings is not None else float(down_payment)
+    fgts_initial = float(getattr(fgts, "initial_balance", 0.0) or 0.0) if fgts is not None else 0.0
+    initial_wealth = cash_initial + fgts_initial
+
     buy_initial, rent_initial, invest_buy_initial = _resolve_initial_investments(
         property_value=property_value,
         down_payment=down_payment,
@@ -176,8 +183,31 @@ def _compare_scenarios_domain(
     ).simulate_domain()
 
     scenarios = [buy, rent, invest_buy]
-    best_scenario = min(scenarios, key=lambda x: x.total_cost).name
-    return domain.ComparisonResult(best_scenario=best_scenario, scenarios=scenarios)
+
+    # Attach wealth reporting fields to all scenarios (keeps per-scenario values comparable).
+    for sc in scenarios:
+        sc.initial_wealth = initial_wealth
+        sc.final_wealth = sc.final_equity
+        sc.net_worth_change = sc.final_equity - initial_wealth
+
+    # Business rule (canonical): best scenario is the one that maximizes final wealth.
+    # We expose this as `best_scenario` to avoid mixing two competing meanings of “best”.
+    #
+    # Important: `total_cost` / `net_cost` are NOT the same as “wealth change”. They include
+    # principal transfers and other flows that can make a scenario look “more expensive” even
+    # when it ends with higher final wealth.
+    best_scenario = max(
+        scenarios,
+        key=lambda x: (
+            float(getattr(x, "net_worth_change", 0.0) or 0.0),
+            float(getattr(x, "final_equity", 0.0) or 0.0),
+        ),
+    ).name
+
+    return domain.ComparisonResult(
+        best_scenario=best_scenario,
+        scenarios=scenarios,
+    )
 
 
 def enhanced_compare_scenarios(
@@ -294,6 +324,10 @@ def _enhanced_compare_scenarios_domain(
             name=sc.name,
             total_cost=sc.total_cost,
             final_equity=sc.final_equity,
+            initial_wealth=sc.initial_wealth,
+            final_wealth=sc.final_wealth,
+            net_worth_change=sc.net_worth_change,
+            total_consumption=sc.total_consumption,
             total_outflows=sc.total_outflows,
             net_cost=sc.net_cost,
             monthly_data=sc.monthly_data,

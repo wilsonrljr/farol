@@ -28,3 +28,16 @@ def test_compare_scenarios_new_fields():
         assert scenario.net_cost is not None
         # total_cost should equal net_cost for backward compatibility
         assert scenario.total_cost == scenario.net_cost
+
+        # New wealth semantics should be present and consistent.
+        assert scenario.initial_wealth is not None
+        assert scenario.final_wealth is not None
+        assert scenario.net_worth_change is not None
+        assert scenario.final_wealth == pytest.approx(scenario.final_equity)
+        assert scenario.net_worth_change == pytest.approx(
+            scenario.final_wealth - scenario.initial_wealth
+        )
+
+    # best_scenario is defined as the max net_worth_change scenario.
+    best = max(result.scenarios, key=lambda s: s.net_worth_change or -1e18)
+    assert result.best_scenario == best.name

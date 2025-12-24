@@ -184,6 +184,11 @@ export interface ComparisonScenario {
   name: string;
   total_cost: number;
   final_equity: number;
+  // Wealth reporting (added to avoid mixing cashflow vs wealth semantics)
+  initial_wealth?: number | null;
+  final_wealth?: number | null;
+  net_worth_change?: number | null;
+  total_consumption?: number | null;
   total_outflows?: number;
   net_cost?: number;
   opportunity_cost?: number | null; // Investment gains from initial capital kept invested
