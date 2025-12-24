@@ -56,6 +56,41 @@ def _validate_investment_return_ranges(returns: list["InvestmentReturnInput"]) -
         prev_end = r.end_month
 
 
+def _validate_investment_return_coverage(returns: list["InvestmentReturnInput"]) -> None:
+    """Validate that investment return ranges cover the whole horizon continuously.
+
+    Business rule for UX/safety:
+    - The first range must start at month 1.
+    - Ranges must be contiguous (no gaps).
+    - The last range must be open-ended (end_month=None).
+
+    Without this, missing months silently become 0% return, which is usually an
+    input mistake and produces misleading results.
+    """
+
+    if not returns:
+        raise ValueError("investment_returns must not be empty")
+
+    ordered = sorted(returns, key=lambda r: r.start_month)
+    if ordered[0].start_month != 1:
+        raise ValueError("investment_returns must start at month 1")
+
+    for prev, cur in zip(ordered, ordered[1:], strict=False):
+        if prev.end_month is None:
+            raise ValueError(
+                "investment_returns must be continuous; an open-ended range cannot be followed by another"
+            )
+        expected_next_start = prev.end_month + 1
+        if cur.start_month != expected_next_start:
+            raise ValueError(
+                "investment_returns must be continuous (no gaps). "
+                f"Expected next start_month={expected_next_start}, got {cur.start_month}"
+            )
+
+    if ordered[-1].end_month is not None:
+        raise ValueError("investment_returns must end with an open-ended range (end_month=null)")
+
+
 class AmortizationInput(BaseModel):
     # Original fields (backward compatibility): single event when only month + value provided
     month: int | None = Field(
@@ -301,7 +336,6 @@ class MonthlyRecord(BaseModel):
     rent_due: float | None = None
     rent_paid: float | None = None
     rent_shortfall: float | None = None
-    investment_return: float | None = None
     liquid_wealth: float | None = None
     cumulative_rent_paid: float | None = None
     cumulative_investment_gains: float | None = None
@@ -362,18 +396,30 @@ class AdditionalCostsInput(BaseModel):
     itbi_percentage: float = Field(
         2.0,
         ge=0.0,
-        description="ITBI tax percentage",
+        description=(
+            "ITBI (% do valor do imóvel). Dica (Brasil): normalmente ~2% a 3% dependendo do município."
+        ),
     )
     deed_percentage: float = Field(
         1.0,
         ge=0.0,
-        description="Deed cost percentage",
+        description=(
+            "Custos de escritura/registro (% do valor do imóvel). Dica (Brasil): frequentemente ~1% a 2% (varia por estado/cartório)."
+        ),
     )
     monthly_hoa: float | None = Field(
-        None, ge=0.0, description="Monthly homeowners association fee"
+        None,
+        ge=0.0,
+        description=(
+            "Condomínio mensal (R$). Dica: informe o valor atual; a simulação pode corrigir por inflação."
+        ),
     )
     monthly_property_tax: float | None = Field(
-        None, ge=0.0, description="Monthly property tax (IPTU)"
+        None,
+        ge=0.0,
+        description=(
+            "IPTU mensal (R$). Dica: se você só tem o valor anual, divida por 12 e informe aqui."
+        ),
     )
 
 
@@ -393,8 +439,12 @@ class LoanSimulationInput(BaseModel):
     amortizations: list[AmortizationInput] | None = Field(
         None, description="Extra amortizations"
     )
-    additional_costs: AdditionalCostsInput | None = Field(
-        None, description="Additional costs like ITBI, deed, HOA, property tax"
+    additional_costs: AdditionalCostsInput = Field(
+        ...,
+        description=(
+            "Custos adicionais obrigatórios (ITBI/escritura/condomínio/IPTU). "
+            "Dica: se não souber, use ITBI=2% e escritura/registro=1% como aproximação inicial."
+        ),
     )
     inflation_rate: float | None = Field(
         None,
@@ -458,8 +508,12 @@ class ComparisonInput(BaseModel):
             "Use this instead of amortizations; amortizations are reserved for extra loan prepayments."
         ),
     )
-    additional_costs: AdditionalCostsInput | None = Field(
-        None, description="Additional costs like ITBI, deed, HOA, property tax"
+    additional_costs: AdditionalCostsInput = Field(
+        ...,
+        description=(
+            "Custos adicionais obrigatórios (ITBI/escritura/condomínio/IPTU). "
+            "Dica: se não souber, use ITBI=2% e escritura/registro=1% como aproximação inicial."
+        ),
     )
     inflation_rate: float | None = Field(
         None,
@@ -532,6 +586,25 @@ class ComparisonInput(BaseModel):
                 raise ValueError(
                     "total_savings must be >= down_payment + upfront_costs (ITBI + deed)"
                 )
+
+        # UX rule: monthly_external_savings only makes sense when rent is modeled
+        # as being paid from modeled sources (external cover + optional withdrawal).
+        # If rent is assumed external (rent_reduces_investment=False), providing
+        # monthly_external_savings would be ambiguous (is it income? a contribution?).
+        if (self.monthly_external_savings is not None) and (not self.rent_reduces_investment):
+            raise ValueError(
+                "monthly_external_savings requires rent_reduces_investment=true (otherwise the meaning is ambiguous)"
+            )
+        if self.invest_external_surplus and (self.monthly_external_savings is None):
+            raise ValueError(
+                "invest_external_surplus requires monthly_external_savings to be provided"
+            )
+        if self.invest_external_surplus and (not self.rent_reduces_investment):
+            raise ValueError(
+                "invest_external_surplus requires rent_reduces_investment=true"
+            )
+
+        _validate_investment_return_coverage(list(self.investment_returns or []))
 
         _validate_investment_return_ranges(list(self.investment_returns or []))
         return self
@@ -656,7 +729,7 @@ class ComparisonMetrics(BaseModel):
     )
     average_sustainable_withdrawal_ratio: float | None = Field(
         None,
-        description="Average of (investment_return / withdrawal) in months with withdrawal >0 (values >1 mean fully covered by returns)",
+        description="Average of (investment_return_net / withdrawal) in months with withdrawal >0 (values >1 mean fully covered by returns)",
     )
 
 

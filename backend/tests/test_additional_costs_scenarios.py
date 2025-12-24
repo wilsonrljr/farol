@@ -27,14 +27,30 @@ def _buy(data):
 
 
 def test_additional_costs_increase_total_cost():
-    # Baseline (no additional costs)
-    p0 = dict(BASE, additional_costs=None)
+    # Baseline (small but non-zero defaults)
+    p0 = dict(
+        BASE,
+        additional_costs={
+            "itbi_percentage": 0.0,
+            "deed_percentage": 0.0,
+            "monthly_hoa": 0.0,
+            "monthly_property_tax": 0.0,
+        },
+    )
     r0 = client.post("/api/compare-scenarios-enhanced", json=p0)
     assert r0.status_code == 200, r0.text
     b0 = _buy(r0.json())
 
     # Upfront only
-    p1 = dict(BASE, additional_costs={"itbi_percentage": 2.0, "deed_percentage": 1.0})
+    p1 = dict(
+        BASE,
+        additional_costs={
+            "itbi_percentage": 2.0,
+            "deed_percentage": 1.0,
+            "monthly_hoa": 0.0,
+            "monthly_property_tax": 0.0,
+        },
+    )
     r1 = client.post("/api/compare-scenarios-enhanced", json=p1)
     b1 = _buy(r1.json())
 

@@ -57,7 +57,7 @@ export function signedPercent(v: number | null | undefined, digits = 1) {
   return `${sign}${Math.abs(v).toFixed(digits)}%`;
 }
 
-// Ratio formatting helper for metrics like investment_return / withdrawal.
+// Ratio formatting helper for metrics like investment_return_net / withdrawal.
 // Example: 1.25 => "1,25×" (means returns covered 125% of withdrawals)
 export function ratio(v: number | null | undefined, digits = 2) {
   if (v == null || Number.isNaN(v)) return '—';

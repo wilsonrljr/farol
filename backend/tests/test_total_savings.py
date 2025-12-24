@@ -7,6 +7,7 @@ cost tracking in the buy scenario.
 """
 
 import pytest
+from pydantic import ValidationError
 
 from backend.app.models import ComparisonInput, InvestmentReturnInput
 from backend.app.scenarios.comparison import (
@@ -26,6 +27,12 @@ def test_initial_investment_calculated_from_total_savings():
         loan_type="SAC",
         rent_value=2000,
         investment_returns=[InvestmentReturnInput(start_month=1, annual_rate=8.0)],
+        additional_costs={
+            "itbi_percentage": 0.0,
+            "deed_percentage": 0.0,
+            "monthly_hoa": 0.0,
+            "monthly_property_tax": 0.0,
+        },
     )
 
     assert inputs.initial_investment == 50000.0
@@ -41,6 +48,12 @@ def test_initial_investment_zero_when_total_savings_not_provided():
         loan_type="SAC",
         rent_value=2000,
         investment_returns=[InvestmentReturnInput(start_month=1, annual_rate=8.0)],
+        additional_costs={
+            "itbi_percentage": 0.0,
+            "deed_percentage": 0.0,
+            "monthly_hoa": 0.0,
+            "monthly_property_tax": 0.0,
+        },
     )
 
     assert inputs.initial_investment == 0.0
@@ -48,7 +61,10 @@ def test_initial_investment_zero_when_total_savings_not_provided():
 
 def test_total_savings_validation_must_be_gte_down_payment():
     """Test that total_savings must be >= down_payment."""
-    with pytest.raises(ValueError, match="total_savings must be >= down_payment"):
+    with pytest.raises(
+        ValidationError,
+        match=r"total_savings must be >= down_payment \+ upfront_costs \(ITBI \+ deed\)",
+    ):
         ComparisonInput(
             property_value=500000,
             down_payment=100000,
@@ -58,6 +74,12 @@ def test_total_savings_validation_must_be_gte_down_payment():
             loan_type="SAC",
             rent_value=2000,
             investment_returns=[InvestmentReturnInput(start_month=1, annual_rate=8.0)],
+            additional_costs={
+                "itbi_percentage": 0.0,
+                "deed_percentage": 0.0,
+                "monthly_hoa": 0.0,
+                "monthly_property_tax": 0.0,
+            },
         )
 
 

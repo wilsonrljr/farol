@@ -17,6 +17,12 @@ BASE_PAYLOAD = {
     "loan_type": "PRICE",
     "rent_value": 2000,
     "investment_returns": [{"start_month": 1, "end_month": None, "annual_rate": 8.0}],
+    "additional_costs": {
+        "itbi_percentage": 2.0,
+        "deed_percentage": 1.0,
+        "monthly_hoa": 0.0,
+        "monthly_property_tax": 0.0,
+    },
 }
 
 
@@ -45,14 +51,8 @@ def test_buy_scenario_contains_additional_costs_fields_when_provided():
     assert "total_monthly_cost" in first
 
 
-def test_buy_scenario_omits_additional_costs_fields_when_none():
+def test_additional_costs_is_required_by_api_contract():
     payload = dict(BASE_PAYLOAD)
-    payload["additional_costs"] = None
+    payload.pop("additional_costs", None)
     r = client.post("/api/compare-scenarios-enhanced", json=payload)
-    assert r.status_code == 200, r.text
-    data = r.json()
-    buy = _get_buy_scenario(data)
-    first = buy["monthly_data"][0]
-    # Field may exist but should be zero, or absent; accept either pattern.
-    if "monthly_additional_costs" in first:
-        assert first["monthly_additional_costs"] == 0
+    assert r.status_code == 422

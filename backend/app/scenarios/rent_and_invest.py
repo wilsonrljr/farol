@@ -13,12 +13,7 @@ from dataclasses import dataclass, field
 
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount, InvestmentResult
-from ..core.protocols import (
-    AdditionalCostsLike,
-    FGTSLike,
-    InvestmentReturnLike,
-    InvestmentTaxLike,
-)
+from ..core.protocols import InvestmentReturnLike, InvestmentTaxLike
 from ..domain.mappers import comparison_scenario_to_api
 from ..domain.models import ComparisonScenario as DomainComparisonScenario
 from ..domain.models import MonthlyRecord as DomainMonthlyRecord
@@ -154,10 +149,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             withdrawal_realized_gain = withdrawal.realized_gain
             remaining_before_return = self._account.balance
         else:
-            if self.monthly_external_savings and self.monthly_external_savings > 0:
-                self._account.deposit(self.monthly_external_savings)
-                external_surplus_invested = self.monthly_external_savings
-                remaining_before_return = self._account.balance
+            # When rent is not modeled as reducing investment, rent is assumed to be
+            # paid externally and we intentionally do not treat monthly_external_savings
+            # as an investment contribution to avoid ambiguous semantics.
+            pass
 
         actual_rent_paid = (
             external_cover + rent_withdrawal
@@ -197,12 +192,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         withdrawal = (
             cashflow_result["rent_withdrawal"] if self.rent_reduces_investment else 0.0
         )
-        investment_return = investment_result.net_return
-
         sustainable_withdrawal_ratio = (
-            (investment_return / withdrawal) if withdrawal > 0 else None
+            (investment_result.net_return / withdrawal) if withdrawal > 0 else None
         )
-        burn_month = withdrawal > 0 and investment_return < withdrawal
+        burn_month = withdrawal > 0 and investment_result.net_return < withdrawal
 
         # New semantics: total_monthly_cost reflects all outflows/cash allocations in the month.
         # Month 1 includes the initial capital invested (down payment + initial_investment).
@@ -220,7 +213,6 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             month=month,
             cash_flow=-total_monthly_cost,
             investment_balance=self._account.balance,
-            investment_return=investment_return,
             rent_due=rent_due,
             rent_paid=actual_rent_paid,
             rent_shortfall=rent_shortfall,

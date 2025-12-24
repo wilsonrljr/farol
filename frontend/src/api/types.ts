@@ -90,7 +90,7 @@ export interface ComparisonInput {
   investment_returns: InvestmentReturnInput[];
   amortizations?: AmortizationInput[];
   contributions?: ContributionInput[];
-  additional_costs?: AdditionalCostsInput;
+  additional_costs: AdditionalCostsInput;
   inflation_rate?: number | null;
   rent_inflation_rate?: number | null;
   property_appreciation_rate?: number | null;
@@ -126,7 +126,6 @@ export interface MonthlyRecord {
 
   // Rent/Invest
   rent_paid?: number;
-  investment_return?: number;
   liquid_wealth?: number;
   cumulative_rent_paid?: number;
   cumulative_investment_gains?: number;

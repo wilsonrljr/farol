@@ -12,13 +12,13 @@ from .amortization import preprocess_amortizations
 from .costs import AdditionalCostsCalculator, calculate_additional_costs
 from .fgts import FGTSManager
 from .inflation import apply_inflation, apply_property_appreciation
-from .investment import InvestmentCalculator
+from .investment import InvestmentAccount
 from .rates import convert_interest_rate, get_monthly_investment_rate
 
 __all__ = [
     "AdditionalCostsCalculator",
     "FGTSManager",
-    "InvestmentCalculator",
+    "InvestmentAccount",
     "apply_inflation",
     "apply_property_appreciation",
     "calculate_additional_costs",

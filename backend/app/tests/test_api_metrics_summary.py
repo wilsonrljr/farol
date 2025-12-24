@@ -12,6 +12,12 @@ BASE_PAYLOAD = {
     "loan_type": "PRICE",
     "rent_value": 2500.0,
     "investment_returns": [{"start_month": 1, "annual_rate": 6.0}],
+    "additional_costs": {
+        "itbi_percentage": 0.0,
+        "deed_percentage": 0.0,
+        "monthly_hoa": 0.0,
+        "monthly_property_tax": 0.0,
+    },
     "rent_reduces_investment": True,
     "monthly_external_savings": 0.0,
 }
@@ -36,6 +42,7 @@ def test_metrics_summary_without_adjusted_roi():
         rent_reduces_investment=False,
         rent_value=800.0,
         investment_returns=[{"start_month": 1, "annual_rate": 10.0}],
+        monthly_external_savings=None,
     )
     r = client.post("/api/scenario-metrics", json=payload)
     assert r.status_code == 200, r.text

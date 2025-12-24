@@ -16,6 +16,7 @@ Entenda e compare rapidamente três estratégias:
 | Sistema (SAC / PRICE) | PRICE | Forma de amortização das parcelas |
 | Aluguel (R$) ou % | 2.500 ou 0,5% | Aluguel mensal estimado (ou % do valor dividido por 12) |
 | Retornos de Investimento | 8% a.a. | Rentabilidade esperada do capital investido |
+| Custos (ITBI/Escritura/Condomínio/IPTU) | 2% / 1% / 0 / 0 | Custos adicionais do imóvel (compra e mensais) |
 
 Campos opcionais depois: Inflação, Valorização, Amortizações Extras, “Aluguel consome investimento”, Renda externa para custos, Aporte fixo.
 
@@ -25,6 +26,15 @@ Campos opcionais depois: Inflação, Valorização, Amortizações Extras, “Al
 2. Ative “Mostrar avançado” se quiser ajustar inflação, valorização, amortizações, renda externa etc.
 3. Marque “Métricas avançadas” para ver indicadores adicionais (ROI, sustentabilidade, diferenças mensais).
 4. Clique em “Comparar Cenários”.
+
+---
+## 2.1 Regras importantes (API / modelo)
+- `additional_costs` é **obrigatório**. Se não souber, use uma aproximação inicial: ITBI=2%, escritura/registro=1%, condomínio/IPTU=0.
+- `investment_returns` precisa:
+	- começar em `start_month=1`
+	- ser contínuo (sem “buracos” entre faixas)
+	- terminar com a última faixa aberta (`end_month=null`)
+- `monthly_external_savings` e `invest_external_surplus` só fazem sentido quando `rent_reduces_investment=true` (aluguel/custos sendo pagos via fontes modeladas).
 
 ---
 ## 3. O que Observar Primeiro
@@ -41,7 +51,7 @@ Quando há retiradas (pagando aluguel do investimento):
 |-----------|-------------|
 | Retirada de Aluguel | Quanto foi sacado do investimento para pagar aluguel/custos |
 | Meses com Queima | Quantos meses os rendimentos não cobriram a retirada (capital foi consumido) |
-| Rend/Ret (x) | Relação rendimento do mês / retirada. >1 significa sustentável naquele mês |
+| Rend/Ret (x) | Relação **retorno líquido do mês** (`investment_return_net`) / retirada. >1 significa sustentável naquele mês |
 
 ---
 ## 4. Resumo dos Cenários

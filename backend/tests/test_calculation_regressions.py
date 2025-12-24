@@ -16,6 +16,12 @@ PAYLOAD = {
     "loan_type": "PRICE",
     "rent_value": 2000,
     "investment_returns": [{"start_month": 1, "end_month": None, "annual_rate": 8.0}],
+    "additional_costs": {
+        "itbi_percentage": 2.0,
+        "deed_percentage": 1.0,
+        "monthly_hoa": 0.0,
+        "monthly_property_tax": 0.0,
+    },
     "inflation_rate": 3.0,
     "rent_inflation_rate": 6.0,
     "property_appreciation_rate": 4.0,

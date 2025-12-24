@@ -339,7 +339,7 @@ def _resolve_initial_investments(
     """
 
     if total_savings is None:
-                return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0
 
     costs = AdditionalCostsCalculator.from_input(additional_costs).calculate(
         property_value

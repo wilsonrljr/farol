@@ -40,10 +40,15 @@ def test_export_compare_scenarios_parity_with_total_savings_initial_investment()
         "loan_type": "PRICE",
         "rent_value": 1_000.0,
         "investment_returns": [{"start_month": 1, "annual_rate": 0.0}],
+        "additional_costs": {
+            "itbi_percentage": 0.0,
+            "deed_percentage": 0.0,
+            "monthly_hoa": 0.0,
+            "monthly_property_tax": 0.0,
+        },
         "inflation_rate": 0.0,
         "rent_inflation_rate": 0.0,
         "rent_reduces_investment": False,
-        "monthly_external_savings": 0.0,
         "invest_external_surplus": False,
     }
 

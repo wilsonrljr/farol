@@ -17,10 +17,8 @@ from ..core.costs import CostsBreakdown, calculate_additional_costs
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount, InvestmentResult
 from ..core.protocols import (
-    AdditionalCostsLike,
     AmortizationLike,
     ContributionLike,
-    FGTSLike,
     InvestmentReturnLike,
     InvestmentTaxLike,
 )
@@ -381,10 +379,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             withdrawal_realized_gain = withdrawal.realized_gain
             remaining_before_return = self._account.balance
         else:
-            if self.monthly_external_savings and self.monthly_external_savings > 0:
-                self._account.deposit(self.monthly_external_savings)
-                external_surplus_invested = self.monthly_external_savings
-                remaining_before_return = self._account.balance
+            # When rent is not modeled as reducing investment, rent is assumed to be
+            # paid externally and we intentionally do not treat monthly_external_savings
+            # as an investment contribution to avoid ambiguous semantics.
+            pass
 
         actual_rent_paid = (
             external_cover + rent_withdrawal
@@ -572,18 +570,15 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         withdrawal = (
             cashflow_result["rent_withdrawal"] if self.rent_reduces_investment else 0.0
         )
-        investment_return = investment_result.net_return
-
         sustainable_withdrawal_ratio = (
-            (investment_return / withdrawal) if withdrawal > 0 else None
+            (investment_result.net_return / withdrawal) if withdrawal > 0 else None
         )
-        burn_month = withdrawal > 0 and investment_return < withdrawal
+        burn_month = withdrawal > 0 and investment_result.net_return < withdrawal
 
         return DomainMonthlyRecord(
             month=month,
             cash_flow=cash_flow,
             investment_balance=self._account.balance,
-            investment_return=investment_return,
             rent_due=rent_due,
             rent_paid=actual_rent_paid,
             rent_shortfall=rent_shortfall,
@@ -663,7 +658,6 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             monthly_additional_costs=monthly_additional,
             total_monthly_cost=total_monthly_cost,
             property_value=current_property_value,
-            investment_return=investment_result.net_return,
             investment_return_gross=investment_result.gross_return,
             investment_tax_paid=investment_result.tax_paid,
             investment_return_net=investment_result.net_return,

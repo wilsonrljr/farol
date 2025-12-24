@@ -13,6 +13,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Aluguel Mensal: valor base inicial do aluguel (ou use Percentual do Imóvel).
 - Percentual de Aluguel (% a.a.): percentual anual sobre o valor do imóvel (dividido por 12 para o mês).
 - Retornos de Investimento: períodos com taxa de retorno anual específica (permite cenários com mudança futura de taxa).
+	- Regra: a primeira faixa deve começar no mês 1 (`start_month=1`), as faixas devem ser contíguas (sem gaps) e a última deve ser aberta (`end_month=null`).
 - Amortizações Extras: pagamentos extras para reduzir o saldo do financiamento mais rápido (valor ou % do saldo, únicos ou recorrentes).
 - Custos Iniciais: ITBI, Escritura (percentuais) aplicados sobre o valor do imóvel na compra.
 - Custos Mensais: Condomínio, IPTU e similares.
@@ -38,6 +39,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Retirada para Aluguel: quanto saiu do investimento para pagar aluguel/custos.
 - Saldo Antes do Retorno: quanto de capital ficou investido antes de aplicar o rendimento do mês.
 - Razão Retorno/Retirada: quão perto você está da sustentabilidade (>=1 indica que o rendimento daquele mês cobriu a retirada).
+	- Observação: a razão usa o **retorno líquido** (`investment_return_net`).
 - Mês de Queima (Burn): marcado quando o retorno não cobre a retirada e parte do principal é reduzido.
 - Cobertura Externa: quanto da renda externa cobriu os custos.
 - Sobra Externa Reinvestida: parte não utilizada da renda externa adicionada ao investimento.
@@ -114,6 +116,9 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 | Mês de Queima | burn_month |
 | Cobertura Externa | external_cover |
 | Sobra Externa Reinvestida | external_surplus_invested |
+| Retorno do Investimento (bruto) | investment_return_gross |
+| Imposto pago (aprox.) | investment_tax_paid |
+| Retorno do Investimento (líquido) | investment_return_net |
 | Custo Líquido | net_cost |
 | Saídas Totais | total_outflows |
 | Patrimônio Final | final_equity |

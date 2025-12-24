@@ -28,60 +28,6 @@ class InvestmentResult:
 
 
 @dataclass
-class InvestmentCalculator:
-    """Calculator for investment returns with optional taxation.
-
-    Uses composition to encapsulate investment calculation logic.
-    """
-
-    investment_returns: Sequence[InvestmentReturnLike]
-    investment_tax: InvestmentTaxLike | None = None
-
-    def calculate_monthly_return(
-        self,
-        balance: float,
-        month: int,
-    ) -> InvestmentResult:
-        """Calculate investment return for a given month.
-
-        Args:
-            balance: Current investment balance.
-            month: The month number.
-
-        Returns:
-            InvestmentResult with new balance and return details.
-        """
-        monthly_rate = get_monthly_investment_rate(self.investment_returns, month)
-        gross_return = balance * monthly_rate
-
-        tax_paid = self._calculate_tax(gross_return)
-        net_return = gross_return - tax_paid
-        new_balance = balance + net_return
-
-        return InvestmentResult(
-            new_balance=new_balance,
-            gross_return=gross_return,
-            tax_paid=tax_paid,
-            net_return=net_return,
-        )
-
-    def _calculate_tax(self, gross_return: float) -> float:
-        """Calculate tax on investment return."""
-        if not self.investment_tax or not self.investment_tax.enabled:
-            return 0.0
-
-        # New behavior (breaking): only tax monthly returns when explicitly requested.
-        # The default mode is 'on_withdrawal', which is handled by InvestmentAccount.
-        if getattr(self.investment_tax, "mode", "on_withdrawal") != "monthly":
-            return 0.0
-
-        if gross_return <= 0:
-            return 0.0
-
-        return gross_return * (self.investment_tax.effective_tax_rate / PERCENTAGE_BASE)
-
-
-@dataclass
 class InvestmentWithdrawalResult:
     """Result for a withdrawal operation."""
 
