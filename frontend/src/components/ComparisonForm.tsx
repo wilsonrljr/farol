@@ -21,8 +21,10 @@ import { useForm } from "@mantine/form";
 import { compareScenarios } from "../api/financeApi";
 import { ComparisonInput, EnhancedComparisonResult } from "../api/types";
 import { useApi } from "../hooks/useApi";
+import { usePresets } from "../hooks/usePresets";
 import AmortizationsFieldArray from "./AmortizationsFieldArray";
 import InvestmentReturnsFieldArray from "./InvestmentReturnsFieldArray";
+import { PresetManager } from "./PresetManager";
 import { notifications } from "@mantine/notifications";
 import EnhancedComparisonResults from "./EnhancedComparisonResults";
 import {
@@ -40,6 +42,9 @@ import {
 import { LabelWithHelp } from "./LabelWithHelp";
 import { FormSection, FormWizard } from "./ui/FormWizard";
 import { money } from "../utils/format";
+import { Preset } from "../utils/presets";
+
+const PRESETS_STORAGE_KEY = 'farol-comparison-presets';
 
 export default function ComparisonForm() {
   const form = useForm<ComparisonInput>({
@@ -95,6 +100,15 @@ export default function ComparisonForm() {
   );
   const [lastInput, setLastInput] = useState<ComparisonInput | null>(null);
   const [activeStep, setActiveStep] = useState(0);
+
+  // Presets management
+  const presetsManager = usePresets<ComparisonInput>({
+    storageKey: PRESETS_STORAGE_KEY,
+  });
+
+  const handleLoadPreset = (preset: Preset<ComparisonInput>) => {
+    form.setValues(preset.input);
+  };
 
   const propertyValue = Number(form.values.property_value || 0);
   const downPayment = Number(form.values.down_payment || 0);
@@ -201,6 +215,21 @@ export default function ComparisonForm() {
           </Group>
         </Group>
       </Paper>
+
+      {/* Preset Management */}
+      <PresetManager<ComparisonInput>
+        presets={presetsManager.presets}
+        onSave={(name, description) => presetsManager.addPreset(name, form.values, description)}
+        onLoad={handleLoadPreset}
+        onDelete={presetsManager.removePreset}
+        onDuplicate={presetsManager.duplicatePreset}
+        onEdit={(id, updates) => presetsManager.editPreset(id, updates)}
+        onExportAll={presetsManager.exportAllPresets}
+        onExportSelected={presetsManager.exportSelectedPresets}
+        onImport={presetsManager.importPresets}
+        onClearAll={presetsManager.clearAllPresets}
+        isLoading={loading}
+      />
 
       {/* Form Section */}
       <form onSubmit={form.onSubmit(onSubmit)}>
