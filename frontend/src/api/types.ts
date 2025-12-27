@@ -347,3 +347,54 @@ export interface VehicleComparisonScenario {
 export interface VehicleComparisonResult {
   scenarios: VehicleComparisonScenario[];
 }
+
+// ---------------------------------------------------------------------------
+// FIRE (Financial Independence, Retire Early) Planner
+// ---------------------------------------------------------------------------
+
+export type FIREMode = 'traditional' | 'coast' | 'barista';
+
+export interface FIREPlanInput {
+  monthly_expenses: number;
+  current_portfolio: number;
+  monthly_contribution?: number;
+  horizon_months?: number;
+  annual_return_rate?: number;
+  annual_inflation_rate?: number | null;
+  safe_withdrawal_rate?: number;
+  fire_mode?: FIREMode;
+  coast_fire_age?: number | null;
+  current_age?: number | null;
+  target_retirement_age?: number | null;
+  barista_monthly_income?: number | null;
+}
+
+export interface FIREPlanMonth {
+  month: number;
+  age?: number | null;
+  portfolio_balance: number;
+  monthly_expenses: number;
+  contribution: number;
+  investment_return: number;
+  fire_number: number;
+  progress_percent: number;
+  monthly_passive_income: number;
+  years_of_expenses_covered: number;
+  fi_achieved: boolean;
+}
+
+export interface FIREPlanResult {
+  fi_achieved: boolean;
+  fi_month?: number | null;
+  fi_age?: number | null;
+  years_to_fi?: number | null;
+  months_to_fi?: number | null;
+  fire_number: number;
+  final_portfolio: number;
+  final_monthly_passive_income: number;
+  total_contributions: number;
+  total_investment_returns: number;
+  coast_fire_number?: number | null;
+  coast_fire_achieved?: boolean | null;
+  monthly_data: FIREPlanMonth[];
+}

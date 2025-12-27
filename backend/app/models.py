@@ -1089,3 +1089,118 @@ class VehicleComparisonScenario(BaseModel):
 
 class VehicleComparisonResult(BaseModel):
     scenarios: list[VehicleComparisonScenario]
+
+
+# ---------------------------------------------------------------------------
+# FIRE (Financial Independence, Retire Early) Planner
+# ---------------------------------------------------------------------------
+
+
+class FIREPlanInput(BaseModel):
+    """Inputs for the FIRE (Financial Independence, Retire Early) calculator.
+
+    Calculates how long until you reach financial independence based on
+    the 4% rule (or custom withdrawal rate).
+    """
+
+    monthly_expenses: float = Field(
+        ..., ge=0.0, description="Current monthly expenses (R$)"
+    )
+    current_portfolio: float = Field(
+        ..., ge=0.0, description="Current invested portfolio value (R$)"
+    )
+    monthly_contribution: float = Field(
+        0.0, ge=0.0, description="Monthly investment contribution (R$)"
+    )
+    horizon_months: int = Field(
+        360,
+        ge=1,
+        le=600,
+        description="Maximum planning horizon in months (default 30 years)",
+    )
+
+    annual_return_rate: float = Field(
+        8.0,
+        ge=-50.0,
+        le=100.0,
+        description="Expected annual real return rate (after inflation) (percentage)",
+    )
+    annual_inflation_rate: float | None = Field(
+        None,
+        ge=-100.0,
+        le=1000.0,
+        description="Annual inflation rate for expenses (percentage)",
+    )
+    safe_withdrawal_rate: float = Field(
+        4.0,
+        gt=0.0,
+        le=20.0,
+        description="Safe withdrawal rate (percentage). Traditional FIRE uses 4%",
+    )
+
+    # Optional: model different FIRE variants
+    fire_mode: Literal["traditional", "coast", "barista"] = Field(
+        "traditional",
+        description="FIRE mode: traditional (full FI), coast (stop contributing), barista (part-time income)",
+    )
+    coast_fire_age: int | None = Field(
+        None,
+        ge=18,
+        le=100,
+        description="Age to stop contributing in Coast FIRE mode",
+    )
+    current_age: int | None = Field(
+        None,
+        ge=18,
+        le=100,
+        description="Current age (used for Coast FIRE calculations)",
+    )
+    target_retirement_age: int | None = Field(
+        None,
+        ge=18,
+        le=100,
+        description="Target retirement age (optional, for reference)",
+    )
+    barista_monthly_income: float | None = Field(
+        None,
+        ge=0.0,
+        description="Part-time income in Barista FIRE mode (R$)",
+    )
+
+
+class FIREPlanMonth(BaseModel):
+    """Monthly snapshot of FIRE progression."""
+
+    month: int
+    age: float | None = None  # Current age if provided
+    portfolio_balance: float
+    monthly_expenses: float
+    contribution: float
+    investment_return: float
+    fire_number: float  # Target portfolio needed for FI
+    progress_percent: float  # How close to FI (0-100+)
+    monthly_passive_income: float  # Income if you retired now
+    years_of_expenses_covered: float  # Portfolio / annual expenses
+    fi_achieved: bool
+
+
+class FIREPlanResult(BaseModel):
+    """Result of FIRE calculation."""
+
+    fi_achieved: bool
+    fi_month: int | None = None  # Month when FI is achieved
+    fi_age: float | None = None  # Age at FI (if current_age provided)
+    years_to_fi: float | None = None  # Years until FI
+    months_to_fi: int | None = None  # Months until FI
+
+    fire_number: float  # Target portfolio for FI
+    final_portfolio: float
+    final_monthly_passive_income: float
+    total_contributions: float
+    total_investment_returns: float
+
+    # Coast FIRE specific
+    coast_fire_number: float | None = None  # Portfolio needed to coast
+    coast_fire_achieved: bool | None = None
+
+    monthly_data: list[FIREPlanMonth]

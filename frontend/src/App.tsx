@@ -8,6 +8,7 @@ import CalculationDocsPage from './routes/docs/CalculationDocsPage';
 import GlossaryPage from './routes/docs/GlossaryPage';
 import StressTest from './routes/StressTest';
 import EmergencyFund from './routes/EmergencyFund';
+import Fire from './routes/Fire';
 import Vehicles from './routes/Vehicles';
 import Layout from './components/Layout';
 
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/comparacao" element={<ScenarioComparison />} />
         <Route path="/estresse" element={<StressTest />} />
         <Route path="/reserva" element={<EmergencyFund />} />
+        <Route path="/fire" element={<Fire />} />
         <Route path="/veiculos" element={<Vehicles />} />
         <Route path="/sobre" element={<About />} />
         <Route path="/docs" element={<DocsLayout />}>
