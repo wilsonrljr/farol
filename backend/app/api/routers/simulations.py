@@ -23,6 +23,11 @@ from ...models import (
     LoanSimulationResult,
     ScenarioMetricsSummary,
     ScenariosMetricsResult,
+    SensitivityAnalysisInput,
+    SensitivityAnalysisResult,
+    SensitivityDataPoint,
+    SensitivityScenarioResult,
+    SensitivityBreakeven,
 )
 
 router = APIRouter(tags=["simulations"])
@@ -334,4 +339,140 @@ def compare_housing_scenarios_batch(
         results=results,
         global_best=global_best,
         ranking=all_rankings,
+    )
+
+
+# Parameter labels for human-readable output
+PARAMETER_LABELS = {
+    "annual_interest_rate": "Taxa de Juros (a.a.)",
+    "investment_return_rate": "Retorno do Investimento (a.a.)",
+    "down_payment": "Entrada",
+    "property_value": "Valor do Imóvel",
+    "rent_value": "Aluguel Mensal",
+    "inflation_rate": "Inflação (a.a.)",
+    "property_appreciation_rate": "Valorização do Imóvel (a.a.)",
+    "loan_term_years": "Prazo do Financiamento",
+}
+
+
+def _get_parameter_value(input_data: ComparisonInput, parameter: str) -> float:
+    """Get current value of a parameter from input."""
+    if parameter == "investment_return_rate":
+        returns = input_data.investment_returns
+        if returns and len(returns) > 0:
+            return returns[0].annual_rate
+        return 8.0
+    return getattr(input_data, parameter, 0.0) or 0.0
+
+
+def _apply_parameter_value(
+    input_data: ComparisonInput, parameter: str, value: float
+) -> ComparisonInput:
+    """Create a copy of input with modified parameter value."""
+    data = input_data.model_dump()
+
+    if parameter == "investment_return_rate":
+        # Modify first investment return rate
+        if data.get("investment_returns") and len(data["investment_returns"]) > 0:
+            data["investment_returns"][0]["annual_rate"] = value
+        else:
+            data["investment_returns"] = [
+                {"start_month": 1, "end_month": None, "annual_rate": value}
+            ]
+    elif parameter == "loan_term_years":
+        data[parameter] = int(value)
+    else:
+        data[parameter] = value
+
+    return ComparisonInput.model_validate(data)
+
+
+@router.post("/api/sensitivity-analysis", response_model=SensitivityAnalysisResult)
+def run_sensitivity_analysis(
+    input_data: SensitivityAnalysisInput,
+) -> SensitivityAnalysisResult:
+    """Run sensitivity analysis varying a single parameter.
+
+    This endpoint takes a base configuration and varies one parameter
+    across a specified range, returning the results for each value.
+    """
+    import logging
+    import numpy as np
+
+    parameter = input_data.parameter.value
+    range_config = input_data.range
+    base_input = input_data.base_input
+
+    # Get base value
+    base_value = _get_parameter_value(base_input, parameter)
+
+    # Generate parameter values
+    param_values = np.linspace(
+        range_config.min_value, range_config.max_value, range_config.steps
+    ).tolist()
+
+    data_points: list[SensitivityDataPoint] = []
+    prev_best: str | None = None
+    breakeven_points: list[SensitivityBreakeven] = []
+
+    for value in param_values:
+        try:
+            # Create modified input
+            modified_input = _apply_parameter_value(base_input, parameter, value)
+
+            # Run enhanced comparison
+            result = _run_enhanced_comparison(modified_input)
+
+            # Build scenario results
+            scenarios: dict[str, SensitivityScenarioResult] = {}
+            for scenario in result.scenarios:
+                final_wealth = scenario.final_wealth or scenario.final_equity
+                scenarios[scenario.name] = SensitivityScenarioResult(
+                    name=scenario.name,
+                    final_wealth=final_wealth,
+                    total_cost=scenario.total_cost,
+                    roi_percentage=scenario.metrics.roi_percentage,
+                    net_worth_change=scenario.net_worth_change or 0.0,
+                )
+
+            data_point = SensitivityDataPoint(
+                parameter_value=value,
+                best_scenario=result.best_scenario,
+                scenarios=scenarios,
+            )
+            data_points.append(data_point)
+
+            # Track breakeven points
+            if prev_best is not None and prev_best != result.best_scenario:
+                breakeven_points.append(
+                    SensitivityBreakeven(
+                        parameter_value=value,
+                        from_scenario=prev_best,
+                        to_scenario=result.best_scenario,
+                    )
+                )
+            prev_best = result.best_scenario
+
+        except (ValueError, TypeError, KeyError) as e:
+            logging.warning(
+                "Failed to run sensitivity for %s=%s: %s", parameter, value, str(e)
+            )
+            continue
+
+    if not data_points:
+        raise ValueError("No valid data points could be computed")
+
+    # Find best overall
+    best_overall = max(
+        data_points,
+        key=lambda dp: max(s.final_wealth for s in dp.scenarios.values()),
+    )
+
+    return SensitivityAnalysisResult(
+        parameter=parameter,
+        parameter_label=PARAMETER_LABELS.get(parameter, parameter),
+        base_value=base_value,
+        data_points=data_points,
+        breakeven_points=breakeven_points,
+        best_overall=best_overall,
     )

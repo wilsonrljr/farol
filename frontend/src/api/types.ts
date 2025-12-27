@@ -439,3 +439,58 @@ export interface BatchComparisonResult {
   };
   ranking: BatchComparisonRanking[];
 }
+
+// ---------------------------------------------------------------------------
+// Sensitivity Analysis
+// ---------------------------------------------------------------------------
+
+export type SensitivityParameterType =
+  | 'annual_interest_rate'
+  | 'investment_return_rate'
+  | 'down_payment'
+  | 'property_value'
+  | 'rent_value'
+  | 'inflation_rate'
+  | 'property_appreciation_rate'
+  | 'loan_term_years';
+
+export interface SensitivityRange {
+  min_value: number;
+  max_value: number;
+  steps?: number;
+}
+
+export interface SensitivityAnalysisInput {
+  base_input: ComparisonInput;
+  parameter: SensitivityParameterType;
+  range: SensitivityRange;
+}
+
+export interface SensitivityScenarioResult {
+  name: string;
+  final_wealth: number;
+  total_cost: number;
+  roi_percentage: number;
+  net_worth_change: number;
+}
+
+export interface SensitivityDataPoint {
+  parameter_value: number;
+  best_scenario: string;
+  scenarios: Record<string, SensitivityScenarioResult>;
+}
+
+export interface SensitivityBreakeven {
+  parameter_value: number;
+  from_scenario: string;
+  to_scenario: string;
+}
+
+export interface SensitivityAnalysisResult {
+  parameter: string;
+  parameter_label: string;
+  base_value: number;
+  data_points: SensitivityDataPoint[];
+  breakeven_points: SensitivityBreakeven[];
+  best_overall: SensitivityDataPoint;
+}

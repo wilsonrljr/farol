@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   Paper,
   Stack,
@@ -14,6 +14,9 @@ import {
   rem,
   Tooltip,
   SimpleGrid,
+  UnstyledButton,
+  Collapse,
+  Loader,
 } from '@mantine/core';
 import {
   IconAdjustments,
@@ -31,14 +34,21 @@ import {
   IconPigMoney,
   IconReceipt,
   IconScale,
+  IconChevronDown,
+  IconChevronRight,
+  IconChartAreaLine,
 } from '@tabler/icons-react';
 import {
   BatchComparisonResult,
   BatchComparisonResultItem,
   ComparisonInput,
+  SensitivityAnalysisResult,
+  SensitivityParameterType,
 } from '../api/types';
+import { runSensitivityAnalysis } from '../api/financeApi';
 import { money, percent, moneyCompact } from '../utils/format';
 import { Preset } from '../utils/presets';
+import SensitivityChart from './SensitivityChart';
 
 // Define parameter metadata for display
 interface ParameterDefinition {
@@ -169,6 +179,57 @@ const PARAMETER_DEFINITIONS: ParameterDefinition[] = [
     icon: <IconReceipt size={14} />,
   },
 ];
+
+// Map parameter keys to sensitivity analysis parameter types
+const SENSITIVITY_PARAMETER_MAP: Record<string, SensitivityParameterType> = {
+  annual_interest_rate: 'annual_interest_rate',
+  investment_returns_rate: 'investment_return_rate',
+  down_payment: 'down_payment',
+  property_value: 'property_value',
+  rent_value: 'rent_value',
+  inflation_rate: 'inflation_rate',
+  property_appreciation_rate: 'property_appreciation_rate',
+  loan_term_years: 'loan_term_years',
+};
+
+// Parameters that support sensitivity analysis
+const SENSITIVITY_ENABLED_PARAMS = new Set(Object.keys(SENSITIVITY_PARAMETER_MAP));
+
+// Default ranges for sensitivity analysis
+function getDefaultRange(
+  paramKey: string,
+  currentValue: number
+): { min: number; max: number; steps: number } {
+  const ranges: Record<string, { minFactor: number; maxFactor: number; steps: number }> = {
+    annual_interest_rate: { minFactor: 0.6, maxFactor: 1.4, steps: 7 },
+    investment_returns_rate: { minFactor: 0.5, maxFactor: 1.5, steps: 7 },
+    down_payment: { minFactor: 0.5, maxFactor: 1.5, steps: 7 },
+    property_value: { minFactor: 0.8, maxFactor: 1.2, steps: 5 },
+    rent_value: { minFactor: 0.6, maxFactor: 1.4, steps: 7 },
+    inflation_rate: { minFactor: 0.5, maxFactor: 2.0, steps: 7 },
+    property_appreciation_rate: { minFactor: 0.5, maxFactor: 2.0, steps: 7 },
+    loan_term_years: { minFactor: 0.5, maxFactor: 1.2, steps: 5 },
+  };
+
+  const config = ranges[paramKey] || { minFactor: 0.7, maxFactor: 1.3, steps: 7 };
+  
+  // Ensure minimum values are sensible
+  let min = currentValue * config.minFactor;
+  let max = currentValue * config.maxFactor;
+  
+  // Special handling for certain parameters
+  if (paramKey === 'loan_term_years') {
+    min = Math.max(5, Math.floor(min));
+    max = Math.min(35, Math.ceil(max));
+  } else if (paramKey.includes('rate')) {
+    min = Math.max(0.5, min);
+    max = Math.min(30, max);
+  } else if (paramKey === 'down_payment' || paramKey === 'property_value' || paramKey === 'rent_value') {
+    min = Math.max(0, min);
+  }
+
+  return { min, max, steps: config.steps };
+}
 
 // Helper to get value from input (handles nested keys)
 function getParameterValue(input: ComparisonInput, param: ParameterDefinition): unknown {
@@ -363,6 +424,73 @@ export default function ParameterComparisonTable({
   presetInputs,
 }: ParameterComparisonTableProps) {
   const { results } = result;
+
+  // Sensitivity analysis state
+  const [expandedParam, setExpandedParam] = useState<string | null>(null);
+  const [sensitivityData, setSensitivityData] = useState<Record<string, SensitivityAnalysisResult>>({});
+  const [sensitivityLoading, setSensitivityLoading] = useState<string | null>(null);
+  const [sensitivityError, setSensitivityError] = useState<string | null>(null);
+
+  // Use first preset input as base for sensitivity analysis
+  const baseInput = presetInputs[0] || null;
+
+  // Handle parameter row click for sensitivity analysis
+  const handleParamClick = useCallback(
+    async (paramKey: string) => {
+      // Toggle if already expanded
+      if (expandedParam === paramKey) {
+        setExpandedParam(null);
+        return;
+      }
+
+      setExpandedParam(paramKey);
+      setSensitivityError(null);
+
+      // Check if we already have data
+      if (sensitivityData[paramKey]) {
+        return;
+      }
+
+      // Check if sensitivity is supported for this param
+      const sensitivityParam = SENSITIVITY_PARAMETER_MAP[paramKey];
+      if (!sensitivityParam || !baseInput) {
+        return;
+      }
+
+      // Get current value
+      const paramDef = PARAMETER_DEFINITIONS.find((p) => p.key === paramKey);
+      if (!paramDef) return;
+
+      const currentValue = getParameterValue(baseInput, paramDef);
+      if (currentValue === null || currentValue === undefined) return;
+
+      const numValue = Number(currentValue);
+      if (isNaN(numValue) || numValue === 0) return;
+
+      // Get default range
+      const range = getDefaultRange(paramKey, numValue);
+
+      // Run sensitivity analysis
+      setSensitivityLoading(paramKey);
+      try {
+        const result = await runSensitivityAnalysis({
+          base_input: baseInput,
+          parameter: sensitivityParam,
+          range: {
+            min_value: range.min,
+            max_value: range.max,
+            steps: range.steps,
+          },
+        });
+        setSensitivityData((prev) => ({ ...prev, [paramKey]: result }));
+      } catch (e: any) {
+        setSensitivityError(e.toString());
+      } finally {
+        setSensitivityLoading(null);
+      }
+    },
+    [expandedParam, sensitivityData, baseInput]
+  );
 
   // Group parameters by category
   const parametersByCategory = useMemo(() => {
@@ -666,7 +794,7 @@ export default function ParameterComparisonTable({
               <Table striped highlightOnHover>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th style={{ minWidth: rem(180) }}>Parâmetro</Table.Th>
+                    <Table.Th style={{ minWidth: rem(220) }}>Parâmetro</Table.Th>
                     {results.map((r) => (
                       <Table.Th key={r.preset_id} ta="right" style={{ minWidth: rem(120) }}>
                         {r.preset_name}
@@ -685,6 +813,9 @@ export default function ParameterComparisonTable({
                       getParameterValue(input, param)
                     );
                     const hasDiff = parametersWithDiffs.has(param.key);
+                    const canExpand = SENSITIVITY_ENABLED_PARAMS.has(param.key);
+                    const isExpanded = expandedParam === param.key;
+                    const isLoading = sensitivityLoading === param.key;
 
                     let deltaInfo = null;
                     if (values.length === 2) {
@@ -692,54 +823,140 @@ export default function ParameterComparisonTable({
                     }
 
                     return (
-                      <Table.Tr
-                        key={param.key}
-                        style={{
-                          backgroundColor: hasDiff
-                            ? 'light-dark(var(--mantine-color-orange-0), var(--mantine-color-dark-6))'
-                            : undefined,
-                        }}
-                      >
-                        <Table.Td>
-                          <Group gap="xs">
-                            {param.icon}
-                            <Tooltip label={param.description || param.label} withArrow>
-                              <Text size="sm" style={{ cursor: 'help' }}>
-                                {param.label}
-                              </Text>
-                            </Tooltip>
-                            {hasDiff && (
-                              <Badge size="xs" color="orange" variant="filled">
-                                Diferente
-                              </Badge>
-                            )}
-                          </Group>
-                        </Table.Td>
-                        {values.map((value, idx) => (
-                          <Table.Td key={idx} ta="right">
-                            <Text size="sm" fw={hasDiff ? 600 : 400}>
-                              {formatValue(value, param.format)}
-                            </Text>
-                          </Table.Td>
-                        ))}
-                        {results.length === 2 && deltaInfo && (
-                          <Table.Td ta="center">
-                            {deltaInfo.hasDiff ? (
-                              <Badge
-                                color={
-                                  deltaInfo.delta && deltaInfo.delta > 0 ? 'sage' : 'orange'
+                      <>
+                        <Table.Tr
+                          key={param.key}
+                          style={{
+                            backgroundColor: isExpanded
+                              ? 'light-dark(var(--mantine-color-grape-0), var(--mantine-color-dark-6))'
+                              : hasDiff
+                                ? 'light-dark(var(--mantine-color-orange-0), var(--mantine-color-dark-6))'
+                                : undefined,
+                            cursor: canExpand ? 'pointer' : undefined,
+                          }}
+                          onClick={canExpand ? () => handleParamClick(param.key) : undefined}
+                        >
+                          <Table.Td>
+                            <Group gap="xs">
+                              {canExpand && (
+                                <ThemeIcon
+                                  size="xs"
+                                  radius="sm"
+                                  variant="subtle"
+                                  color={isExpanded ? 'grape' : 'gray'}
+                                >
+                                  {isLoading ? (
+                                    <Loader size={10} color="grape" />
+                                  ) : isExpanded ? (
+                                    <IconChevronDown size={12} />
+                                  ) : (
+                                    <IconChevronRight size={12} />
+                                  )}
+                                </ThemeIcon>
+                              )}
+                              {param.icon}
+                              <Tooltip
+                                label={
+                                  canExpand
+                                    ? `${param.description || param.label} — Clique para análise de sensibilidade`
+                                    : param.description || param.label
                                 }
-                                variant="light"
-                                leftSection={<IconArrowsExchange size={10} />}
+                                withArrow
                               >
-                                {deltaInfo.formatted}
-                              </Badge>
-                            ) : (
-                              <IconEqual size={14} color="var(--mantine-color-dimmed)" />
-                            )}
+                                <Text
+                                  size="sm"
+                                  style={{ cursor: canExpand ? 'pointer' : 'help' }}
+                                  fw={isExpanded ? 600 : undefined}
+                                >
+                                  {param.label}
+                                </Text>
+                              </Tooltip>
+                              {canExpand && (
+                                <Tooltip label="Clique para ver análise de sensibilidade">
+                                  <ThemeIcon
+                                    size="xs"
+                                    radius="xl"
+                                    variant="light"
+                                    color="grape"
+                                  >
+                                    <IconChartAreaLine size={10} />
+                                  </ThemeIcon>
+                                </Tooltip>
+                              )}
+                              {hasDiff && (
+                                <Badge size="xs" color="orange" variant="filled">
+                                  Diferente
+                                </Badge>
+                              )}
+                            </Group>
                           </Table.Td>
+                          {values.map((value, idx) => (
+                            <Table.Td key={idx} ta="right">
+                              <Text size="sm" fw={hasDiff ? 600 : 400}>
+                                {formatValue(value, param.format)}
+                              </Text>
+                            </Table.Td>
+                          ))}
+                          {results.length === 2 && deltaInfo && (
+                            <Table.Td ta="center">
+                              {deltaInfo.hasDiff ? (
+                                <Badge
+                                  color={
+                                    deltaInfo.delta && deltaInfo.delta > 0 ? 'sage' : 'orange'
+                                  }
+                                  variant="light"
+                                  leftSection={<IconArrowsExchange size={10} />}
+                                >
+                                  {deltaInfo.formatted}
+                                </Badge>
+                              ) : (
+                                <IconEqual size={14} color="var(--mantine-color-dimmed)" />
+                              )}
+                            </Table.Td>
+                          )}
+                        </Table.Tr>
+
+                        {/* Expanded Sensitivity Analysis Row */}
+                        {isExpanded && canExpand && (
+                          <Table.Tr key={`${param.key}-sensitivity`}>
+                            <Table.Td
+                              colSpan={results.length + (results.length === 2 ? 2 : 1)}
+                              style={{
+                                backgroundColor:
+                                  'light-dark(var(--mantine-color-grape-0), var(--mantine-color-dark-7))',
+                                padding: rem(16),
+                              }}
+                            >
+                              <Box>
+                                <Group gap="sm" mb="md">
+                                  <ThemeIcon
+                                    size="sm"
+                                    radius="md"
+                                    variant="gradient"
+                                    gradient={{ from: 'grape.5', to: 'grape.7', deg: 135 }}
+                                  >
+                                    <IconChartAreaLine size={14} />
+                                  </ThemeIcon>
+                                  <Box>
+                                    <Text size="sm" fw={600}>
+                                      Análise de Sensibilidade: {param.label}
+                                    </Text>
+                                    <Text size="xs" c="dimmed">
+                                      Como os resultados mudam ao variar este parâmetro
+                                    </Text>
+                                  </Box>
+                                </Group>
+
+                                <SensitivityChart
+                                  result={sensitivityData[param.key] || null}
+                                  isLoading={isLoading}
+                                  error={isExpanded ? sensitivityError : null}
+                                />
+                              </Box>
+                            </Table.Td>
+                          </Table.Tr>
                         )}
-                      </Table.Tr>
+                      </>
                     );
                   })}
                 </Table.Tbody>
@@ -750,14 +967,17 @@ export default function ParameterComparisonTable({
       })}
 
       {/* Legend / Help */}
-      <Alert color="blue" variant="light" icon={<IconBulb size={16} />}>
+      <Alert color="grape" variant="light" icon={<IconChartAreaLine size={16} />}>
         <Text size="sm">
-          <Text span fw={600}>Como interpretar:</Text> Parâmetros destacados em{' '}
+          <Text span fw={600}>Análise de Sensibilidade:</Text> Clique em qualquer parâmetro com o ícone{' '}
+          <ThemeIcon size="xs" radius="xl" variant="light" color="grape" display="inline-flex" style={{ verticalAlign: 'middle' }}>
+            <IconChartAreaLine size={10} />
+          </ThemeIcon>{' '}
+          para ver como os resultados mudam ao variar esse valor. Parâmetros destacados em{' '}
           <Badge size="xs" color="orange" variant="filled">
             Diferente
           </Badge>{' '}
-          variam entre os presets. Essas diferenças explicam as variações nos resultados finais.
-          Foque nos parâmetros de maior impacto para otimizar sua decisão.
+          variam entre os presets.
         </Text>
       </Alert>
     </Stack>

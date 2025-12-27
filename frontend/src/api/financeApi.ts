@@ -5,6 +5,8 @@ import {
   EnhancedComparisonResult,
   BatchComparisonInput,
   BatchComparisonResult,
+  SensitivityAnalysisInput,
+  SensitivityAnalysisResult,
 } from './types';
 
 export async function compareScenarios(input: ComparisonInput, enhanced = false) {
@@ -15,5 +17,10 @@ export async function compareScenarios(input: ComparisonInput, enhanced = false)
 
 export async function compareScenariosBatch(input: BatchComparisonInput): Promise<BatchComparisonResult> {
   const { data } = await api.post<BatchComparisonResult>('/api/compare-scenarios-batch', input);
+  return data;
+}
+
+export async function runSensitivityAnalysis(input: SensitivityAnalysisInput): Promise<SensitivityAnalysisResult> {
+  const { data } = await api.post<SensitivityAnalysisResult>('/api/sensitivity-analysis', input);
   return data;
 }

@@ -16,6 +16,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -1262,4 +1263,83 @@ class BatchComparisonResult(BaseModel):
     )
     ranking: list[BatchComparisonRanking] = Field(
         ..., description="Ranked list of all scenarios across all presets"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sensitivity Analysis
+# ---------------------------------------------------------------------------
+
+
+class SensitivityParameterType(str, Enum):
+    """Parameters available for sensitivity analysis."""
+
+    ANNUAL_INTEREST_RATE = "annual_interest_rate"
+    INVESTMENT_RETURN_RATE = "investment_return_rate"
+    DOWN_PAYMENT = "down_payment"
+    PROPERTY_VALUE = "property_value"
+    RENT_VALUE = "rent_value"
+    INFLATION_RATE = "inflation_rate"
+    PROPERTY_APPRECIATION_RATE = "property_appreciation_rate"
+    LOAN_TERM_YEARS = "loan_term_years"
+
+
+class SensitivityRange(BaseModel):
+    """Range configuration for sensitivity analysis."""
+
+    min_value: float = Field(..., description="Minimum value for the parameter")
+    max_value: float = Field(..., description="Maximum value for the parameter")
+    steps: int = Field(
+        default=7, ge=3, le=15, description="Number of steps in the range"
+    )
+
+
+class SensitivityAnalysisInput(BaseModel):
+    """Input for sensitivity analysis."""
+
+    base_input: ComparisonInput = Field(..., description="Base configuration to vary")
+    parameter: SensitivityParameterType = Field(..., description="Parameter to analyze")
+    range: SensitivityRange = Field(..., description="Range of values to test")
+
+
+class SensitivityScenarioResult(BaseModel):
+    """Result for a single scenario at a given parameter value."""
+
+    name: str
+    final_wealth: float
+    total_cost: float
+    roi_percentage: float
+    net_worth_change: float
+
+
+class SensitivityDataPoint(BaseModel):
+    """Single data point in sensitivity analysis."""
+
+    parameter_value: float
+    best_scenario: str
+    scenarios: dict[str, SensitivityScenarioResult]
+
+
+class SensitivityBreakeven(BaseModel):
+    """Point where best scenario changes."""
+
+    parameter_value: float
+    from_scenario: str
+    to_scenario: str
+
+
+class SensitivityAnalysisResult(BaseModel):
+    """Result of sensitivity analysis."""
+
+    parameter: str = Field(..., description="Parameter that was varied")
+    parameter_label: str = Field(..., description="Human-readable parameter name")
+    base_value: float = Field(..., description="Original value of the parameter")
+    data_points: list[SensitivityDataPoint] = Field(
+        ..., description="Results at each parameter value"
+    )
+    breakeven_points: list[SensitivityBreakeven] = Field(
+        default_factory=list, description="Points where best scenario changes"
+    )
+    best_overall: SensitivityDataPoint = Field(
+        ..., description="Data point with best wealth outcome"
     )
