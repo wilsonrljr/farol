@@ -398,3 +398,44 @@ export interface FIREPlanResult {
   coast_fire_achieved?: boolean | null;
   monthly_data: FIREPlanMonth[];
 }
+
+// ---------------------------------------------------------------------------
+// Batch Comparison (Multiple Presets)
+// ---------------------------------------------------------------------------
+
+export interface BatchComparisonItem {
+  preset_id: string;
+  preset_name: string;
+  input: ComparisonInput;
+}
+
+export interface BatchComparisonInput {
+  items: BatchComparisonItem[];
+}
+
+export interface BatchComparisonResultItem {
+  preset_id: string;
+  preset_name: string;
+  result: EnhancedComparisonResult;
+}
+
+export interface BatchComparisonRanking {
+  preset_id: string;
+  preset_name: string;
+  scenario_name: string;
+  final_wealth: number;
+  net_worth_change: number;
+  total_cost: number;
+  roi_percentage: number;
+}
+
+export interface BatchComparisonResult {
+  results: BatchComparisonResultItem[];
+  global_best: {
+    preset_id: string;
+    preset_name: string;
+    scenario_name: string;
+    final_wealth: number;
+  };
+  ranking: BatchComparisonRanking[];
+}

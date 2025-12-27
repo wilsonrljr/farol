@@ -1204,3 +1204,62 @@ class FIREPlanResult(BaseModel):
     coast_fire_achieved: bool | None = None
 
     monthly_data: list[FIREPlanMonth]
+
+
+# ---------------------------------------------------------------------------
+# Batch Comparison (Multiple Presets)
+# ---------------------------------------------------------------------------
+
+
+class BatchComparisonItem(BaseModel):
+    """Single item in a batch comparison request."""
+
+    preset_id: str = Field(..., description="Unique identifier for the preset")
+    preset_name: str = Field(..., description="Human-readable name for the preset")
+    input: ComparisonInput = Field(..., description="The comparison input parameters")
+
+
+class BatchComparisonInput(BaseModel):
+    """Input for batch comparison of multiple presets."""
+
+    items: list[BatchComparisonItem] = Field(
+        ...,
+        min_length=2,
+        max_length=10,
+        description="List of presets to compare (2-10 items)",
+    )
+
+
+class BatchComparisonResultItem(BaseModel):
+    """Result for a single preset in batch comparison."""
+
+    preset_id: str
+    preset_name: str
+    result: EnhancedComparisonResult
+
+
+class BatchComparisonRanking(BaseModel):
+    """Ranking entry for cross-preset comparison."""
+
+    preset_id: str
+    preset_name: str
+    scenario_name: str
+    final_wealth: float
+    net_worth_change: float
+    total_cost: float
+    roi_percentage: float
+
+
+class BatchComparisonResult(BaseModel):
+    """Result of batch comparison across multiple presets."""
+
+    results: list[BatchComparisonResultItem] = Field(
+        ..., description="Individual results for each preset"
+    )
+    global_best: dict[str, object] = Field(
+        ...,
+        description="The globally best scenario across all presets",
+    )
+    ranking: list[BatchComparisonRanking] = Field(
+        ..., description="Ranked list of all scenarios across all presets"
+    )

@@ -1,8 +1,19 @@
 import { api } from './client';
-import { ComparisonInput, ComparisonResult, EnhancedComparisonResult } from './types';
+import { 
+  ComparisonInput, 
+  ComparisonResult, 
+  EnhancedComparisonResult,
+  BatchComparisonInput,
+  BatchComparisonResult,
+} from './types';
 
 export async function compareScenarios(input: ComparisonInput, enhanced = false) {
   const endpoint = enhanced ? '/api/compare-scenarios-enhanced' : '/api/compare-scenarios';
   const { data } = await api.post<ComparisonResult | EnhancedComparisonResult>(endpoint, input);
+  return data;
+}
+
+export async function compareScenariosBatch(input: BatchComparisonInput): Promise<BatchComparisonResult> {
+  const { data } = await api.post<BatchComparisonResult>('/api/compare-scenarios-batch', input);
   return data;
 }

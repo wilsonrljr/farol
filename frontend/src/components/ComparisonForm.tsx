@@ -18,13 +18,15 @@ import {
   Grid,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { compareScenarios } from "../api/financeApi";
-import { ComparisonInput, EnhancedComparisonResult } from "../api/types";
+import { compareScenarios, compareScenariosBatch } from "../api/financeApi";
+import { ComparisonInput, EnhancedComparisonResult, BatchComparisonResult, BatchComparisonItem } from "../api/types";
 import { useApi } from "../hooks/useApi";
 import { usePresets } from "../hooks/usePresets";
 import AmortizationsFieldArray from "./AmortizationsFieldArray";
 import InvestmentReturnsFieldArray from "./InvestmentReturnsFieldArray";
 import { PresetManager } from "./PresetManager";
+import { PresetCompareSelector } from "./PresetCompareSelector";
+import BatchComparisonResults from "./BatchComparisonResults";
 import { notifications } from "@mantine/notifications";
 import EnhancedComparisonResults from "./EnhancedComparisonResults";
 import {
@@ -45,6 +47,8 @@ import { money } from "../utils/format";
 import { Preset } from "../utils/presets";
 
 const PRESETS_STORAGE_KEY = 'farol-comparison-presets';
+
+type ViewMode = 'form' | 'single-result' | 'batch-result';
 
 export default function ComparisonForm() {
   const form = useForm<ComparisonInput>({
@@ -100,6 +104,11 @@ export default function ComparisonForm() {
   );
   const [lastInput, setLastInput] = useState<ComparisonInput | null>(null);
   const [activeStep, setActiveStep] = useState(0);
+  
+  // Batch comparison state
+  const [viewMode, setViewMode] = useState<ViewMode>('form');
+  const [batchResult, setBatchResult] = useState<BatchComparisonResult | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   // Presets management
   const presetsManager = usePresets<ComparisonInput>({
@@ -108,6 +117,60 @@ export default function ComparisonForm() {
 
   const handleLoadPreset = (preset: Preset<ComparisonInput>) => {
     form.setValues(preset.input);
+  };
+
+  // Helper to clean input values that would fail backend validation
+  const cleanInputForBackend = (input: ComparisonInput): ComparisonInput => {
+    const cleaned = { ...input };
+    
+    // If rent_reduces_investment is false, monthly_external_savings must be null
+    if (!cleaned.rent_reduces_investment) {
+      cleaned.monthly_external_savings = null;
+    }
+    
+    // Convert 0 values to null where appropriate
+    if (cleaned.monthly_external_savings === 0) {
+      cleaned.monthly_external_savings = null;
+    }
+    if (cleaned.fixed_monthly_investment === 0) {
+      cleaned.fixed_monthly_investment = null;
+    }
+    
+    return cleaned;
+  };
+
+  const handleBatchCompare = async (selectedPresets: Preset<ComparisonInput>[]) => {
+    setBatchLoading(true);
+    try {
+      const items: BatchComparisonItem[] = selectedPresets.map((preset) => ({
+        preset_id: preset.id,
+        preset_name: preset.name,
+        input: cleanInputForBackend(preset.input),
+      }));
+
+      const result = await compareScenariosBatch({ items });
+      setBatchResult(result);
+      setViewMode('batch-result');
+      
+      notifications.show({
+        title: "Comparação concluída",
+        message: `${selectedPresets.length} presets analisados com sucesso`,
+        color: "sage",
+      });
+    } catch (e: any) {
+      notifications.show({
+        title: "Erro na comparação",
+        message: e.toString(),
+        color: "red",
+      });
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
+  const handleBackFromBatch = () => {
+    setViewMode('form');
+    setBatchResult(null);
   };
 
   const propertyValue = Number(form.values.property_value || 0);
@@ -123,6 +186,7 @@ export default function ComparisonForm() {
     try {
       setLastInput(values);
       const res = await call(values, true);
+      setViewMode('single-result');
       notifications.show({
         title: "Análise concluída",
         message: "Os resultados estão prontos abaixo",
@@ -217,19 +281,26 @@ export default function ComparisonForm() {
       </Paper>
 
       {/* Preset Management */}
-      <PresetManager<ComparisonInput>
-        presets={presetsManager.presets}
-        onSave={(name, description) => presetsManager.addPreset(name, form.values, description)}
-        onLoad={handleLoadPreset}
-        onDelete={presetsManager.removePreset}
-        onDuplicate={presetsManager.duplicatePreset}
-        onEdit={(id, updates) => presetsManager.editPreset(id, updates)}
-        onExportAll={presetsManager.exportAllPresets}
-        onExportSelected={presetsManager.exportSelectedPresets}
-        onImport={presetsManager.importPresets}
-        onClearAll={presetsManager.clearAllPresets}
-        isLoading={loading}
-      />
+      <Group justify="space-between" align="center">
+        <PresetManager<ComparisonInput>
+          presets={presetsManager.presets}
+          onSave={(name, description) => presetsManager.addPreset(name, form.values, description)}
+          onLoad={handleLoadPreset}
+          onDelete={presetsManager.removePreset}
+          onDuplicate={presetsManager.duplicatePreset}
+          onEdit={(id, updates) => presetsManager.editPreset(id, updates)}
+          onExportAll={presetsManager.exportAllPresets}
+          onExportSelected={presetsManager.exportSelectedPresets}
+          onImport={presetsManager.importPresets}
+          onClearAll={presetsManager.clearAllPresets}
+          isLoading={loading}
+        />
+        <PresetCompareSelector
+          presets={presetsManager.presets}
+          onCompare={handleBatchCompare}
+          isLoading={batchLoading}
+        />
+      </Group>
 
       {/* Form Section */}
       <form onSubmit={form.onSubmit(onSubmit)}>
@@ -838,12 +909,22 @@ export default function ComparisonForm() {
         </FormWizard>
       </form>
 
-      {/* Results Section */}
-      {data && (
+      {/* Single Simulation Results */}
+      {data && viewMode === 'single-result' && (
         <Box id="results-section" pt="xl">
           <EnhancedComparisonResults
             result={data}
             inputPayload={lastInput || undefined}
+          />
+        </Box>
+      )}
+
+      {/* Batch Comparison Results */}
+      {batchResult && viewMode === 'batch-result' && (
+        <Box id="batch-results-section" pt="xl">
+          <BatchComparisonResults
+            result={batchResult}
+            onBack={handleBackFromBatch}
           />
         </Box>
       )}
