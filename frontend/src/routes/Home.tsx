@@ -86,7 +86,7 @@ export default function Home() {
               mb="lg"
               leftSection={<IconLeaf size={14} />}
             >
-              Simulador Financeiro Imobiliário
+              Planejamento Financeiro
             </Badge>
             <Title
               order={1}

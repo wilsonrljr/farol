@@ -1,6 +1,6 @@
 # Farol
 
-Farol é uma plataforma de simulação e planejamento financeiro focada inicialmente em cenários imobiliários no Brasil.
+Farol é uma plataforma de simulação e planejamento financeiro pessoal, com foco inicial em cenários imobiliários no Brasil.
 
 Disponível em: [Aplicação Web](https://farol-web.onrender.com/)
 

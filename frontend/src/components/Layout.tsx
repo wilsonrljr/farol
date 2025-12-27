@@ -167,7 +167,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                     Farol
                   </Text>
                   <Text size="xs" c="dimmed" lh={1}>
-                    Simulador Imobiliário
+                    Planejamento Financeiro
                   </Text>
                 </Box>
               </Group>
