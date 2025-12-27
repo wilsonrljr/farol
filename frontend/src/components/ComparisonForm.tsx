@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Button,
   NumberInput,
@@ -51,6 +51,8 @@ const PRESETS_STORAGE_KEY = 'farol-comparison-presets';
 type ViewMode = 'form' | 'single-result' | 'batch-result';
 
 export default function ComparisonForm() {
+  const batchResultsRef = useRef<HTMLDivElement>(null);
+
   const form = useForm<ComparisonInput>({
     initialValues: {
       property_value: 500000,
@@ -157,6 +159,11 @@ export default function ComparisonForm() {
         message: `${selectedPresets.length} presets analisados com sucesso`,
         color: "sage",
       });
+
+      // Scroll to results after a brief delay for DOM update
+      setTimeout(() => {
+        batchResultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     } catch (e: any) {
       notifications.show({
         title: "Erro na comparação",
@@ -921,7 +928,7 @@ export default function ComparisonForm() {
 
       {/* Batch Comparison Results */}
       {batchResult && viewMode === 'batch-result' && (
-        <Box id="batch-results-section" pt="xl">
+        <Box ref={batchResultsRef} id="batch-results-section" pt="xl">
           <BatchComparisonResults
             result={batchResult}
             onBack={handleBackFromBatch}
