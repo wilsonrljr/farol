@@ -37,13 +37,16 @@ import {
   IconScale,
   IconInfoCircle,
   IconBulb,
+  IconAdjustments,
 } from '@tabler/icons-react';
 import InsightsDashboard from './InsightsDashboard';
+import ParameterComparisonTable from './ParameterComparisonTable';
 import {
   BatchComparisonResult,
   BatchComparisonResultItem,
   BatchComparisonRanking,
   EnhancedComparisonScenario,
+  ComparisonInput,
 } from '../api/types';
 import {
   money,
@@ -72,6 +75,7 @@ function downloadLocalFile(content: string, filename: string, mimeType: string) 
 
 interface BatchComparisonResultsProps {
   result: BatchComparisonResult;
+  presetInputs?: ComparisonInput[];
   onBack?: () => void;
 }
 
@@ -667,6 +671,7 @@ function SummaryMetrics({
 
 export default function BatchComparisonResults({
   result,
+  presetInputs = [],
   onBack,
 }: BatchComparisonResultsProps) {
   const [activeTab, setActiveTab] = useState<string>('overview');
@@ -776,6 +781,9 @@ export default function BatchComparisonResults({
           <Tabs.Tab value="overview" leftSection={<IconChartArea size={16} />}>
             Visão Geral
           </Tabs.Tab>
+          <Tabs.Tab value="parameters" leftSection={<IconAdjustments size={16} />}>
+            Análise de Parâmetros
+          </Tabs.Tab>
           <Tabs.Tab value="insights" leftSection={<IconBulb size={16} />}>
             Insights
           </Tabs.Tab>
@@ -802,6 +810,10 @@ export default function BatchComparisonResults({
               ))}
             </SimpleGrid>
           </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="parameters" pt="lg">
+          <ParameterComparisonTable result={result} presetInputs={presetInputs} />
         </Tabs.Panel>
 
         <Tabs.Panel value="insights" pt="lg">

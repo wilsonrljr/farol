@@ -110,6 +110,7 @@ export default function ComparisonForm() {
   // Batch comparison state
   const [viewMode, setViewMode] = useState<ViewMode>('form');
   const [batchResult, setBatchResult] = useState<BatchComparisonResult | null>(null);
+  const [batchInputs, setBatchInputs] = useState<ComparisonInput[]>([]);
   const [batchLoading, setBatchLoading] = useState(false);
 
   // Presets management
@@ -152,6 +153,7 @@ export default function ComparisonForm() {
 
       const result = await compareScenariosBatch({ items });
       setBatchResult(result);
+      setBatchInputs(selectedPresets.map((p) => cleanInputForBackend(p.input)));
       setViewMode('batch-result');
       
       notifications.show({
@@ -178,6 +180,7 @@ export default function ComparisonForm() {
   const handleBackFromBatch = () => {
     setViewMode('form');
     setBatchResult(null);
+    setBatchInputs([]);
   };
 
   const propertyValue = Number(form.values.property_value || 0);
@@ -939,6 +942,7 @@ export default function ComparisonForm() {
         <Box ref={batchResultsRef} id="batch-results-section" pt="xl">
           <BatchComparisonResults
             result={batchResult}
+            presetInputs={batchInputs}
             onBack={handleBackFromBatch}
           />
         </Box>
