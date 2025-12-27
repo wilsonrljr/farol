@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   Modal,
   Button,
@@ -20,6 +20,7 @@ import {
   Alert,
   Collapse,
   ScrollArea,
+  Checkbox,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -38,20 +39,31 @@ import {
   IconDeviceFloppy,
   IconFolderOpen,
   IconPlus,
+  IconScale,
+  IconTag,
 } from '@tabler/icons-react';
-import { Preset } from '../utils/presets';
+import { Preset, PresetTag, PresetTagType, createTag } from '../utils/presets';
+import { PresetTagList, TagSelector, TagFilter } from './PresetTagSelector';
 
 interface PresetManagerProps<T> {
   presets: Preset<T>[];
-  onSave: (name: string, description?: string) => void;
+  onSave: (name: string, description?: string, tags?: PresetTag[]) => void;
   onLoad: (preset: Preset<T>) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
-  onEdit: (id: string, updates: { name?: string; description?: string }) => void;
+  onEdit: (id: string, updates: { name?: string; description?: string; tags?: PresetTag[] }) => void;
   onExportAll: () => void;
   onExportSelected: (ids: string[]) => void;
   onImport: (file: File) => Promise<{ success: boolean; error?: string; duplicatesSkipped?: number; presets: Preset<T>[] }>;
   onClearAll: () => void;
+  // Quick Compare
+  onCompare?: (selectedPresets: Preset<T>[]) => void;
+  isCompareLoading?: boolean;
+  minCompareSelection?: number;
+  // Tag management
+  allTags?: PresetTag[];
+  onAddTag?: (presetId: string, tagType: PresetTagType, customLabel?: string) => void;
+  onRemoveTag?: (presetId: string, tagId: string) => void;
   isLoading?: boolean;
 }
 
@@ -66,6 +78,14 @@ export function PresetManager<T>({
   onExportSelected,
   onImport,
   onClearAll,
+  // Quick Compare
+  onCompare,
+  isCompareLoading = false,
+  minCompareSelection = 2,
+  // Tag management
+  allTags = [],
+  onAddTag,
+  onRemoveTag,
   isLoading = false,
 }: PresetManagerProps<T>) {
   const [opened, { open, close }] = useDisclosure(false);
@@ -76,13 +96,53 @@ export function PresetManager<T>({
   
   const [saveName, setSaveName] = useState('');
   const [saveDescription, setSaveDescription] = useState('');
+  const [saveTags, setSaveTags] = useState<PresetTag[]>([]);
   const [editingPreset, setEditingPreset] = useState<Preset<T> | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editTags, setEditTags] = useState<PresetTag[]>([]);
   const [deletingPresetId, setDeletingPresetId] = useState<string | null>(null);
   const [selectedPresets, setSelectedPresets] = useState<Set<string>>(new Set());
   
+  // Tag filter state
+  const [tagFilters, setTagFilters] = useState<PresetTagType[]>([]);
+  
+  // Quick compare mode
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSelection, setCompareSelection] = useState<Set<string>>(new Set());
+  
   const resetRef = useRef<() => void>(null);
+  
+  // Filtered presets based on tags
+  const filteredPresets = useMemo(() => {
+    if (tagFilters.length === 0) return presets;
+    return presets.filter((p) =>
+      tagFilters.some((type) => (p.tags || []).some((t) => t.type === type))
+    );
+  }, [presets, tagFilters]);
+  
+  // Check if can compare
+  const canCompare = compareSelection.size >= minCompareSelection;
+  
+  const handleQuickCompare = () => {
+    if (!onCompare || !canCompare) return;
+    const selected = presets.filter((p) => compareSelection.has(p.id));
+    onCompare(selected);
+    setCompareMode(false);
+    setCompareSelection(new Set());
+  };
+  
+  const toggleCompareSelection = (id: string) => {
+    setCompareSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const handleSave = () => {
     if (!saveName.trim()) {
@@ -94,9 +154,10 @@ export function PresetManager<T>({
       });
       return;
     }
-    onSave(saveName.trim(), saveDescription.trim() || undefined);
+    onSave(saveName.trim(), saveDescription.trim() || undefined, saveTags.length > 0 ? saveTags : undefined);
     setSaveName('');
     setSaveDescription('');
+    setSaveTags([]);
     closeSaveModal();
     notifications.show({
       title: 'Preset salvo',
@@ -121,6 +182,7 @@ export function PresetManager<T>({
     setEditingPreset(preset);
     setEditName(preset.name);
     setEditDescription(preset.description || '');
+    setEditTags(preset.tags || []);
     openEditModal();
   };
 
@@ -129,9 +191,11 @@ export function PresetManager<T>({
     onEdit(editingPreset.id, {
       name: editName.trim(),
       description: editDescription.trim() || undefined,
+      tags: editTags.length > 0 ? editTags : undefined,
     });
     closeEditModal();
     setEditingPreset(null);
+    setEditTags([]);
     notifications.show({
       title: 'Preset atualizado',
       message: 'As alterações foram salvas',
@@ -317,6 +381,19 @@ export function PresetManager<T>({
             minRows={2}
             maxRows={4}
           />
+          <Box>
+            <Text size="sm" fw={500} mb="xs">
+              Tags (opcional)
+            </Text>
+            <TagSelector
+              selectedTags={saveTags}
+              onAddTag={(type, customLabel) => {
+                setSaveTags((prev) => [...prev, createTag(type, customLabel)]);
+              }}
+              onRemoveTag={(tagId) => setSaveTags((prev) => prev.filter((t) => t.id !== tagId))}
+              compact
+            />
+          </Box>
           <Group justify="flex-end" gap="sm">
             <Button variant="subtle" onClick={closeSaveModal}>
               Cancelar
@@ -363,6 +440,19 @@ export function PresetManager<T>({
             minRows={2}
             maxRows={4}
           />
+          <Box>
+            <Text size="sm" fw={500} mb="xs">
+              Tags
+            </Text>
+            <TagSelector
+              selectedTags={editTags}
+              onAddTag={(type, customLabel) => {
+                setEditTags((prev) => [...prev, createTag(type, customLabel)]);
+              }}
+              onRemoveTag={(tagId) => setEditTags((prev) => prev.filter((t) => t.id !== tagId))}
+              compact
+            />
+          </Box>
           <Group justify="flex-end" gap="sm">
             <Button variant="subtle" onClick={closeEditModal}>
               Cancelar
@@ -443,7 +533,12 @@ export function PresetManager<T>({
       {/* Main Presets Management Modal */}
       <Modal
         opened={opened}
-        onClose={close}
+        onClose={() => {
+          close();
+          setCompareMode(false);
+          setCompareSelection(new Set());
+          setTagFilters([]);
+        }}
         title={
           <Group gap="sm">
             <ThemeIcon size="lg" radius="md" variant="gradient" gradient={{ from: 'sage.5', to: 'sage.7', deg: 135 }}>
@@ -477,6 +572,33 @@ export function PresetManager<T>({
           >
             <Group justify="space-between">
               <Group gap="xs">
+                {/* Quick Compare Toggle */}
+                {onCompare && presets.length >= minCompareSelection && (
+                  <Button
+                    size="xs"
+                    variant={compareMode ? 'filled' : 'light'}
+                    color="sage"
+                    leftSection={<IconScale size={14} />}
+                    onClick={() => {
+                      setCompareMode(!compareMode);
+                      if (compareMode) {
+                        setCompareSelection(new Set());
+                      }
+                    }}
+                  >
+                    {compareMode ? 'Cancelar' : 'Comparar'}
+                  </Button>
+                )}
+                
+                {/* Tag Filter */}
+                {allTags.length > 0 && (
+                  <TagFilter
+                    allTags={allTags}
+                    selectedFilters={tagFilters}
+                    onFilterChange={setTagFilters}
+                  />
+                )}
+                
                 <FileButton
                   onChange={handleImport}
                   accept="application/json,.json"
@@ -494,7 +616,7 @@ export function PresetManager<T>({
                     </Button>
                   )}
                 </FileButton>
-                {presets.length > 0 && (
+                {presets.length > 0 && !compareMode && (
                   <>
                     <Button
                       variant="light"
@@ -519,7 +641,7 @@ export function PresetManager<T>({
                   </>
                 )}
               </Group>
-              {presets.length > 0 && (
+              {presets.length > 0 && !compareMode && (
                 <Button
                   variant="subtle"
                   color="red"
@@ -532,6 +654,39 @@ export function PresetManager<T>({
               )}
             </Group>
           </Box>
+          
+          {/* Compare Mode Info Bar */}
+          {compareMode && (
+            <Box
+              px="md"
+              py="sm"
+              style={{
+                backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                borderBottom: '1px solid var(--mantine-color-default-border)',
+              }}
+            >
+              <Group justify="space-between">
+                <Group gap="xs">
+                  <Badge size="lg" variant={canCompare ? 'filled' : 'light'} color={canCompare ? 'sage' : 'gray'}>
+                    {compareSelection.size} selecionado{compareSelection.size !== 1 ? 's' : ''}
+                  </Badge>
+                  <Text size="xs" c="dimmed">
+                    Selecione pelo menos {minCompareSelection} presets
+                  </Text>
+                </Group>
+                <Button
+                  size="xs"
+                  color="sage"
+                  leftSection={<IconScale size={14} />}
+                  disabled={!canCompare}
+                  loading={isCompareLoading}
+                  onClick={handleQuickCompare}
+                >
+                  Comparar Agora
+                </Button>
+              </Group>
+            </Box>
+          )}
 
           {/* Presets List */}
           {presets.length === 0 ? (
@@ -575,127 +730,183 @@ export function PresetManager<T>({
                 </FileButton>
               </Group>
             </Box>
+          ) : filteredPresets.length === 0 ? (
+            <Box p="xl" ta="center">
+              <ThemeIcon size={60} radius="xl" variant="light" color="gray" mx="auto" mb="md">
+                <IconTag size={30} />
+              </ThemeIcon>
+              <Text fw={600} size="lg" mb="xs">
+                Nenhum preset encontrado
+              </Text>
+              <Text size="sm" c="dimmed" maw={300} mx="auto" mb="md">
+                Nenhum preset corresponde aos filtros selecionados.
+              </Text>
+              <Button
+                variant="light"
+                color="sage"
+                onClick={() => setTagFilters([])}
+              >
+                Limpar filtros
+              </Button>
+            </Box>
           ) : (
             <ScrollArea.Autosize mah={400} offsetScrollbars>
               <Stack gap={0}>
-                {presets.map((preset, index) => (
-                  <Paper
-                    key={preset.id}
-                    p="md"
-                    style={{
-                      borderRadius: 0,
-                      borderBottom: index < presets.length - 1 ? '1px solid var(--mantine-color-default-border)' : undefined,
-                      backgroundColor: selectedPresets.has(preset.id)
-                        ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
-                        : undefined,
-                      cursor: 'pointer',
-                      transition: 'background-color 150ms ease',
-                    }}
-                    onClick={() => toggleSelect(preset.id)}
-                  >
-                    <Group justify="space-between" wrap="nowrap">
-                      <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                        <ThemeIcon
-                          size="lg"
-                          radius="md"
-                          variant={selectedPresets.has(preset.id) ? 'filled' : 'light'}
-                          color="sage"
-                        >
-                          {selectedPresets.has(preset.id) ? (
-                            <IconCheck size={16} />
+                {filteredPresets.map((preset, index) => {
+                  const isSelected = compareMode
+                    ? compareSelection.has(preset.id)
+                    : selectedPresets.has(preset.id);
+                  
+                  return (
+                    <Paper
+                      key={preset.id}
+                      p="md"
+                      style={{
+                        borderRadius: 0,
+                        borderBottom: index < filteredPresets.length - 1 ? '1px solid var(--mantine-color-default-border)' : undefined,
+                        backgroundColor: isSelected
+                          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
+                          : undefined,
+                        cursor: 'pointer',
+                        transition: 'background-color 150ms ease',
+                      }}
+                      onClick={() => {
+                        if (compareMode) {
+                          toggleCompareSelection(preset.id);
+                        } else {
+                          toggleSelect(preset.id);
+                        }
+                      }}
+                    >
+                      <Group justify="space-between" wrap="nowrap">
+                        <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                          {compareMode ? (
+                            <Checkbox
+                              checked={isSelected}
+                              onChange={() => {}}
+                              color="sage"
+                              size="md"
+                              styles={{ input: { cursor: 'pointer' } }}
+                            />
                           ) : (
-                            <IconBookmark size={16} />
+                            <ThemeIcon
+                              size="lg"
+                              radius="md"
+                              variant={isSelected ? 'filled' : 'light'}
+                              color="sage"
+                            >
+                              {isSelected ? (
+                                <IconCheck size={16} />
+                              ) : (
+                                <IconBookmark size={16} />
+                              )}
+                            </ThemeIcon>
                           )}
-                        </ThemeIcon>
-                        <Box style={{ minWidth: 0, flex: 1 }}>
-                          <Text fw={600} size="sm" truncate="end">
-                            {preset.name}
-                          </Text>
-                          {preset.description && (
-                            <Text size="xs" c="dimmed" lineClamp={1}>
-                              {preset.description}
+                          <Box style={{ minWidth: 0, flex: 1 }}>
+                            <Group gap="xs" mb={2}>
+                              <Text fw={600} size="sm" truncate="end">
+                                {preset.name}
+                              </Text>
+                              {index === 0 && (
+                                <Badge size="xs" variant="light" color="sage">
+                                  Recente
+                                </Badge>
+                              )}
+                            </Group>
+                            {preset.description && (
+                              <Text size="xs" c="dimmed" lineClamp={1}>
+                                {preset.description}
+                              </Text>
+                            )}
+                            {/* Tags */}
+                            {preset.tags && preset.tags.length > 0 && (
+                              <Box mt={4}>
+                                <PresetTagList tags={preset.tags} maxVisible={3} size="xs" />
+                              </Box>
+                            )}
+                            <Text size="xs" c="dimmed" mt={4}>
+                              {formatDate(preset.updatedAt || preset.createdAt)}
                             </Text>
-                          )}
-                          <Text size="xs" c="dimmed" mt={2}>
-                            {formatDate(preset.updatedAt || preset.createdAt)}
-                          </Text>
-                        </Box>
+                          </Box>
+                        </Group>
+                        {!compareMode && (
+                          <Group gap="xs" wrap="nowrap">
+                            <Tooltip label="Carregar preset" withArrow>
+                              <Button
+                                variant="light"
+                                color="sage"
+                                size="xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleLoad(preset);
+                                }}
+                              >
+                                Carregar
+                              </Button>
+                            </Tooltip>
+                            <Menu shadow="md" width={160} position="bottom-end" withinPortal>
+                              <Menu.Target>
+                                <ActionIcon
+                                  variant="subtle"
+                                  color="gray"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <IconDotsVertical size={16} />
+                                </ActionIcon>
+                              </Menu.Target>
+                              <Menu.Dropdown>
+                                <Menu.Item
+                                  leftSection={<IconPencil size={14} />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEdit(preset);
+                                  }}
+                                >
+                                  Editar
+                                </Menu.Item>
+                                <Menu.Item
+                                  leftSection={<IconCopy size={14} />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDuplicate(preset.id);
+                                  }}
+                                >
+                                  Duplicar
+                                </Menu.Item>
+                                <Menu.Item
+                                  leftSection={<IconDownload size={14} />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onExportSelected([preset.id]);
+                                  }}
+                                >
+                                  Exportar
+                                </Menu.Item>
+                                <Menu.Divider />
+                                <Menu.Item
+                                  color="red"
+                                  leftSection={<IconTrash size={14} />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(preset.id);
+                                  }}
+                                >
+                                  Excluir
+                                </Menu.Item>
+                              </Menu.Dropdown>
+                            </Menu>
+                          </Group>
+                        )}
                       </Group>
-                      <Group gap="xs" wrap="nowrap">
-                        <Tooltip label="Carregar preset" withArrow>
-                          <Button
-                            variant="light"
-                            color="sage"
-                            size="xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleLoad(preset);
-                            }}
-                          >
-                            Carregar
-                          </Button>
-                        </Tooltip>
-                        <Menu shadow="md" width={160} position="bottom-end" withinPortal>
-                          <Menu.Target>
-                            <ActionIcon
-                              variant="subtle"
-                              color="gray"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <IconDotsVertical size={16} />
-                            </ActionIcon>
-                          </Menu.Target>
-                          <Menu.Dropdown>
-                            <Menu.Item
-                              leftSection={<IconPencil size={14} />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(preset);
-                              }}
-                            >
-                              Editar
-                            </Menu.Item>
-                            <Menu.Item
-                              leftSection={<IconCopy size={14} />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDuplicate(preset.id);
-                              }}
-                            >
-                              Duplicar
-                            </Menu.Item>
-                            <Menu.Item
-                              leftSection={<IconDownload size={14} />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onExportSelected([preset.id]);
-                              }}
-                            >
-                              Exportar
-                            </Menu.Item>
-                            <Menu.Divider />
-                            <Menu.Item
-                              color="red"
-                              leftSection={<IconTrash size={14} />}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteClick(preset.id);
-                              }}
-                            >
-                              Excluir
-                            </Menu.Item>
-                          </Menu.Dropdown>
-                        </Menu>
-                      </Group>
-                    </Group>
-                  </Paper>
-                ))}
+                    </Paper>
+                  );
+                })}
               </Stack>
             </ScrollArea.Autosize>
           )}
 
           {/* Footer hint */}
-          {presets.length > 0 && (
+          {presets.length > 0 && !compareMode && (
             <Box
               px="md"
               py="sm"

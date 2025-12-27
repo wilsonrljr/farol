@@ -1,3 +1,48 @@
+// Predefined tag types with semantic meaning
+export type PresetTagType =
+  | 'conservative'
+  | 'moderate'
+  | 'aggressive'
+  | 'optimistic'
+  | 'pessimistic'
+  | 'high-rate'
+  | 'low-rate'
+  | 'with-fgts'
+  | 'sac'
+  | 'price'
+  | 'custom';
+
+export interface PresetTag {
+  id: string;
+  label: string;
+  type: PresetTagType;
+  color: string;
+}
+
+// Default tag definitions
+export const DEFAULT_TAGS: Record<PresetTagType, Omit<PresetTag, 'id'>> = {
+  conservative: { label: 'Conservador', type: 'conservative', color: 'blue' },
+  moderate: { label: 'Moderado', type: 'moderate', color: 'sage' },
+  aggressive: { label: 'Agressivo', type: 'aggressive', color: 'orange' },
+  optimistic: { label: 'Otimista', type: 'optimistic', color: 'green' },
+  pessimistic: { label: 'Pessimista', type: 'pessimistic', color: 'red' },
+  'high-rate': { label: 'Taxa Alta', type: 'high-rate', color: 'pink' },
+  'low-rate': { label: 'Taxa Baixa', type: 'low-rate', color: 'cyan' },
+  'with-fgts': { label: 'Com FGTS', type: 'with-fgts', color: 'grape' },
+  sac: { label: 'SAC', type: 'sac', color: 'indigo' },
+  price: { label: 'PRICE', type: 'price', color: 'teal' },
+  custom: { label: 'Personalizado', type: 'custom', color: 'gray' },
+};
+
+export function createTag(type: PresetTagType, customLabel?: string): PresetTag {
+  const base = DEFAULT_TAGS[type];
+  return {
+    id: `${type}-${Date.now()}`,
+    ...base,
+    label: customLabel || base.label,
+  };
+}
+
 export type Preset<T> = {
   id: string;
   name: string;
@@ -5,6 +50,7 @@ export type Preset<T> = {
   createdAt: number;
   updatedAt?: number;
   input: T;
+  tags?: PresetTag[];
 };
 
 export interface PresetExport<T> {
@@ -38,7 +84,7 @@ export function savePresets<T>(storageKey: string, presets: Preset<T>[]) {
   window.localStorage.setItem(storageKey, JSON.stringify(presets));
 }
 
-export function createPreset<T>(name: string, input: T, description?: string): Preset<T> {
+export function createPreset<T>(name: string, input: T, description?: string, tags?: PresetTag[]): Preset<T> {
   return {
     id: newPresetId(),
     name,
@@ -46,10 +92,11 @@ export function createPreset<T>(name: string, input: T, description?: string): P
     createdAt: Date.now(),
     updatedAt: Date.now(),
     input,
+    tags: tags || [],
   };
 }
 
-export function updatePreset<T>(preset: Preset<T>, updates: Partial<Pick<Preset<T>, 'name' | 'description' | 'input'>>): Preset<T> {
+export function updatePreset<T>(preset: Preset<T>, updates: Partial<Pick<Preset<T>, 'name' | 'description' | 'input' | 'tags'>>): Preset<T> {
   return {
     ...preset,
     ...updates,

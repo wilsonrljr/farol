@@ -291,7 +291,7 @@ export default function ComparisonForm() {
       <Group justify="space-between" align="center">
         <PresetManager<ComparisonInput>
           presets={presetsManager.presets}
-          onSave={(name, description) => presetsManager.addPreset(name, form.values, description)}
+          onSave={(name, description, tags) => presetsManager.addPreset(name, form.values, description, tags)}
           onLoad={handleLoadPreset}
           onDelete={presetsManager.removePreset}
           onDuplicate={presetsManager.duplicatePreset}
@@ -300,6 +300,14 @@ export default function ComparisonForm() {
           onExportSelected={presetsManager.exportSelectedPresets}
           onImport={presetsManager.importPresets}
           onClearAll={presetsManager.clearAllPresets}
+          // Quick Compare
+          onCompare={handleBatchCompare}
+          isCompareLoading={batchLoading}
+          minCompareSelection={2}
+          // Tag management
+          allTags={presetsManager.allTags}
+          onAddTag={presetsManager.addTagToPreset}
+          onRemoveTag={presetsManager.removeTagFromPreset}
           isLoading={loading}
         />
         <PresetCompareSelector

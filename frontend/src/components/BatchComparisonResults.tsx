@@ -36,7 +36,9 @@ import {
   IconArrowLeft,
   IconScale,
   IconInfoCircle,
+  IconBulb,
 } from '@tabler/icons-react';
+import InsightsDashboard from './InsightsDashboard';
 import {
   BatchComparisonResult,
   BatchComparisonResultItem,
@@ -774,6 +776,9 @@ export default function BatchComparisonResults({
           <Tabs.Tab value="overview" leftSection={<IconChartArea size={16} />}>
             Visão Geral
           </Tabs.Tab>
+          <Tabs.Tab value="insights" leftSection={<IconBulb size={16} />}>
+            Insights
+          </Tabs.Tab>
           <Tabs.Tab value="ranking" leftSection={<IconTrophy size={16} />}>
             Ranking
           </Tabs.Tab>
@@ -797,6 +802,10 @@ export default function BatchComparisonResults({
               ))}
             </SimpleGrid>
           </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="insights" pt="lg">
+          <InsightsDashboard result={result} />
         </Tabs.Panel>
 
         <Tabs.Panel value="ranking" pt="lg">

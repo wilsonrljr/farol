@@ -1,6 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Preset,
+  PresetTag,
+  PresetTagType,
+  createTag,
   loadPresets,
   savePresets,
   createPreset,
@@ -38,8 +41,8 @@ export function usePresets<T>(options: UsePresetsOptions) {
   }, [storageKey, presets, initialized]);
 
   const addPreset = useCallback(
-    (name: string, input: T, description?: string) => {
-      const preset = createPreset(name, input, description);
+    (name: string, input: T, description?: string, tags?: PresetTag[]) => {
+      const preset = createPreset(name, input, description, tags);
       setPresets((prev) => [preset, ...prev]);
       onSave?.(preset as Preset<unknown>);
       return preset;
@@ -48,12 +51,75 @@ export function usePresets<T>(options: UsePresetsOptions) {
   );
 
   const editPreset = useCallback(
-    (id: string, updates: Partial<Pick<Preset<T>, 'name' | 'description' | 'input'>>) => {
+    (id: string, updates: Partial<Pick<Preset<T>, 'name' | 'description' | 'input' | 'tags'>>) => {
       setPresets((prev) =>
         prev.map((p) => (p.id === id ? updatePreset(p, updates) : p))
       );
     },
     []
+  );
+
+  // Tag management
+  const addTagToPreset = useCallback(
+    (presetId: string, tagType: PresetTagType, customLabel?: string) => {
+      const tag = createTag(tagType, customLabel);
+      setPresets((prev) =>
+        prev.map((p) => {
+          if (p.id !== presetId) return p;
+          const existingTags = p.tags || [];
+          // Don't add duplicate tag types
+          if (existingTags.some((t) => t.type === tagType)) return p;
+          return updatePreset(p, { tags: [...existingTags, tag] });
+        })
+      );
+    },
+    []
+  );
+
+  const removeTagFromPreset = useCallback(
+    (presetId: string, tagId: string) => {
+      setPresets((prev) =>
+        prev.map((p) => {
+          if (p.id !== presetId) return p;
+          const existingTags = p.tags || [];
+          return updatePreset(p, { tags: existingTags.filter((t) => t.id !== tagId) });
+        })
+      );
+    },
+    []
+  );
+
+  const setPresetTags = useCallback(
+    (presetId: string, tags: PresetTag[]) => {
+      setPresets((prev) =>
+        prev.map((p) => (p.id === presetId ? updatePreset(p, { tags }) : p))
+      );
+    },
+    []
+  );
+
+  // Get all unique tags used across all presets
+  const allTags = useMemo(() => {
+    const tagMap = new Map<string, PresetTag>();
+    presets.forEach((p) => {
+      (p.tags || []).forEach((tag) => {
+        if (!tagMap.has(tag.type)) {
+          tagMap.set(tag.type, tag);
+        }
+      });
+    });
+    return Array.from(tagMap.values());
+  }, [presets]);
+
+  // Filter presets by tags
+  const filterByTags = useCallback(
+    (tagTypes: PresetTagType[]) => {
+      if (tagTypes.length === 0) return presets;
+      return presets.filter((p) =>
+        tagTypes.some((type) => (p.tags || []).some((t) => t.type === type))
+      );
+    },
+    [presets]
   );
 
   const removePreset = useCallback(
@@ -76,7 +142,8 @@ export function usePresets<T>(options: UsePresetsOptions) {
       const copy = createPreset(
         `${original.name} (cópia)`,
         original.input,
-        original.description
+        original.description,
+        original.tags // Preserve tags on duplicate
       );
       setPresets((prev) => [copy, ...prev]);
       return copy;
@@ -161,6 +228,12 @@ export function usePresets<T>(options: UsePresetsOptions) {
     importPresets,
     clearAllPresets,
     reorderPresets,
+    // Tag management
+    addTagToPreset,
+    removeTagFromPreset,
+    setPresetTags,
+    allTags,
+    filterByTags,
     isEmpty: presets.length === 0,
     count: presets.length,
   };
