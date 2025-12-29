@@ -80,7 +80,7 @@ export default function ComparisonForm() {
       fixed_monthly_investment: 0,
       fixed_investment_start_month: 1,
       rent_reduces_investment: false,
-      monthly_external_savings: 0,
+      monthly_external_savings: null,
       invest_external_surplus: false,
       fgts: {
         initial_balance: 0,
@@ -194,8 +194,9 @@ export default function ComparisonForm() {
 
   async function onSubmit(values: ComparisonInput) {
     try {
-      setLastInput(values);
-      const res = await call(values, true);
+      const cleaned = cleanInputForBackend(values);
+      setLastInput(cleaned);
+      const res = await call(cleaned, true);
       setViewMode('single-result');
       notifications.show({
         title: "Análise concluída",
@@ -212,7 +213,7 @@ export default function ComparisonForm() {
     } catch (e: any) {
       notifications.show({
         title: "Erro",
-        message: e.toString(),
+        message: String(e),
         color: "red",
       });
     }
