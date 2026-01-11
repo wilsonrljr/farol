@@ -127,6 +127,18 @@ export default function ComparisonForm() {
   const cleanInputForBackend = (input: ComparisonInput): ComparisonInput => {
     const cleaned = { ...input };
 
+    const nullIfEmpty = (v: unknown) => (v === '' ? null : v);
+
+    cleaned.annual_interest_rate = nullIfEmpty(cleaned.annual_interest_rate) as any;
+    cleaned.monthly_interest_rate = nullIfEmpty(cleaned.monthly_interest_rate) as any;
+    cleaned.rent_value = nullIfEmpty(cleaned.rent_value) as any;
+    cleaned.rent_percentage = nullIfEmpty(cleaned.rent_percentage) as any;
+    cleaned.inflation_rate = nullIfEmpty(cleaned.inflation_rate) as any;
+    cleaned.rent_inflation_rate = nullIfEmpty(cleaned.rent_inflation_rate) as any;
+    cleaned.property_appreciation_rate = nullIfEmpty(cleaned.property_appreciation_rate) as any;
+    cleaned.monthly_external_savings = nullIfEmpty(cleaned.monthly_external_savings) as any;
+    cleaned.fixed_monthly_investment = nullIfEmpty(cleaned.fixed_monthly_investment) as any;
+
     // Enforce mutually exclusive fields to avoid "I changed X but nothing happened".
     // Backend accepts both today, but the engine will necessarily pick one, which is confusing UX.
     const annual = cleaned.annual_interest_rate;

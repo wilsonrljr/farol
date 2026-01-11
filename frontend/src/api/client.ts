@@ -50,6 +50,24 @@ export const api = axios.create({
   baseURL: env?.VITE_API_BASE || 'http://localhost:8000'
 });
 
+function safeRequestId(): string {
+  // Prefer a proper UUID when available.
+  const cryptoObj = (globalThis as any).crypto;
+  if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
+  // Fallback: sufficiently unique for request tracing.
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+api.interceptors.request.use((config) => {
+  config.headers = config.headers ?? {};
+  // Defensive: prevent any intermediate caches from reusing POST responses.
+  (config.headers as any)['Cache-Control'] = 'no-store';
+  (config.headers as any).Pragma = 'no-cache';
+  // Correlate backend logs with frontend requests.
+  (config.headers as any)['X-Request-ID'] = safeRequestId();
+  return config;
+});
+
 api.interceptors.response.use(
   (r) => r,
   (error) => {

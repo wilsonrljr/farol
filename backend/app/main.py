@@ -21,7 +21,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.errors import configure_logging, install_exception_handlers
-from .api.middleware import install_request_context_middleware
+from .api.middleware import (
+    install_no_cache_middleware,
+    install_request_context_middleware,
+)
 from .api.routers.exports import router as exports_router
 from .api.routers.simulations import router as simulations_router
 from .api.routers.tools import router as tools_router
@@ -38,6 +41,7 @@ app = FastAPI(
 configure_logging()
 install_exception_handlers(app)
 install_request_context_middleware(app, config)
+install_no_cache_middleware(app)
 
 # Configure CORS
 app.add_middleware(

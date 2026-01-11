@@ -6,6 +6,7 @@ import {
   Group,
   Paper,
   Text,
+  Collapse,
   Table,
   SimpleGrid,
   ScrollArea,
@@ -44,6 +45,7 @@ import {
   IconCrown,
   IconChartLine,
   IconBuildingBank,
+  IconSettings,
   IconDownload,
   IconTable,
   IconChartArea,
@@ -156,7 +158,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
           </Text>
           <Help
             label="Patrimônio Final"
-            help="Total acumulado no fim do horizonte da simulação. No comparador, é calculado como (equidade + investimentos + FGTS)."
+            help="Total de ativos acumulados no fim do horizonte da simulação (equidade + investimentos + FGTS). Observação importante: se o aluguel estiver modelado como pago externamente (rent_reduces_investment=false), mudanças em aluguel/inflação afetam o Custo Líquido e o fluxo de caixa, mas podem não alterar o Patrimônio Final. Para ver o impacto do aluguel no patrimônio, ative 'Aluguel reduz investimento' ou informe 'sobra externa' / aportes mensais."
           />
         </Group>
         <Text fw={700} style={{ fontSize: rem(32), lineHeight: 1.1 }} c="bright">
@@ -347,21 +349,13 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
 }
 
 export default function EnhancedComparisonResults({ result, inputPayload }: { result: EnhancedComparisonResult; inputPayload?: any }) {
-  // DEBUG: Log when component receives new data
-  console.log('[EnhancedComparisonResults] Received result:', {
-    bestScenario: result.best_scenario,
-    scenarios: result.scenarios.map(s => ({
-      name: s.name,
-      total_cost: s.total_cost,
-      final_equity: s.final_equity,
-    })),
-  });
-  
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
   const [overviewMetric, setOverviewMetric] = useState<'wealth' | 'outflow'>('wealth');
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [milestonesOnly, setMilestonesOnly] = useState(false);
   const [tableView, setTableView] = useState<'essential' | 'detailed'>('essential');
+  const [showInputDetails, setShowInputDetails] = useState(false);
+  const [showInputJson, setShowInputJson] = useState(false);
 
   const months = new Set<number>();
   const scenarioByMonth = new Map<string, Map<number, any>>();
@@ -376,6 +370,16 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
   const monthsSorted = Array.from(months).sort((a, b) => a - b);
 
   const moneySafe = (v: any) => money(v || 0);
+  const percentSafe = (v: any, digits = 2) => {
+    const n = typeof v === 'number' ? v : Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return percent(n, digits);
+  };
+  const numSafe = (v: any, digits = 2) => {
+    const n = typeof v === 'number' ? v : Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return n.toFixed(digits);
+  };
   const monthlyOutflow = (m: any) => {
     if (m?.total_monthly_cost != null) return m.total_monthly_cost;
     if (m?.cash_flow != null) return -m.cash_flow;
@@ -444,6 +448,53 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
 
   const horizonLabel = (monthsCount: number | null) => formatMonthsYears(monthsCount);
   const wealthAt = (m: any) => (m?.equity || 0) + (m?.investment_balance || 0) + (m?.fgts_balance || 0);
+
+  const inputSummary = (() => {
+    if (!inputPayload) return null;
+
+    const invReturns = Array.isArray(inputPayload?.investment_returns)
+      ? inputPayload.investment_returns
+      : [];
+    const invReturnsLabel = invReturns.length
+      ? invReturns
+          .map((r: any) => {
+            const start = r?.start_month ?? 1;
+            const end = r?.end_month ?? '∞';
+            const rate = r?.annual_rate;
+            return `${start}-${end}: ${numSafe(rate, 2)}% a.a.`;
+          })
+          .join(' · ')
+      : '—';
+
+    const amortizations = Array.isArray(inputPayload?.amortizations)
+      ? inputPayload.amortizations
+      : [];
+    const contributions = Array.isArray(inputPayload?.contributions)
+      ? inputPayload.contributions
+      : [];
+
+    const hasAnnualRate = inputPayload?.annual_interest_rate != null;
+    const hasMonthlyRate = inputPayload?.monthly_interest_rate != null;
+    const interestLabel = hasMonthlyRate
+      ? `${numSafe(inputPayload.monthly_interest_rate, 4)}% a.m.`
+      : hasAnnualRate
+        ? `${numSafe(inputPayload.annual_interest_rate, 2)}% a.a.`
+        : '—';
+
+    const rentLabel = inputPayload?.rent_value != null
+      ? money(inputPayload.rent_value)
+      : inputPayload?.rent_percentage != null
+        ? `${numSafe(inputPayload.rent_percentage, 2)}% a.a. (do valor do imóvel)`
+        : '—';
+
+    return {
+      interestLabel,
+      rentLabel,
+      invReturnsLabel,
+      amortizationsCount: amortizations.length,
+      contributionsCount: contributions.length,
+    };
+  })();
 
   const wealthData = monthsSorted.map((month) => {
     const row: any = { month };
@@ -529,6 +580,137 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           </Menu.Dropdown>
         </Menu>
       </Group>
+
+      {/* Input payload summary (what was actually simulated) */}
+      <Paper
+        p="lg"
+        radius="xl"
+        style={{
+          border: '1px solid var(--mantine-color-default-border)',
+          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+        }}
+      >
+        <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="xs">
+          <Group gap="xs">
+            <ThemeIcon size={34} radius="lg" variant="light" color="sage">
+              <IconSettings size={16} />
+            </ThemeIcon>
+            <Box>
+              <Text fw={700} c="bright">
+                Parâmetros usados na simulação
+              </Text>
+              <Text size="xs" c="dimmed">
+                Ajuda a evitar leitura de resultados “de outra rodada”.
+              </Text>
+            </Box>
+          </Group>
+          <Group gap="xs">
+            <Button
+              variant="light"
+              color="sage"
+              radius="lg"
+              size="xs"
+              onClick={() => setShowInputDetails((v) => !v)}
+            >
+              {showInputDetails ? 'Ocultar detalhes' : 'Ver detalhes'}
+            </Button>
+            <Button
+              variant="subtle"
+              color="sage"
+              radius="lg"
+              size="xs"
+              disabled={!inputPayload}
+              onClick={() => {
+                setShowInputDetails(true);
+                setShowInputJson((v) => !v);
+              }}
+            >
+              {showInputJson ? 'Ocultar JSON' : 'Ver JSON'}
+            </Button>
+          </Group>
+        </Group>
+
+        {!inputPayload ? (
+          <Text size="sm" c="dimmed">
+            Payload indisponível (rodadas anteriores podem não ter registrado o input).
+          </Text>
+        ) : (
+          <>
+            <Group gap="xs" wrap="wrap">
+              <Badge variant="light" color="sage">
+                Imóvel: {money(inputPayload.property_value)}
+              </Badge>
+              <Badge variant="light" color="sage">
+                Entrada: {money(inputPayload.down_payment)}
+              </Badge>
+              <Badge variant="light" color="sage">
+                Prazo: {inputPayload.loan_term_years} anos
+              </Badge>
+              <Badge variant="light" color="sage">
+                Sistema: {inputPayload.loan_type}
+              </Badge>
+              {inputSummary?.interestLabel !== '—' && (
+                <Badge variant="light" color="sage">Juros: {inputSummary?.interestLabel}</Badge>
+              )}
+              {inputPayload.rent_inflation_rate != null && (
+                <Badge variant="light" color="sage">Inflação aluguel: {percentSafe(inputPayload.rent_inflation_rate, 2)} a.a.</Badge>
+              )}
+              {inputPayload.inflation_rate != null && (
+                <Badge variant="light" color="sage">Inflação geral: {percentSafe(inputPayload.inflation_rate, 2)} a.a.</Badge>
+              )}
+              {inputPayload.property_appreciation_rate != null && (
+                <Badge variant="light" color="sage">Valorização imóvel: {percentSafe(inputPayload.property_appreciation_rate, 2)} a.a.</Badge>
+              )}
+              <Badge variant="light" color="sage">
+                Amortizações: {inputSummary?.amortizationsCount ?? 0}
+              </Badge>
+              <Badge variant="light" color="sage">
+                Aportes: {inputSummary?.contributionsCount ?? 0}
+              </Badge>
+            </Group>
+
+            <Collapse in={showInputDetails}>
+              <Divider my="sm" color="sage.2" />
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="sm">
+                <Box>
+                  <Text size="xs" c="sage.6">Aluguel</Text>
+                  <Text fw={600} c="bright">{inputSummary?.rentLabel ?? '—'}</Text>
+                </Box>
+                <Box>
+                  <Text size="xs" c="sage.6">Retornos investimento</Text>
+                  <Text fw={600} c="bright">{inputSummary?.invReturnsLabel ?? '—'}</Text>
+                </Box>
+                <Box>
+                  <Text size="xs" c="sage.6">Aluguel consome investimento</Text>
+                  <Text fw={600} c="bright">{inputPayload.rent_reduces_investment ? 'Sim' : 'Não'}</Text>
+                </Box>
+                <Box>
+                  <Text size="xs" c="sage.6">Investir sobra externa</Text>
+                  <Text fw={600} c="bright">{inputPayload.invest_external_surplus ? 'Sim' : 'Não'}</Text>
+                </Box>
+              </SimpleGrid>
+
+              <Collapse in={showInputJson}>
+                <Divider my="sm" color="sage.2" />
+                <ScrollArea h={220} type="hover" scrollbarSize={8} offsetScrollbars>
+                  <Text
+                    component="pre"
+                    fz="xs"
+                    style={{
+                      margin: 0,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    }}
+                  >
+                    {JSON.stringify(inputPayload, null, 2)}
+                  </Text>
+                </ScrollArea>
+              </Collapse>
+            </Collapse>
+          </>
+        )}
+      </Paper>
 
       {/* Scenario Cards */}
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
@@ -735,6 +917,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
 
         {result.scenarios.map((s) => {
           const isInvestBuy = s.monthly_data.some((m: any) => m.scenario_type === 'invest_buy');
+          const isRentInvest = s.monthly_data.some((m: any) => m.scenario_type === 'rent_invest');
           const isBuy = s.monthly_data.some(
             (m: any) => m.scenario_type === 'buy' || m.installment != null || m.outstanding_balance != null
           );
@@ -926,126 +1109,203 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                       </>
                     );
                   })() : (
-                    <Table fz="sm" striped highlightOnHover stickyHeader>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Mês</Table.Th>
-                          <Table.Th>Ano</Table.Th>
-                          <Table.Th>
-                            <Group gap={6} wrap="nowrap">
-                              <Text component="span">Saída total</Text>
-                              <Tooltip
-                                label={
-                                  <Stack gap={4}>
-                                    <Text size="xs" fw={600}>O que entra em “Saída total”?</Text>
-                                    <Text size="xs" c="dimmed">
-                                      Inclui moradia (aluguel/parcela + condomínio/IPTU), custos pontuais (ex.: ITBI/escritura)
-                                      e alocações de capital (ex.: entrada ou aporte inicial no investimento).
-                                    </Text>
-                                    <Text size="xs" c="dimmed">
-                                      Por isso o mês 1 costuma ser alto em todos os cenários.
-                                    </Text>
-                                  </Stack>
+                    isRentInvest ? (
+                      <Table fz="sm" striped highlightOnHover stickyHeader>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Mês</Table.Th>
+                            <Table.Th>Ano</Table.Th>
+                            {tableView === 'essential' ? (
+                              <>
+                                <Table.Th>Moradia (R$)</Table.Th>
+                                <Table.Th>Retorno (líq.)</Table.Th>
+                                <Table.Th>Saldo invest.</Table.Th>
+                                <Table.Th>Patrimônio</Table.Th>
+                              </>
+                            ) : (
+                              <>
+                                <Table.Th>Aluguel devido</Table.Th>
+                                <Table.Th>Custos (cond+IPTU)</Table.Th>
+                                <Table.Th>Moradia (devido)</Table.Th>
+                                <Table.Th>Moradia (pago)</Table.Th>
+                                <Table.Th>Shortfall</Table.Th>
+                                <Table.Th>Saque invest.</Table.Th>
+                                <Table.Th>Cobertura externa</Table.Th>
+                                <Table.Th>Sobra ext. investida</Table.Th>
+                                <Table.Th>Retorno (líq.)</Table.Th>
+                                <Table.Th>Saldo invest.</Table.Th>
+                                <Table.Th>Patrimônio</Table.Th>
+                                <Table.Th>Valor imóvel</Table.Th>
+                              </>
+                            )}
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {rows.slice(0, 600).map((m: any) => {
+                            const isBurn = Boolean(m.burn_month);
+                            const rowStyle = isBurn
+                              ? {
+                                  backgroundColor:
+                                    'light-dark(var(--mantine-color-warning-0), var(--mantine-color-dark-7))',
                                 }
-                                multiline
-                                w={360}
-                                withArrow
-                                position="top-start"
-                              >
-                                <ActionIcon variant="subtle" color="gray" size="xs" aria-label="Ajuda: Saída total">
-                                  <IconHelpCircle size={14} />
-                                </ActionIcon>
-                              </Tooltip>
-                            </Group>
-                          </Table.Th>
-                          <Table.Th>Patrimônio</Table.Th>
-                          <Table.Th>Equidade</Table.Th>
-                          <Table.Th>Investimento</Table.Th>
-                          <Table.Th>Valor Imóvel</Table.Th>
-                          {tableView === 'detailed' && hasCumulativeCost && <Table.Th>Acumulado (custo)</Table.Th>}
-                          {tableView === 'detailed' && hasCumulativeSecondary && <Table.Th>Acumulado (juros/ganhos)</Table.Th>}
-                          {isInvestBuy && <Table.Th>Progresso</Table.Th>}
-                          {isInvestBuy && <Table.Th>Status</Table.Th>}
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {rows.slice(0, 600).map((m: any) => {
-                          const isPurchase =
-                            isInvestBuy && purchaseMonth != null
-                              ? m.month === purchaseMonth
-                              : m.status === 'Imóvel comprado';
-                          const isPostPurchase =
-                            isInvestBuy && purchaseMonth != null
-                              ? m.month > purchaseMonth
-                              : false;
-                          const cumulativeCost =
-                            m.cumulative_payments != null
-                              ? m.cumulative_payments
-                              : m.cumulative_rent_paid != null
-                                ? m.cumulative_rent_paid
-                                : null;
-                          const cumulativeSecondary =
-                            m.cumulative_interest != null
-                              ? m.cumulative_interest
-                              : m.cumulative_investment_gains != null
-                                ? m.cumulative_investment_gains
-                                : null;
-                          return (
-                            <Table.Tr
-                              key={m.month}
-                              style={{
-                                backgroundColor: isPurchase
-                                  ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
-                                  : isPostPurchase
-                                    ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
-                                    : undefined,
-                                fontWeight: m.is_milestone ? 600 : 400,
-                              }}
-                            >
-                              <Table.Td>{m.month}</Table.Td>
-                              <Table.Td>{yearFromMonth(m.month)}</Table.Td>
-                              <Table.Td>
+                              : undefined;
+
+                            const housingDue =
+                              m?.housing_due != null
+                                ? m.housing_due
+                                : (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
+
+                            return (
+                              <Table.Tr key={m.month} style={rowStyle}>
+                                <Table.Td>{m.month}</Table.Td>
+                                <Table.Td>{yearFromMonth(m.month)}</Table.Td>
+                                {tableView === 'essential' ? (
+                                  <>
+                                    <Table.Td>{moneySafe(housingDue)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
+                                    <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Table.Td>{moneySafe(m.rent_due)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.monthly_additional_costs)}</Table.Td>
+                                    <Table.Td>{moneySafe(housingDue)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.housing_paid)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.housing_shortfall)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.external_cover)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
+                                    <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
+                                    <Table.Td>{moneySafe(m.property_value)}</Table.Td>
+                                  </>
+                                )}
+                              </Table.Tr>
+                            );
+                          })}
+                        </Table.Tbody>
+                      </Table>
+                    ) : (
+                      <Table fz="sm" striped highlightOnHover stickyHeader>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Mês</Table.Th>
+                            <Table.Th>Ano</Table.Th>
+                            <Table.Th>Status</Table.Th>
+                            <Table.Th>
+                              <Group gap={6} wrap="nowrap">
+                                <Text component="span">Saída total</Text>
                                 <Tooltip
-                                  label={outflowTooltip(m)}
+                                  label={
+                                    <Stack gap={4}>
+                                      <Text size="xs" fw={600}>O que entra em “Saída total”?</Text>
+                                      <Text size="xs" c="dimmed">
+                                        Inclui moradia (aluguel + cond/IPTU), custos pontuais (ITBI/escritura) e alocações/aportes.
+                                      </Text>
+                                      <Text size="xs" c="dimmed">O mês 1 costuma ter pico (alocação inicial).</Text>
+                                    </Stack>
+                                  }
                                   multiline
                                   w={360}
                                   withArrow
                                   position="top-start"
                                 >
-                                  <Text component="span">{moneySafe(monthlyOutflow(m))}</Text>
+                                  <ActionIcon variant="subtle" color="gray" size="xs" aria-label="Ajuda: Saída total">
+                                    <IconHelpCircle size={14} />
+                                  </ActionIcon>
                                 </Tooltip>
-                              </Table.Td>
-                              <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
-                              <Table.Td>{moneySafe(m.equity)}</Table.Td>
-                              <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
-                              <Table.Td>{moneySafe(m.property_value)}</Table.Td>
-                              {tableView === 'detailed' && hasCumulativeCost && (
-                                <Table.Td>{cumulativeCost != null ? moneySafe(cumulativeCost) : '—'}</Table.Td>
-                              )}
-                              {tableView === 'detailed' && hasCumulativeSecondary && (
-                                <Table.Td>{cumulativeSecondary != null ? moneySafe(cumulativeSecondary) : '—'}</Table.Td>
-                              )}
-                              {isInvestBuy && (
+                              </Group>
+                            </Table.Th>
+                            <Table.Th>Patrimônio</Table.Th>
+                            {tableView === 'essential' ? (
+                              <>
+                                <Table.Th>Progresso</Table.Th>
+                                <Table.Th>Falta (R$)</Table.Th>
+                                <Table.Th>Saldo invest.</Table.Th>
+                              </>
+                            ) : (
+                              <>
+                                <Table.Th>Aluguel devido</Table.Th>
+                                <Table.Th>Custos (cond+IPTU)</Table.Th>
+                                <Table.Th>Aportes progr.</Table.Th>
+                                <Table.Th>Aporte adicional</Table.Th>
+                                <Table.Th>Sobra ext. investida</Table.Th>
+                                <Table.Th>Saque invest.</Table.Th>
+                                <Table.Th>Retorno (líq.)</Table.Th>
+                                <Table.Th>Saldo invest.</Table.Th>
+                                <Table.Th>Alvo compra</Table.Th>
+                                <Table.Th>Progresso</Table.Th>
+                                <Table.Th>Falta (R$)</Table.Th>
+                                <Table.Th>FGTS usado</Table.Th>
+                                <Table.Th>Valor imóvel</Table.Th>
+                                <Table.Th>Equidade</Table.Th>
+                              </>
+                            )}
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {rows.slice(0, 600).map((m: any) => {
+                            const isPurchase =
+                              purchaseMonth != null ? m.month === purchaseMonth : m.status === 'Imóvel comprado';
+                            const isPostPurchase = purchaseMonth != null ? m.month > purchaseMonth : m.phase === 'post_purchase';
+
+                            return (
+                              <Table.Tr
+                                key={m.month}
+                                style={{
+                                  backgroundColor: isPurchase
+                                    ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
+                                    : isPostPurchase
+                                      ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+                                      : undefined,
+                                  fontWeight: m.is_milestone ? 600 : 400,
+                                }}
+                              >
+                                <Table.Td>{m.month}</Table.Td>
+                                <Table.Td>{yearFromMonth(m.month)}</Table.Td>
                                 <Table.Td>
-                                  {m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}
-                                </Table.Td>
-                              )}
-                              {isInvestBuy && (
-                                <Table.Td>
-                                  <Badge
-                                    size="sm"
-                                    variant="light"
-                                    color={isPurchase ? 'success' : 'sage'}
-                                  >
+                                  <Badge size="sm" variant="light" color={isPurchase ? 'success' : 'sage'}>
                                     {m.status || '—'}
                                   </Badge>
                                 </Table.Td>
-                              )}
-                            </Table.Tr>
-                          );
-                        })}
-                      </Table.Tbody>
-                    </Table>
+                                <Table.Td>
+                                  <Tooltip label={outflowTooltip(m)} multiline w={360} withArrow position="top-start">
+                                    <Text component="span">{moneySafe(monthlyOutflow(m))}</Text>
+                                  </Tooltip>
+                                </Table.Td>
+                                <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
+                                {tableView === 'essential' ? (
+                                  <>
+                                    <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>
+                                    <Table.Td>{moneySafe(m.shortfall)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Table.Td>{moneySafe(m.rent_due)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.monthly_additional_costs)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.extra_contribution_total)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.additional_investment)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.target_purchase_cost)}</Table.Td>
+                                    <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>
+                                    <Table.Td>{moneySafe(m.shortfall)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.fgts_used)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.property_value)}</Table.Td>
+                                    <Table.Td>{moneySafe(m.equity)}</Table.Td>
+                                  </>
+                                )}
+                              </Table.Tr>
+                            );
+                          })}
+                        </Table.Tbody>
+                      </Table>
+                    )
                   )}
                 </ScrollArea>
 

@@ -40,3 +40,26 @@ def install_request_context_middleware(app: FastAPI, config: AppConfig) -> None:
             request_id,
         )
         return response
+
+
+def install_no_cache_middleware(app: FastAPI) -> None:
+    """Disable HTTP caching for API endpoints.
+
+    This prevents stale/mismatched simulation results when running behind
+    intermediaries that might cache responses aggressively.
+    """
+
+    @app.middleware("http")
+    async def _no_cache_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+
+        # Only touch API routes; keep docs/static behavior unchanged.
+        if request.url.path.startswith("/api/"):
+            response.headers.setdefault(
+                "Cache-Control",
+                "no-store, no-cache, max-age=0, must-revalidate",
+            )
+            response.headers.setdefault("Pragma", "no-cache")
+            response.headers.setdefault("Expires", "0")
+
+        return response
