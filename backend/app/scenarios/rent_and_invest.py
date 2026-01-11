@@ -93,12 +93,17 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             self.property_appreciation_rate,
             self.inflation_rate,
         )
-        # As a renter, we do not pay ownership costs (HOA/IPTU). Keep them zero here.
-        monthly_hoa, monthly_property_tax, monthly_additional = 0.0, 0.0, 0.0
+        monthly_hoa, monthly_property_tax, monthly_additional = (
+            self.get_inflated_monthly_costs(month)
+        )
+
+        housing_due = current_rent + monthly_additional
 
         # Process cashflows (external cover, optional investing surplus, optional withdrawal)
-        cashflow_result = self._process_monthly_cashflows(current_rent)
-        self._total_rent_paid += cashflow_result["actual_rent_paid"]
+        cashflow_result = self._process_monthly_cashflows(housing_due)
+        housing_paid = cashflow_result["actual_rent_paid"]
+        rent_paid = min(current_rent, housing_paid)
+        self._total_rent_paid += rent_paid
 
         # Apply investment returns
         investment_result = self._account.apply_monthly_return(month)
@@ -109,8 +114,11 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional=monthly_additional,
-            actual_rent_paid=cashflow_result["actual_rent_paid"],
-            rent_shortfall=cashflow_result["rent_shortfall"],
+            actual_rent_paid=rent_paid,
+            rent_shortfall=max(0.0, current_rent - rent_paid),
+            housing_due=housing_due,
+            housing_paid=housing_paid,
+            housing_shortfall=max(0.0, housing_due - housing_paid),
             cashflow_result=cashflow_result,
             investment_result=investment_result,
             property_value=current_property_value,
@@ -184,6 +192,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         monthly_property_tax: float,
         monthly_additional: float,
         rent_shortfall: float,
+        housing_due: float,
+        housing_paid: float,
+        housing_shortfall: float,
         cashflow_result: dict[str, float],
         investment_result: InvestmentResult,
         property_value: float,
@@ -203,11 +214,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
-        # Robustness rule: rent is always due; if it couldn't be fully paid from modeled
-        # sources (external_cover + withdrawals), the remaining shortfall must still be
-        # counted as an outflow (implicitly covered by unmodeled cash/credit).
         rent_due = current_rent
-        total_monthly_cost = rent_due + initial_deposit + invested_from_external
+        total_monthly_cost = housing_due + initial_deposit + invested_from_external
 
         return DomainMonthlyRecord(
             month=month,
@@ -216,6 +224,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             rent_due=rent_due,
             rent_paid=actual_rent_paid,
             rent_shortfall=rent_shortfall,
+            housing_due=housing_due,
+            housing_paid=housing_paid,
+            housing_shortfall=housing_shortfall,
+            initial_allocation=initial_deposit,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,
@@ -269,8 +281,11 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_outflows = sum((d.total_monthly_cost or 0.0) for d in self._monthly_data)
         net_cost = total_outflows - final_equity
 
-        # Consumption approximation: rent due is treated as spending.
-        total_consumption = sum((d.rent_due or 0.0) for d in self._monthly_data)
+        # Consumption approximation: rent due + recurring housing costs.
+        total_consumption = 0.0
+        for d in self._monthly_data:
+            total_consumption += d.rent_due or 0.0
+            total_consumption += d.monthly_additional_costs or 0.0
 
         return DomainComparisonScenario(
             name=self.scenario_name,

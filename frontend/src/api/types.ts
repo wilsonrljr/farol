@@ -121,6 +121,9 @@ export interface MonthlyRecord {
   installment?: number;
   principal_payment?: number;
   interest_payment?: number;
+  extra_amortization?: number;
+  extra_amortization_cash?: number;
+  extra_amortization_fgts?: number;
   outstanding_balance?: number;
   equity_percentage?: number;
 
@@ -128,12 +131,17 @@ export interface MonthlyRecord {
   rent_due?: number;
   rent_paid?: number;
   rent_shortfall?: number;
+  housing_due?: number;
+  housing_paid?: number;
+  housing_shortfall?: number;
   liquid_wealth?: number;
   cumulative_rent_paid?: number;
   cumulative_investment_gains?: number;
   investment_roi_percentage?: number;
 
   // Costs
+  /** One-off cash allocation (e.g., month-1 down payment invested/paid). */
+  initial_allocation?: number;
   monthly_hoa?: number;
   monthly_property_tax?: number;
   monthly_additional_costs?: number;

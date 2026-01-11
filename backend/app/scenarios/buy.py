@@ -245,6 +245,19 @@ class BuyScenarioSimulator(ScenarioSimulator):
             installment_value = inst.installment if inst is not None else 0.0
             amortization_value = inst.amortization if inst is not None else 0.0
             interest_value = inst.interest if inst is not None else 0.0
+            extra_amortization_value = (
+                inst.extra_amortization if inst is not None else 0.0
+            )
+            extra_amortization_cash = (
+                getattr(inst, "extra_amortization_cash", 0.0)
+                if inst is not None
+                else 0.0
+            )
+            extra_amortization_fgts = (
+                getattr(inst, "extra_amortization_fgts", 0.0)
+                if inst is not None
+                else 0.0
+            )
             outstanding_balance = inst.outstanding_balance if inst is not None else 0.0
 
             cumulative_payments += installment_value + monthly_additional
@@ -265,6 +278,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 installment_value,
                 amortization_value,
                 interest_value,
+                extra_amortization_value,
+                extra_amortization_cash,
+                extra_amortization_fgts,
                 outstanding_balance,
                 fgts_balance_current,
             )
@@ -282,20 +298,26 @@ class BuyScenarioSimulator(ScenarioSimulator):
         installment_value: float,
         amortization_value: float,
         interest_value: float,
+        extra_amortization_value: float,
+        extra_amortization_cash: float,
+        extra_amortization_fgts: float,
         outstanding_balance: float,
         fgts_balance_current: float | None,
     ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment."""
         equity = property_value - outstanding_balance
         upfront_and_initial = 0.0
+        initial_allocation = 0.0
         if month == 1:
             upfront_and_initial = (
                 self.down_payment
                 + self._total_upfront_costs
                 + self._fgts_used_at_purchase
             )
+            initial_allocation = self.down_payment
             if self.initial_investment > 0:
                 upfront_and_initial += self.initial_investment
+                initial_allocation += self.initial_investment
 
         total_monthly_cost = (
             installment_value + monthly_additional + upfront_and_initial
@@ -323,7 +345,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
             installment=installment_value,
             principal_payment=amortization_value,
             interest_payment=interest_value,
+            extra_amortization=extra_amortization_value,
+            extra_amortization_cash=extra_amortization_cash,
+            extra_amortization_fgts=extra_amortization_fgts,
             outstanding_balance=outstanding_balance,
+            initial_allocation=initial_allocation,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,

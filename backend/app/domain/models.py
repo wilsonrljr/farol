@@ -64,6 +64,9 @@ class MonthlyRecord:
     installment: float | None = None
     principal_payment: float | None = None
     interest_payment: float | None = None
+    extra_amortization: float | None = None
+    extra_amortization_cash: float | None = None
+    extra_amortization_fgts: float | None = None
     outstanding_balance: float | None = None
     equity_percentage: float | None = None
 
@@ -71,12 +74,20 @@ class MonthlyRecord:
     rent_due: float | None = None
     rent_paid: float | None = None
     rent_shortfall: float | None = None
+    # Housing (rent + recurring costs like HOA/IPTU when applicable)
+    housing_due: float | None = None
+    housing_paid: float | None = None
+    housing_shortfall: float | None = None
     liquid_wealth: float | None = None
     cumulative_rent_paid: float | None = None
     cumulative_investment_gains: float | None = None
     investment_roi_percentage: float | None = None
 
     # Costs
+    # One-off cash allocation (e.g., down payment invested/paid at month 1).
+    # This helps explain why month 1 can show a large outflow even when
+    # the recurring monthly housing cost is low.
+    initial_allocation: float | None = None
     monthly_hoa: float | None = None
     monthly_property_tax: float | None = None
     monthly_additional_costs: float | None = None

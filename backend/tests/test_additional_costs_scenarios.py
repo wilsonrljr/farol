@@ -26,6 +26,20 @@ def _buy(data):
     raise AssertionError("Buy scenario not found")
 
 
+def _rent(data):
+    for s in data["scenarios"]:
+        if "alugar" in s["name"].lower():
+            return s
+    raise AssertionError("Rent scenario not found")
+
+
+def _invest_then_buy(data):
+    for s in data["scenarios"]:
+        if "comprar" in s["name"].lower() and "vista" in s["name"].lower():
+            return s
+    raise AssertionError("Invest-then-buy scenario not found")
+
+
 def test_additional_costs_increase_total_cost():
     # Baseline (small but non-zero defaults)
     p0 = dict(
@@ -40,6 +54,8 @@ def test_additional_costs_increase_total_cost():
     r0 = client.post("/api/compare-scenarios-enhanced", json=p0)
     assert r0.status_code == 200, r0.text
     b0 = _buy(r0.json())
+    rent0 = _rent(r0.json())
+    itb0 = _invest_then_buy(r0.json())
 
     # Upfront only
     p1 = dict(
@@ -66,8 +82,22 @@ def test_additional_costs_increase_total_cost():
     )
     r2 = client.post("/api/compare-scenarios-enhanced", json=p2)
     b2 = _buy(r2.json())
+    rent2 = _rent(r2.json())
+    itb2 = _invest_then_buy(r2.json())
 
     assert b0["total_cost"] < b1["total_cost"] <= b2["total_cost"]
     # Monthly additional costs present only in third variant
     first_month = b2["monthly_data"][0]
     assert first_month.get("monthly_additional_costs") == 500.0
+
+    # Rent-based scenarios should also reflect recurring costs in monthly records and totals
+    assert rent0["total_cost"] < rent2["total_cost"]
+    assert itb0["total_cost"] < itb2["total_cost"]
+
+    rent_first = rent2["monthly_data"][0]
+    assert rent_first.get("monthly_additional_costs") == 500.0
+    assert rent_first.get("housing_due") == 2500.0
+
+    itb_first = itb2["monthly_data"][0]
+    assert itb_first.get("monthly_additional_costs") == 500.0
+    assert itb_first.get("housing_due") == 2500.0

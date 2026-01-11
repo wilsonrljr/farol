@@ -227,9 +227,9 @@ export default function AmortizationsFieldArray({
                 min={1}
                 value={item.month || 1}
                 onChange={(v) => {
-                  const arr = [...value];
-                  arr[idx].month = Number(v) || 1;
-                  onChange(arr);
+                  const next = [...(value || [])];
+                  next[idx] = { ...next[idx], month: Number(v) || 1 } as any;
+                  onChange(next as any);
                 }}
               />
               <Select
@@ -241,15 +241,22 @@ export default function AmortizationsFieldArray({
                   { value: 'rec', label: 'Recorrente' },
                 ]}
                 onChange={(val) => {
-                  const arr = [...value];
+                  const next = [...(value || [])];
                   if (val === 'rec') {
-                    arr[idx].interval_months = arr[idx].interval_months || 12;
+                    next[idx] = {
+                      ...next[idx],
+                      month: next[idx].month || 1,
+                      interval_months: next[idx].interval_months || 12,
+                    } as any;
                   } else {
-                    arr[idx].interval_months = null;
-                    arr[idx].end_month = null;
-                    arr[idx].occurrences = null;
+                    next[idx] = {
+                      ...next[idx],
+                      interval_months: null,
+                      end_month: null,
+                      occurrences: null,
+                    } as any;
                   }
-                  onChange(arr);
+                  onChange(next as any);
                 }}
               />
               <Select
@@ -257,9 +264,12 @@ export default function AmortizationsFieldArray({
                 description="Fixo ou percentual"
                 value={item.value_type || 'fixed'}
                 onChange={(val) => {
-                  const arr = [...value];
-                  arr[idx].value_type = (val as 'fixed' | 'percentage') || 'fixed';
-                  onChange(arr);
+                  const next = [...(value || [])];
+                  next[idx] = {
+                    ...next[idx],
+                    value_type: (val as 'fixed' | 'percentage') || 'fixed',
+                  } as any;
+                  onChange(next as any);
                 }}
                 data={[
                   { value: 'fixed', label: 'Valor Fixo (R$)' },
@@ -271,9 +281,12 @@ export default function AmortizationsFieldArray({
                 description="De onde vem o pagamento extra"
                 value={item.funding_source || 'cash'}
                 onChange={(val) => {
-                  const arr = [...value];
-                  arr[idx].funding_source = (val as 'cash' | 'fgts') || 'cash';
-                  onChange(arr);
+                  const next = [...(value || [])];
+                  next[idx] = {
+                    ...next[idx],
+                    funding_source: (val as 'cash' | 'fgts') || 'cash',
+                  } as any;
+                  onChange(next as any);
                 }}
                 data={[
                   { value: 'cash', label: '💵 Recursos Próprios' },
@@ -305,9 +318,9 @@ export default function AmortizationsFieldArray({
                   min={1}
                   value={item.interval_months}
                   onChange={(v) => {
-                    const arr = [...value];
-                    arr[idx].interval_months = Number(v) || 1;
-                    onChange(arr);
+                    const next = [...(value || [])];
+                    next[idx] = { ...next[idx], interval_months: Number(v) || 1 } as any;
+                    onChange(next as any);
                   }}
                 />
                 <NumberInput
@@ -317,10 +330,13 @@ export default function AmortizationsFieldArray({
                   value={item.occurrences || ''}
                   placeholder="Indefinido"
                   onChange={(v) => {
-                    const arr = [...value];
-                    arr[idx].occurrences = v ? Number(v) : null;
-                    arr[idx].end_month = null;
-                    onChange(arr);
+                    const next = [...(value || [])];
+                    next[idx] = {
+                      ...next[idx],
+                      occurrences: v ? Number(v) : null,
+                      end_month: null,
+                    } as any;
+                    onChange(next as any);
                   }}
                 />
                 <NumberInput
@@ -330,10 +346,13 @@ export default function AmortizationsFieldArray({
                   value={item.end_month || ''}
                   placeholder="Indefinido"
                   onChange={(v) => {
-                    const arr = [...value];
-                    arr[idx].end_month = v ? Number(v) : null;
-                    arr[idx].occurrences = null;
-                    onChange(arr);
+                    const next = [...(value || [])];
+                    next[idx] = {
+                      ...next[idx],
+                      end_month: v ? Number(v) : null,
+                      occurrences: null,
+                    } as any;
+                    onChange(next as any);
                   }}
                 />
               </SimpleGrid>
@@ -350,9 +369,9 @@ export default function AmortizationsFieldArray({
                 min={0}
                 value={item.value}
                 onChange={(v) => {
-                  const arr = [...value];
-                  arr[idx].value = Number(v) || 0;
-                  onChange(arr);
+                  const next = [...(value || [])];
+                  next[idx] = { ...next[idx], value: Number(v) || 0 } as any;
+                  onChange(next as any);
                 }}
                 thousandSeparator={item.value_type !== 'percentage' ? '.' : undefined}
                 decimalSeparator="," 
@@ -366,9 +385,12 @@ export default function AmortizationsFieldArray({
                     description="Corrigir valor ao longo do tempo"
                     checked={!!item.inflation_adjust}
                     onChange={(e) => {
-                      const arr = [...value];
-                      arr[idx].inflation_adjust = e.currentTarget.checked;
-                      onChange(arr);
+                      const next = [...(value || [])];
+                      next[idx] = {
+                        ...next[idx],
+                        inflation_adjust: e.currentTarget.checked,
+                      } as any;
+                      onChange(next as any);
                     }}
                   />
                 </Box>

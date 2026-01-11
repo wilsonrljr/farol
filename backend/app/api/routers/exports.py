@@ -19,6 +19,178 @@ from ...scenarios.comparison import compare_scenarios, enhanced_compare_scenario
 router = APIRouter(tags=["exports"])
 
 
+def _input_to_flat_frame(input_data: ComparisonInput) -> pd.DataFrame:
+    payload = input_data.model_dump()
+
+    # Keep complex/nested values readable and stable in a single-cell JSON string.
+    for key in (
+        "investment_returns",
+        "amortizations",
+        "contributions",
+        "additional_costs",
+        "investment_tax",
+        "fgts",
+    ):
+        if key in payload:
+            payload[key] = json.dumps(payload[key], ensure_ascii=False)
+
+    return pd.DataFrame([payload])
+
+
+def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
+    # Minimal, human-first dictionary. Unknown fields remain with blank description.
+    definitions: dict[str, dict[str, str]] = {
+        "month": {
+            "label": "Mês",
+            "unit": "mês",
+            "description": "Mês da simulação (1..N).",
+        },
+        "scenario": {
+            "label": "Cenário",
+            "unit": "-",
+            "description": "Nome do cenário.",
+        },
+        "cash_flow": {
+            "label": "Fluxo de caixa",
+            "unit": "R$",
+            "description": "Saída líquida do mês (negativo = desembolso).",
+        },
+        "total_monthly_cost": {
+            "label": "Custo mensal total",
+            "unit": "R$",
+            "description": "Total de saídas/alocações do mês (inclui aportes quando aplicável).",
+        },
+        "initial_allocation": {
+            "label": "Alocação inicial",
+            "unit": "R$",
+            "description": "Aporte/entrada alocada no mês 1 (ex.: entrada paga ou capital inicial investido).",
+        },
+        "rent_due": {
+            "label": "Aluguel devido",
+            "unit": "R$",
+            "description": "Somente o aluguel (sem condomínio/IPTU).",
+        },
+        "rent_paid": {
+            "label": "Aluguel pago",
+            "unit": "R$",
+            "description": "Parcela do aluguel efetivamente coberta (sem condomínio/IPTU).",
+        },
+        "rent_shortfall": {
+            "label": "Falta de aluguel",
+            "unit": "R$",
+            "description": "Parte do aluguel não coberta por fontes modeladas (assume-se coberta por caixa/crédito externo).",
+        },
+        "monthly_hoa": {
+            "label": "Condomínio",
+            "unit": "R$",
+            "description": "Condomínio do mês (corrigido por inflação quando configurado).",
+        },
+        "monthly_property_tax": {
+            "label": "IPTU",
+            "unit": "R$",
+            "description": "IPTU do mês (corrigido por inflação quando configurado).",
+        },
+        "monthly_additional_costs": {
+            "label": "Custos mensais adicionais",
+            "unit": "R$",
+            "description": "Condomínio + IPTU do mês.",
+        },
+        "housing_due": {
+            "label": "Moradia devida",
+            "unit": "R$",
+            "description": "Aluguel + custos mensais (condomínio/IPTU).",
+        },
+        "housing_paid": {
+            "label": "Moradia paga",
+            "unit": "R$",
+            "description": "Total coberto para moradia no mês (aluguel + custos).",
+        },
+        "housing_shortfall": {
+            "label": "Falta de moradia",
+            "unit": "R$",
+            "description": "Parte do total de moradia não coberta por fontes modeladas.",
+        },
+        "investment_balance": {
+            "label": "Saldo investido",
+            "unit": "R$",
+            "description": "Saldo da conta de investimento ao fim do mês.",
+        },
+        "investment_return_gross": {
+            "label": "Retorno bruto",
+            "unit": "R$",
+            "description": "Ganho bruto do mês antes de imposto (se aplicável).",
+        },
+        "investment_tax_paid": {
+            "label": "Imposto",
+            "unit": "R$",
+            "description": "Imposto efetivo pago no mês (modo 'monthly') ou imposto em resgates (modo 'on_withdrawal').",
+        },
+        "investment_return_net": {
+            "label": "Retorno líquido",
+            "unit": "R$",
+            "description": "Ganho líquido do mês após imposto.",
+        },
+        "equity": {
+            "label": "Equidade",
+            "unit": "R$",
+            "description": "Equidade do imóvel (valor - saldo devedor) quando aplicável.",
+        },
+        "property_value": {
+            "label": "Valor do imóvel",
+            "unit": "R$",
+            "description": "Valor do imóvel no mês (valorização + inflação conforme parâmetros).",
+        },
+        "outstanding_balance": {
+            "label": "Saldo devedor",
+            "unit": "R$",
+            "description": "Saldo devedor do financiamento (quando aplicável).",
+        },
+        "installment": {
+            "label": "Parcela",
+            "unit": "R$",
+            "description": "Parcela do financiamento no mês (quando aplicável).",
+        },
+        "principal_payment": {
+            "label": "Amortização",
+            "unit": "R$",
+            "description": "Parte da parcela que amortiza principal (quando aplicável).",
+        },
+        "extra_amortization": {
+            "label": "Amortização extra",
+            "unit": "R$",
+            "description": "Parte da amortização do mês que veio de pagamentos extras (cash + FGTS).",
+        },
+        "extra_amortization_cash": {
+            "label": "Amortização extra (cash)",
+            "unit": "R$",
+            "description": "Pagamentos extras feitos com recursos próprios no mês.",
+        },
+        "extra_amortization_fgts": {
+            "label": "Amortização extra (FGTS)",
+            "unit": "R$",
+            "description": "Pagamentos extras solicitados e efetivamente aplicados via FGTS no mês.",
+        },
+        "interest_payment": {
+            "label": "Juros",
+            "unit": "R$",
+            "description": "Parte da parcela referente a juros (quando aplicável).",
+        },
+    }
+
+    rows: list[dict[str, str]] = []
+    for col in columns:
+        info = definitions.get(col, {})
+        rows.append(
+            {
+                "field": col,
+                "label": info.get("label", ""),
+                "unit": info.get("unit", ""),
+                "description": info.get("description", ""),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _dataframe_to_stream(
     df: pd.DataFrame,
     meta: dict[str, object],
@@ -97,6 +269,8 @@ def export_simulate_loan(
             "amortization": inst.amortization,
             "interest": inst.interest,
             "extra_amortization": inst.extra_amortization,
+            "extra_amortization_cash": getattr(inst, "extra_amortization_cash", 0.0),
+            "extra_amortization_fgts": getattr(inst, "extra_amortization_fgts", 0.0),
             "outstanding_balance": inst.outstanding_balance,
         }
         for inst in result.installments
@@ -206,8 +380,12 @@ def export_compare_scenarios(
 
     if file_format == "csv":
         buff = StringIO()
+        buff.write("# --- input ---\n")
+        _input_to_flat_frame(input_data).to_csv(buff, index=False)
         buff.write("# --- summary ---\n")
         summary.to_csv(buff, index=False)
+        buff.write("\n# --- columns_dictionary ---\n")
+        _columns_dictionary(list(monthly_long.columns)).to_csv(buff, index=False)
         buff.write("\n# --- monthly_long ---\n")
         monthly_long.to_csv(buff, index=False)
         if shape == "wide" and wide is not None:
@@ -224,14 +402,26 @@ def export_compare_scenarios(
 
     bio = BytesIO()
     with pd.ExcelWriter(bio, engine="openpyxl") as writer:  # type: ignore
+        _input_to_flat_frame(input_data).to_excel(
+            writer, index=False, sheet_name="input"
+        )
         summary.to_excel(writer, index=False, sheet_name="summary")
+        _columns_dictionary(list(monthly_long.columns)).to_excel(
+            writer, index=False, sheet_name="columns"
+        )
         monthly_long.to_excel(writer, index=False, sheet_name="monthly_long")
         if wide is not None:
             wide.to_excel(writer, index=False, sheet_name="monthly_wide")
 
-        used_sheet_names = {"summary", "monthly_long", "monthly_wide"}
+        used_sheet_names = {
+            "input",
+            "summary",
+            "columns",
+            "monthly_long",
+            "monthly_wide",
+        }
         for sc in result.scenarios:
-            df_sc = pd.DataFrame(sc.monthly_data)
+            df_sc = pd.DataFrame([m.model_dump() for m in sc.monthly_data])
             base = sc.name.strip() or "scenario"
             base = (
                 base.replace("/", "_")
@@ -366,6 +556,10 @@ def export_compare_scenarios_enhanced(
 
     if file_format == "csv":
         buff = StringIO()
+        buff.write("# --- input ---\n")
+        _input_to_flat_frame(input_data).to_csv(buff, index=False)
+        buff.write("\n# --- columns_dictionary ---\n")
+        _columns_dictionary(list(monthly_long.columns)).to_csv(buff, index=False)
         buff.write("# --- metrics ---\n")
         metrics_df.to_csv(buff, index=False)
         buff.write("\n# --- monthly_long ---\n")
@@ -386,6 +580,12 @@ def export_compare_scenarios_enhanced(
 
     bio = BytesIO()
     with pd.ExcelWriter(bio, engine="openpyxl") as writer:  # type: ignore
+        _input_to_flat_frame(input_data).to_excel(
+            writer, index=False, sheet_name="input"
+        )
+        _columns_dictionary(list(monthly_long.columns)).to_excel(
+            writer, index=False, sheet_name="columns"
+        )
         metrics_df.to_excel(writer, index=False, sheet_name="metrics")
         monthly_long.to_excel(writer, index=False, sheet_name="monthly_long")
         if wide is not None:
@@ -416,6 +616,8 @@ def export_compare_scenarios_enhanced(
             )
 
         used_sheet_names = {
+            "input",
+            "columns",
             "metrics",
             "monthly_long",
             "monthly_wide",
@@ -423,7 +625,7 @@ def export_compare_scenarios_enhanced(
         } | set(writer.book.sheetnames)
 
         for sc in result.scenarios:
-            df_sc = pd.DataFrame(sc.monthly_data)
+            df_sc = pd.DataFrame([m.model_dump() for m in sc.monthly_data])
             base = sc.name.strip() or "scenario"
             base = (
                 base.replace("/", "_")

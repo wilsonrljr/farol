@@ -171,6 +171,8 @@ class LoanSimulator(ABC):
             interest=interest,
             outstanding_balance=self._outstanding_balance,
             extra_amortization=total_extra_amortization,
+            extra_amortization_cash=cash_extra,
+            extra_amortization_fgts=fgts_extra,
         )
 
     def _calculate_cash_extra(self, month: int, starting_balance: float) -> float:

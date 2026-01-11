@@ -54,6 +54,7 @@ export default function ComparisonForm() {
   const batchResultsRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<ComparisonInput>({
+    mode: 'controlled',
     initialValues: {
       property_value: 500000,
       down_payment: 100000,
@@ -97,7 +98,7 @@ export default function ComparisonForm() {
     },
   });
 
-  const { data, loading, call } = useApi<
+  const { data, loading, call, reset } = useApi<
     [ComparisonInput, boolean],
     EnhancedComparisonResult
   >(
@@ -125,6 +126,24 @@ export default function ComparisonForm() {
   // Helper to clean input values that would fail backend validation
   const cleanInputForBackend = (input: ComparisonInput): ComparisonInput => {
     const cleaned = { ...input };
+
+    // Enforce mutually exclusive fields to avoid "I changed X but nothing happened".
+    // Backend accepts both today, but the engine will necessarily pick one, which is confusing UX.
+    const annual = cleaned.annual_interest_rate;
+    const monthly = cleaned.monthly_interest_rate;
+    if (monthly != null && monthly !== 0) {
+      cleaned.annual_interest_rate = null;
+    } else if (annual != null && annual !== 0) {
+      cleaned.monthly_interest_rate = null;
+    }
+
+    const rentValue = cleaned.rent_value;
+    const rentPct = cleaned.rent_percentage;
+    if (rentPct != null && rentPct !== 0) {
+      cleaned.rent_value = null;
+    } else if (rentValue != null && rentValue !== 0) {
+      cleaned.rent_percentage = null;
+    }
     
     // If rent_reduces_investment is false, monthly_external_savings must be null
     if (!cleaned.rent_reduces_investment) {
@@ -138,6 +157,11 @@ export default function ComparisonForm() {
     if (cleaned.fixed_monthly_investment === 0) {
       cleaned.fixed_monthly_investment = null;
     }
+
+    if (cleaned.annual_interest_rate === 0) cleaned.annual_interest_rate = null;
+    if (cleaned.monthly_interest_rate === 0) cleaned.monthly_interest_rate = null;
+    if (cleaned.rent_value === 0) cleaned.rent_value = null;
+    if (cleaned.rent_percentage === 0) cleaned.rent_percentage = null;
     
     return cleaned;
   };
@@ -195,6 +219,9 @@ export default function ComparisonForm() {
   async function onSubmit(values: ComparisonInput) {
     try {
       const cleaned = cleanInputForBackend(values);
+      // Clear previous results immediately so users don't mistake stale cards as "no change".
+      // Also helps when backends have cold starts and older calls return after newer ones.
+      reset();
       setLastInput(cleaned);
       const res = await call(cleaned, true);
       setViewMode('single-result');
@@ -444,6 +471,12 @@ export default function ComparisonForm() {
                     description="CET ou taxa nominal anual"
                     placeholder="10"
                     {...form.getInputProps("annual_interest_rate")}
+                    onChange={(v) => {
+                      form.setFieldValue("annual_interest_rate", v as any);
+                      if (v != null && v !== '' && Number(v) !== 0) {
+                        form.setFieldValue("monthly_interest_rate", null);
+                      }
+                    }}
                     suffix="% a.a."
                     decimalScale={2}
                     size="md"
@@ -455,6 +488,12 @@ export default function ComparisonForm() {
                     description="Alternativa à taxa anual"
                     placeholder="0,8"
                     {...form.getInputProps("monthly_interest_rate")}
+                    onChange={(v) => {
+                      form.setFieldValue("monthly_interest_rate", v as any);
+                      if (v != null && v !== '' && Number(v) !== 0) {
+                        form.setFieldValue("annual_interest_rate", null);
+                      }
+                    }}
                     suffix="% a.m."
                     decimalScale={4}
                     size="md"
@@ -481,6 +520,12 @@ export default function ComparisonForm() {
                     description="Aluguel mensal de imóvel equivalente"
                     placeholder="R$ 2.000"
                     {...form.getInputProps("rent_value")}
+                    onChange={(v) => {
+                      form.setFieldValue("rent_value", v as any);
+                      if (v != null && v !== '' && Number(v) !== 0) {
+                        form.setFieldValue("rent_percentage", null);
+                      }
+                    }}
                     thousandSeparator="."
                     decimalSeparator=","
                     prefix="R$ "
@@ -493,6 +538,12 @@ export default function ComparisonForm() {
                     description="Alternativa ao valor fixo"
                     placeholder="0,4"
                     {...form.getInputProps("rent_percentage")}
+                    onChange={(v) => {
+                      form.setFieldValue("rent_percentage", v as any);
+                      if (v != null && v !== '' && Number(v) !== 0) {
+                        form.setFieldValue("rent_value", null);
+                      }
+                    }}
                     suffix="%"
                     decimalScale={2}
                     size="md"

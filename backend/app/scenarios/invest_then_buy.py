@@ -237,7 +237,13 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         # 2) Apply rent cashflows (may invest external surplus / withdraw from investment).
         cashflow_result = self._process_rent_cashflows(total_rent_cost)
-        self._total_rent_paid += cashflow_result["actual_rent_paid"]
+        housing_due = total_rent_cost
+        housing_paid = cashflow_result["actual_rent_paid"]
+        rent_paid = min(current_rent, housing_paid)
+        rent_shortfall = max(0.0, current_rent - rent_paid)
+        housing_shortfall = max(0.0, housing_due - housing_paid)
+
+        self._total_rent_paid += rent_paid
 
         # 3) Apply scheduled contributions and other planned investments BEFORE returns.
         contrib_fixed, contrib_pct, contrib_total = self._apply_scheduled_contributions(
@@ -275,8 +281,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             contrib_fixed=contrib_fixed,
             contrib_pct=contrib_pct,
             contrib_total=contrib_total,
-            actual_rent_paid=cashflow_result["actual_rent_paid"],
-            rent_shortfall=cashflow_result["rent_shortfall"],
+            actual_rent_paid=rent_paid,
+            rent_shortfall=rent_shortfall,
+            housing_due=housing_due,
+            housing_paid=housing_paid,
+            housing_shortfall=housing_shortfall,
         )
         self._monthly_data.append(record)
 
@@ -310,9 +319,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     ) -> dict[str, float]:
         """Compute rent and additional costs for a month."""
         current_rent = self.get_current_rent(month)
-        # Pre-purchase we are renting only; ownership costs (HOA/IPTU) are not paid yet.
-        monthly_hoa, monthly_property_tax, monthly_additional = 0.0, 0.0, 0.0
-        total_rent_cost = current_rent
+        monthly_hoa, monthly_property_tax, monthly_additional = (
+            self.get_inflated_monthly_costs(month)
+        )
+        total_rent_cost = current_rent + monthly_additional
 
         return {
             "current_rent": current_rent,
@@ -467,6 +477,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         contrib_total: float,
         actual_rent_paid: float,
         rent_shortfall: float,
+        housing_due: float,
+        housing_paid: float,
+        housing_shortfall: float,
     ) -> DomainMonthlyRecord:
         """Check for purchase and create monthly record."""
         fgts_used_this_month = 0.0
@@ -568,8 +581,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             + additional_investment_effective
         )
 
-        # Robustness rule: rent is always due. If it couldn't be fully paid from modeled
-        # sources, the shortfall must still be counted as an outflow.
+        # Rent is always due pre-purchase (purchase month can overlap). Costs (HOA/IPTU)
+        # are tracked separately via monthly_additional_costs.
         rent_due = current_rent
         total_monthly_cost = rent_due + monthly_additional + contributions_outflow
         cash_flow = -total_monthly_cost
@@ -591,6 +604,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             rent_due=rent_due,
             rent_paid=actual_rent_paid,
             rent_shortfall=rent_shortfall,
+            housing_due=housing_due,
+            housing_paid=housing_paid,
+            housing_shortfall=housing_shortfall,
+            initial_allocation=initial_deposit,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
             monthly_additional_costs=monthly_additional,

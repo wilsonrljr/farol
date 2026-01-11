@@ -334,6 +334,10 @@ class MonthlyRecord(BaseModel):
     installment: float | None = None
     principal_payment: float | None = None
     interest_payment: float | None = None
+    # Extra amortization (subset of principal_payment)
+    extra_amortization: float | None = None
+    extra_amortization_cash: float | None = None
+    extra_amortization_fgts: float | None = None
     outstanding_balance: float | None = None
     equity_percentage: float | None = None
 
@@ -341,12 +345,17 @@ class MonthlyRecord(BaseModel):
     rent_due: float | None = None
     rent_paid: float | None = None
     rent_shortfall: float | None = None
+    housing_due: float | None = None
+    housing_paid: float | None = None
+    housing_shortfall: float | None = None
     liquid_wealth: float | None = None
     cumulative_rent_paid: float | None = None
     cumulative_investment_gains: float | None = None
     investment_roi_percentage: float | None = None
 
     # Costs
+    # One-off cash allocation (e.g., month-1 down payment invested/paid).
+    initial_allocation: float | None = None
     monthly_hoa: float | None = None
     monthly_property_tax: float | None = None
     monthly_additional_costs: float | None = None
@@ -640,6 +649,8 @@ class LoanInstallment(BaseModel):
     interest: float
     outstanding_balance: float
     extra_amortization: float = 0
+    extra_amortization_cash: float = 0
+    extra_amortization_fgts: float = 0
 
 
 class LoanSimulationResult(BaseModel):

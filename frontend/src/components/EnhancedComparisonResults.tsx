@@ -230,11 +230,11 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
         <Box>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
             <Text size="xs" c="sage.5">
-              Desembolso Mensal Médio
+              Saída mensal média
             </Text>
             <Help
-              label="Desembolso Mensal Médio"
-              help="Média das saídas mensais ao longo do horizonte (inclui entrada/aportes quando aplicável). Útil para comparar esforço de caixa entre estratégias."
+              label="Saída mensal média"
+              help="Média da saída total mensal ao longo do horizonte (inclui entrada/alocação inicial e aportes quando aplicável). Útil para comparar esforço de caixa entre estratégias."
             />
           </Group>
           <Text size="xs" c="sage.5" mb={2}>
@@ -347,6 +347,16 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
 }
 
 export default function EnhancedComparisonResults({ result, inputPayload }: { result: EnhancedComparisonResult; inputPayload?: any }) {
+  // DEBUG: Log when component receives new data
+  console.log('[EnhancedComparisonResults] Received result:', {
+    bestScenario: result.best_scenario,
+    scenarios: result.scenarios.map(s => ({
+      name: s.name,
+      total_cost: s.total_cost,
+      final_equity: s.final_equity,
+    })),
+  });
+  
   const [chartType, setChartType] = useState<'area' | 'line'>('area');
   const [overviewMetric, setOverviewMetric] = useState<'wealth' | 'outflow'>('wealth');
   const [activeTab, setActiveTab] = useState<string>('overview');
@@ -370,6 +380,66 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     if (m?.total_monthly_cost != null) return m.total_monthly_cost;
     if (m?.cash_flow != null) return -m.cash_flow;
     return 0;
+  };
+
+  const recurringHousingCost = (m: any) => {
+    // Prefer explicit housing_due when provided (rent + HOA/IPTU).
+    if (m?.housing_due != null) return m.housing_due;
+
+    // For buy scenario (and some post-purchase months), approximate housing as installment + recurring costs.
+    const installment = m?.installment ?? 0;
+    const additional = m?.monthly_additional_costs ?? 0;
+    if (m?.installment != null) return installment + additional;
+
+    // Post-purchase invest-buy months may have only HOA/IPTU.
+    if (m?.monthly_additional_costs != null) return additional;
+
+    return 0;
+  };
+
+  const outflowTooltip = (m: any) => {
+    const total = monthlyOutflow(m);
+    const housing = recurringHousingCost(m);
+    const initialAllocation = m?.initial_allocation ?? 0;
+    const scheduledContribution = m?.extra_contribution_total ?? 0;
+    const additionalInvestment = m?.additional_investment ?? 0;
+    const externalSurplusInvested = m?.external_surplus_invested ?? 0;
+    const upfront = m?.upfront_additional_costs ?? 0;
+    const fgtsUsed = m?.fgts_used ?? 0;
+
+    const rows = [
+      { label: 'Moradia (mensal)', value: housing },
+      { label: 'Alocação inicial (mês 1)', value: initialAllocation },
+      { label: 'Aportes programados', value: scheduledContribution },
+      { label: 'Aporte mensal/adicional', value: additionalInvestment },
+      { label: 'Sobra externa investida', value: externalSurplusInvested },
+      { label: 'Custos de compra (ITBI/escritura)', value: upfront },
+      { label: 'FGTS usado', value: fgtsUsed },
+    ].filter((r) => (r.value ?? 0) > 0.005);
+
+    return (
+      <Stack gap={4}>
+        <Text size="xs" fw={600}>Saída total do mês (composição)</Text>
+        {rows.length ? (
+          rows.map((r) => (
+            <Group key={r.label} justify="space-between" gap={12}>
+              <Text size="xs" c="dimmed">{r.label}</Text>
+              <Text size="xs" fw={600}>{money(r.value)}</Text>
+            </Group>
+          ))
+        ) : (
+          <Text size="xs" c="dimmed">Sem detalhamento disponível para este mês.</Text>
+        )}
+        <Divider my={2} />
+        <Group justify="space-between" gap={12}>
+          <Text size="xs" fw={700}>Total</Text>
+          <Text size="xs" fw={700}>{money(total)}</Text>
+        </Group>
+        <Text size="xs" c="dimmed">
+          Observação: o mês 1 costuma ser maior porque inclui a alocação inicial de capital (entrada/aporte inicial).
+        </Text>
+      </Stack>
+    );
   };
 
   const horizonLabel = (monthsCount: number | null) => formatMonthsYears(monthsCount);
@@ -464,7 +534,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
         {result.scenarios.map((s, idx) => (
           <ScenarioCardNew
-            key={s.name}
+            key={`${s.name}-${s.total_cost}-${s.final_equity}`}
             scenario={s}
             isBest={s.name === bestScenario.name}
             bestScenario={bestScenario}
@@ -583,7 +653,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   onChange={(v) => setOverviewMetric(v as any)}
                   data={[
                     { label: 'Patrimônio', value: 'wealth' },
-                    { label: 'Desembolso', value: 'outflow' },
+                    { label: 'Saída total', value: 'outflow' },
                   ]}
                 />
                 <SegmentedControl
@@ -612,7 +682,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             <Text fw={600} size="lg" mb="lg" c="bright">
               {overviewMetric === 'wealth'
                 ? 'Evolução do Patrimônio ao Longo do Tempo'
-                : 'Desembolso mensal (saída de caixa) ao longo do tempo'}
+                : 'Saída total mensal (inclui eventos e aportes) ao longo do tempo'}
             </Text>
             {chartType === 'area' && (
               <AreaChart
@@ -655,11 +725,19 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             <Text size="xs" c="dimmed" mt="sm">
               Eixo X: meses (marcado por anos). Passe o mouse para valores exatos.
             </Text>
+            {overviewMetric === 'outflow' && (
+              <Text size="xs" c="dimmed" mt={6}>
+                Dica: o mês 1 tende a ter um pico porque registra a alocação inicial de capital (entrada/aporte inicial).
+              </Text>
+            )}
           </Paper>
         </Tabs.Panel>
 
         {result.scenarios.map((s) => {
           const isInvestBuy = s.monthly_data.some((m: any) => m.scenario_type === 'invest_buy');
+          const isBuy = s.monthly_data.some(
+            (m: any) => m.scenario_type === 'buy' || m.installment != null || m.outstanding_balance != null
+          );
           let rows = [...s.monthly_data].sort((a: any, b: any) => a.month - b.month);
           if (isInvestBuy && milestonesOnly) {
             rows = rows.filter((m: any) => m.is_milestone || m.status === 'Imóvel comprado');
@@ -711,21 +789,23 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   )}
                 </Group>
 
-                <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="md">
-                  <SegmentedControl
-                    size="xs"
-                    radius="lg"
-                    value={tableView}
-                    onChange={(v) => setTableView(v as any)}
-                    data={[
-                      { label: 'Essencial', value: 'essential' },
-                      { label: 'Detalhada', value: 'detailed' },
-                    ]}
-                  />
-                  <Text size="xs" c="sage.6">
-                    Essencial = leitura rápida; Detalhada = mais colunas.
-                  </Text>
-                </Group>
+                {!isBuy && (
+                  <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="md">
+                    <SegmentedControl
+                      size="xs"
+                      radius="lg"
+                      value={tableView}
+                      onChange={(v) => setTableView(v as any)}
+                      data={[
+                        { label: 'Essencial', value: 'essential' },
+                        { label: 'Detalhada', value: 'detailed' },
+                      ]}
+                    />
+                    <Text size="xs" c="sage.6">
+                      Essencial = leitura rápida; Detalhada = mais colunas.
+                    </Text>
+                  </Group>
+                )}
 
                 {/* Progress info for invest-buy */}
                 {isInvestBuy && !purchaseMonth && first?.estimated_months_remaining != null && (
@@ -739,90 +819,234 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
 
                 {/* Table */}
                 <ScrollArea h={400} type="hover" scrollbarSize={8} offsetScrollbars>
-                  <Table fz="sm" striped highlightOnHover stickyHeader>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Mês</Table.Th>
-                        <Table.Th>Ano</Table.Th>
-                        <Table.Th>Desembolso</Table.Th>
-                        <Table.Th>Patrimônio</Table.Th>
-                        <Table.Th>Equidade</Table.Th>
-                        <Table.Th>Investimento</Table.Th>
-                        <Table.Th>Valor Imóvel</Table.Th>
-                        {tableView === 'detailed' && hasCumulativeCost && <Table.Th>Acumulado (custo)</Table.Th>}
-                        {tableView === 'detailed' && hasCumulativeSecondary && <Table.Th>Acumulado (juros/ganhos)</Table.Th>}
-                        {isInvestBuy && <Table.Th>Progresso</Table.Th>}
-                        {isInvestBuy && <Table.Th>Status</Table.Th>}
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {rows.slice(0, 600).map((m: any) => {
-                        const isPurchase =
-                          isInvestBuy && purchaseMonth != null
-                            ? m.month === purchaseMonth
-                            : m.status === 'Imóvel comprado';
-                        const isPostPurchase =
-                          isInvestBuy && purchaseMonth != null
-                            ? m.month > purchaseMonth
-                            : false;
-                        const cumulativeCost =
-                          m.cumulative_payments != null
-                            ? m.cumulative_payments
-                            : m.cumulative_rent_paid != null
-                              ? m.cumulative_rent_paid
-                              : null;
-                        const cumulativeSecondary =
-                          m.cumulative_interest != null
-                            ? m.cumulative_interest
-                            : m.cumulative_investment_gains != null
-                              ? m.cumulative_investment_gains
-                              : null;
-                        return (
-                          <Table.Tr
-                            key={m.month}
-                            style={{
-                              backgroundColor: isPurchase
-                                ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
-                                : isPostPurchase
-                                  ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
-                                  : undefined,
-                              fontWeight: m.is_milestone ? 600 : 400,
-                            }}
-                          >
-                            <Table.Td>{m.month}</Table.Td>
-                            <Table.Td>{yearFromMonth(m.month)}</Table.Td>
-                            <Table.Td>{moneySafe(monthlyOutflow(m))}</Table.Td>
-                            <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
-                            <Table.Td>{moneySafe(m.equity)}</Table.Td>
-                            <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
-                            <Table.Td>{moneySafe(m.property_value)}</Table.Td>
-                            {tableView === 'detailed' && hasCumulativeCost && (
-                              <Table.Td>{cumulativeCost != null ? moneySafe(cumulativeCost) : '—'}</Table.Td>
-                            )}
-                            {tableView === 'detailed' && hasCumulativeSecondary && (
-                              <Table.Td>{cumulativeSecondary != null ? moneySafe(cumulativeSecondary) : '—'}</Table.Td>
-                            )}
-                            {isInvestBuy && (
-                              <Table.Td>
-                                {m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}
-                              </Table.Td>
-                            )}
-                            {isInvestBuy && (
-                              <Table.Td>
-                                <Badge
-                                  size="sm"
-                                  variant="light"
-                                  color={isPurchase ? 'success' : 'sage'}
+                  {isBuy ? (() => {
+                    const payoffThreshold = 0.01;
+                    let payoffMonth: number | null = null;
+                    for (const r of rows) {
+                      const bal = r.outstanding_balance;
+                      if (typeof bal === 'number' && bal <= payoffThreshold) {
+                        payoffMonth = r.month;
+                        break;
+                      }
+                    }
+
+                    const showThroughPayoff = payoffMonth != null;
+                    const buyRows = showThroughPayoff
+                      ? rows.filter((r: any) => r.month <= payoffMonth!)
+                      : rows;
+
+                    const pb = (s as any).purchase_breakdown;
+                    const cashDown = typeof pb?.cash_down_payment === 'number' ? pb.cash_down_payment : null;
+                    const fgtsAtPurchase = typeof pb?.fgts_at_purchase === 'number' ? pb.fgts_at_purchase : null;
+
+                    return (
+                      <>
+                        <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="sm">
+                          <Group gap="xs" wrap="wrap">
+                            <Badge variant="light" color="sage">
+                              {payoffMonth != null ? `Quitado no mês ${payoffMonth}` : 'Não quitado no horizonte'}
+                            </Badge>
+                            <Tooltip
+                              label="Tabela do financiamento: parcela, juros, amortização (inclui extras) e saldo devedor."
+                              withArrow
+                            >
+                              <ActionIcon variant="subtle" color="gray" size="sm" aria-label="Ajuda: Tabela do financiamento">
+                                <IconHelpCircle size={16} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Group>
+                        </Group>
+
+                        <Table fz="sm" striped highlightOnHover stickyHeader>
+                          <Table.Thead>
+                            <Table.Tr>
+                              <Table.Th>Mês</Table.Th>
+                              <Table.Th>Ano</Table.Th>
+                              <Table.Th>Parcela (R$)</Table.Th>
+                              <Table.Th>Juros</Table.Th>
+                              <Table.Th>Amortização</Table.Th>
+                              <Table.Th>Extra (cash)</Table.Th>
+                              <Table.Th>Extra (FGTS)</Table.Th>
+                              <Table.Th>Saldo devedor</Table.Th>
+                              <Table.Th>Custos (cond+IPTU)</Table.Th>
+                              <Table.Th>Custos compra</Table.Th>
+                              <Table.Th>Entrada (cash)</Table.Th>
+                              <Table.Th>FGTS na compra</Table.Th>
+                              <Table.Th>Valor imóvel</Table.Th>
+                              <Table.Th>Equidade</Table.Th>
+                            </Table.Tr>
+                          </Table.Thead>
+                          <Table.Tbody>
+                            {buyRows.slice(0, 600).map((m: any) => {
+                              const isPayoffRow = payoffMonth != null && m.month === payoffMonth;
+                              const installment = typeof m.installment === 'number' ? m.installment : 0;
+                              const interest = typeof m.interest_payment === 'number' ? m.interest_payment : 0;
+                              const principal = typeof m.principal_payment === 'number' ? m.principal_payment : 0;
+                              const extraCash = typeof m.extra_amortization_cash === 'number'
+                                ? m.extra_amortization_cash
+                                : (typeof m.extra_amortization === 'number' ? m.extra_amortization : 0);
+                              const extraFgts = typeof m.extra_amortization_fgts === 'number' ? m.extra_amortization_fgts : 0;
+                              const monthlyCosts = typeof m.monthly_additional_costs === 'number' ? m.monthly_additional_costs : 0;
+                              const upfront = typeof m.upfront_additional_costs === 'number' ? m.upfront_additional_costs : 0;
+
+                              return (
+                                <Table.Tr
+                                  key={m.month}
+                                  style={{
+                                    backgroundColor: isPayoffRow
+                                      ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
+                                      : undefined,
+                                    fontWeight: isPayoffRow ? 700 : 400,
+                                  }}
                                 >
-                                  {m.status || '—'}
-                                </Badge>
+                                  <Table.Td>{m.month}</Table.Td>
+                                  <Table.Td>{yearFromMonth(m.month)}</Table.Td>
+                                  <Table.Td>{moneySafe(installment)}</Table.Td>
+                                  <Table.Td>{moneySafe(interest)}</Table.Td>
+                                  <Table.Td>{moneySafe(principal)}</Table.Td>
+                                  <Table.Td>{moneySafe(extraCash)}</Table.Td>
+                                  <Table.Td>{moneySafe(extraFgts)}</Table.Td>
+                                  <Table.Td>{moneySafe(m.outstanding_balance)}</Table.Td>
+                                  <Table.Td>{moneySafe(monthlyCosts)}</Table.Td>
+                                  <Table.Td>{m.month === 1 ? moneySafe(upfront) : '—'}</Table.Td>
+                                  <Table.Td>{m.month === 1 && cashDown != null ? moneySafe(cashDown) : '—'}</Table.Td>
+                                  <Table.Td>{m.month === 1 && fgtsAtPurchase != null ? moneySafe(fgtsAtPurchase) : '—'}</Table.Td>
+                                  <Table.Td>{moneySafe(m.property_value)}</Table.Td>
+                                  <Table.Td>{moneySafe(m.equity)}</Table.Td>
+                                </Table.Tr>
+                              );
+                            })}
+                          </Table.Tbody>
+                        </Table>
+                        {!showThroughPayoff && (
+                          <Text size="xs" c="dimmed" mt="sm">
+                            Dica: se você adicionou amortizações extras, a quitação deve aparecer como saldo devedor ≈ 0.
+                          </Text>
+                        )}
+                      </>
+                    );
+                  })() : (
+                    <Table fz="sm" striped highlightOnHover stickyHeader>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Mês</Table.Th>
+                          <Table.Th>Ano</Table.Th>
+                          <Table.Th>
+                            <Group gap={6} wrap="nowrap">
+                              <Text component="span">Saída total</Text>
+                              <Tooltip
+                                label={
+                                  <Stack gap={4}>
+                                    <Text size="xs" fw={600}>O que entra em “Saída total”?</Text>
+                                    <Text size="xs" c="dimmed">
+                                      Inclui moradia (aluguel/parcela + condomínio/IPTU), custos pontuais (ex.: ITBI/escritura)
+                                      e alocações de capital (ex.: entrada ou aporte inicial no investimento).
+                                    </Text>
+                                    <Text size="xs" c="dimmed">
+                                      Por isso o mês 1 costuma ser alto em todos os cenários.
+                                    </Text>
+                                  </Stack>
+                                }
+                                multiline
+                                w={360}
+                                withArrow
+                                position="top-start"
+                              >
+                                <ActionIcon variant="subtle" color="gray" size="xs" aria-label="Ajuda: Saída total">
+                                  <IconHelpCircle size={14} />
+                                </ActionIcon>
+                              </Tooltip>
+                            </Group>
+                          </Table.Th>
+                          <Table.Th>Patrimônio</Table.Th>
+                          <Table.Th>Equidade</Table.Th>
+                          <Table.Th>Investimento</Table.Th>
+                          <Table.Th>Valor Imóvel</Table.Th>
+                          {tableView === 'detailed' && hasCumulativeCost && <Table.Th>Acumulado (custo)</Table.Th>}
+                          {tableView === 'detailed' && hasCumulativeSecondary && <Table.Th>Acumulado (juros/ganhos)</Table.Th>}
+                          {isInvestBuy && <Table.Th>Progresso</Table.Th>}
+                          {isInvestBuy && <Table.Th>Status</Table.Th>}
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {rows.slice(0, 600).map((m: any) => {
+                          const isPurchase =
+                            isInvestBuy && purchaseMonth != null
+                              ? m.month === purchaseMonth
+                              : m.status === 'Imóvel comprado';
+                          const isPostPurchase =
+                            isInvestBuy && purchaseMonth != null
+                              ? m.month > purchaseMonth
+                              : false;
+                          const cumulativeCost =
+                            m.cumulative_payments != null
+                              ? m.cumulative_payments
+                              : m.cumulative_rent_paid != null
+                                ? m.cumulative_rent_paid
+                                : null;
+                          const cumulativeSecondary =
+                            m.cumulative_interest != null
+                              ? m.cumulative_interest
+                              : m.cumulative_investment_gains != null
+                                ? m.cumulative_investment_gains
+                                : null;
+                          return (
+                            <Table.Tr
+                              key={m.month}
+                              style={{
+                                backgroundColor: isPurchase
+                                  ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
+                                  : isPostPurchase
+                                    ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+                                    : undefined,
+                                fontWeight: m.is_milestone ? 600 : 400,
+                              }}
+                            >
+                              <Table.Td>{m.month}</Table.Td>
+                              <Table.Td>{yearFromMonth(m.month)}</Table.Td>
+                              <Table.Td>
+                                <Tooltip
+                                  label={outflowTooltip(m)}
+                                  multiline
+                                  w={360}
+                                  withArrow
+                                  position="top-start"
+                                >
+                                  <Text component="span">{moneySafe(monthlyOutflow(m))}</Text>
+                                </Tooltip>
                               </Table.Td>
-                            )}
-                          </Table.Tr>
-                        );
-                      })}
-                    </Table.Tbody>
-                  </Table>
+                              <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
+                              <Table.Td>{moneySafe(m.equity)}</Table.Td>
+                              <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
+                              <Table.Td>{moneySafe(m.property_value)}</Table.Td>
+                              {tableView === 'detailed' && hasCumulativeCost && (
+                                <Table.Td>{cumulativeCost != null ? moneySafe(cumulativeCost) : '—'}</Table.Td>
+                              )}
+                              {tableView === 'detailed' && hasCumulativeSecondary && (
+                                <Table.Td>{cumulativeSecondary != null ? moneySafe(cumulativeSecondary) : '—'}</Table.Td>
+                              )}
+                              {isInvestBuy && (
+                                <Table.Td>
+                                  {m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}
+                                </Table.Td>
+                              )}
+                              {isInvestBuy && (
+                                <Table.Td>
+                                  <Badge
+                                    size="sm"
+                                    variant="light"
+                                    color={isPurchase ? 'success' : 'sage'}
+                                  >
+                                    {m.status || '—'}
+                                  </Badge>
+                                </Table.Td>
+                              )}
+                            </Table.Tr>
+                          );
+                        })}
+                      </Table.Tbody>
+                    </Table>
+                  )}
                 </ScrollArea>
 
                 <Divider my="md" color="sage.2" />

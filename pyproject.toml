@@ -21,7 +21,10 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["backend"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.4.1", "pytest-cov>=5.0.0", "ruff>=0.12.0"]
