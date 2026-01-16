@@ -50,6 +50,20 @@ import { Preset } from "../utils/presets";
 
 const PRESETS_STORAGE_KEY = 'farol-comparison-presets';
 
+const DEFAULT_INVESTMENT_RETURNS = [{ start_month: 1, end_month: null, annual_rate: 8 }];
+const DEFAULT_INVESTMENT_TAX = {
+  enabled: false,
+  mode: "on_withdrawal" as const,
+  effective_tax_rate: 15,
+};
+const DEFAULT_FGTS = {
+  initial_balance: 0,
+  monthly_contribution: 0,
+  annual_yield_rate: 0,
+  use_at_purchase: true,
+  max_withdrawal_at_purchase: null,
+};
+
 type ViewMode = 'form' | 'single-result' | 'batch-result';
 
 export default function ComparisonForm() {
@@ -67,7 +81,7 @@ export default function ComparisonForm() {
       loan_type: "PRICE",
       rent_value: 2000,
       rent_percentage: null,
-      investment_returns: [{ start_month: 1, end_month: null, annual_rate: 8 }],
+      investment_returns: DEFAULT_INVESTMENT_RETURNS,
       amortizations: [],
       contributions: [],
       continue_contributions_after_purchase: true,
@@ -82,18 +96,8 @@ export default function ComparisonForm() {
       property_appreciation_rate: 4,
       monthly_net_income: null, // Renda líquida mensal
       monthly_net_income_adjust_inflation: false,
-      fgts: {
-        initial_balance: 0,
-        monthly_contribution: 0,
-        annual_yield_rate: 0,
-        use_at_purchase: true,
-        max_withdrawal_at_purchase: null,
-      },
-      investment_tax: {
-        enabled: false,
-        mode: "on_withdrawal",
-        effective_tax_rate: 15,
-      },
+      fgts: DEFAULT_FGTS,
+      investment_tax: DEFAULT_INVESTMENT_TAX,
     },
   });
 
@@ -118,13 +122,35 @@ export default function ComparisonForm() {
     storageKey: PRESETS_STORAGE_KEY,
   });
 
+  const normalizePresetInput = (input: ComparisonInput): ComparisonInput => {
+    const normalized: ComparisonInput = {
+      ...input,
+      additional_costs: input.additional_costs ?? {
+        itbi_percentage: 2,
+        deed_percentage: 1,
+        monthly_hoa: 0,
+        monthly_property_tax: 0,
+      },
+      amortizations: input.amortizations ?? [],
+      contributions: input.contributions ?? [],
+      investment_returns:
+        input.investment_returns && input.investment_returns.length > 0
+          ? input.investment_returns
+          : DEFAULT_INVESTMENT_RETURNS,
+      investment_tax: input.investment_tax ?? DEFAULT_INVESTMENT_TAX,
+      fgts: input.fgts ?? DEFAULT_FGTS,
+    };
+
+    return normalized;
+  };
+
   const handleLoadPreset = (preset: Preset<ComparisonInput>) => {
-    form.setValues(preset.input);
+    form.setValues(normalizePresetInput(preset.input));
   };
 
   // Helper to clean input values that would fail backend validation
   const cleanInputForBackend = (input: ComparisonInput): ComparisonInput => {
-    const cleaned = { ...input };
+    const cleaned = normalizePresetInput({ ...input });
 
     const nullIfEmpty = (v: unknown) => (v === '' ? null : v);
 
@@ -168,6 +194,11 @@ export default function ComparisonForm() {
     if (cleaned.monthly_interest_rate === 0) cleaned.monthly_interest_rate = null;
     if (cleaned.rent_value === 0) cleaned.rent_value = null;
     if (cleaned.rent_percentage === 0) cleaned.rent_percentage = null;
+
+    // Backend assumes at least one investment return definition.
+    if (!cleaned.investment_returns || cleaned.investment_returns.length === 0) {
+      cleaned.investment_returns = DEFAULT_INVESTMENT_RETURNS;
+    }
     
     return cleaned;
   };
@@ -235,6 +266,8 @@ export default function ComparisonForm() {
   const downPaymentPct =
     propertyValue > 0 ? (downPayment / propertyValue) * 100 : 0;
   const rentValue = Number(form.values.rent_value || 0);
+  const rentPercentage = Number(form.values.rent_percentage || 0);
+  const rentFromPct = propertyValue > 0 && rentPercentage > 0 ? propertyValue * (rentPercentage / 100) : 0;
 
   async function onSubmit(values: ComparisonInput) {
     // Validate savings before submitting
@@ -358,8 +391,8 @@ export default function ComparisonForm() {
               icon: <IconHome2 size={16} />,
             },
             {
-              label: "Aluguel",
-              description: "Valor e investimentos",
+              label: "Aluguel & Investimentos",
+              description: "Aluguel, retorno e aportes",
               icon: <IconChartLine size={16} />,
             },
             {
@@ -610,8 +643,8 @@ export default function ComparisonForm() {
 
           {activeStep === 2 && (
             <FormSection
-              title="Cenário de aluguel"
-              description="Defina o valor do aluguel e como você espera que seus investimentos rendam ao longo do tempo."
+              title="Aluguel & Investimentos"
+              description="Defina o aluguel e, em um só lugar, o retorno, os aportes e a tributação dos investimentos."
               icon={<IconChartLine size={20} />}
             >
               <Grid gutter="lg">
@@ -641,7 +674,7 @@ export default function ComparisonForm() {
                         help="Alternativa ao valor fixo. O yield típico de aluguel no Brasil varia entre 0,3% e 0,5% do valor do imóvel por mês."
                       />
                     }
-                    description="Alternativa ao valor fixo (yield típico: 0,3% a 0,5%)"
+                    description="Alternativa ao valor fixo (yield típico: 0,3% a 0,5% a.m.)"
                     placeholder="0,4"
                     {...form.getInputProps("rent_percentage")}
                     onChange={(v) => {
@@ -650,27 +683,157 @@ export default function ComparisonForm() {
                         form.setFieldValue("rent_value", null);
                       }
                     }}
-                    suffix="%"
+                    suffix="% a.m."
                     decimalScale={2}
                     size="md"
                   />
                 </Grid.Col>
               </Grid>
 
+              {totalSavings > 0 && (
+                <Box
+                  mt="md"
+                  p="md"
+                  style={{
+                    backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
+                    borderRadius: 'var(--mantine-radius-md)',
+                    border: `1px solid ${insufficientSavings ? 'var(--mantine-color-danger-3)' : 'var(--mantine-color-ocean-2)'}`,
+                  }}
+                >
+                  <Group gap="sm" mb={4}>
+                    <ThemeIcon size={24} radius="md" variant="light" color={insufficientSavings ? 'danger' : 'ocean'}>
+                      <IconPigMoney size={14} />
+                    </ThemeIcon>
+                    <Text fw={600} size="sm" c={insufficientSavings ? 'danger.7' : 'ocean.7'}>
+                      Capital inicial para investir
+                    </Text>
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    Patrimônio ({money(totalSavings)}) − Entrada ({money(downPayment)}) − Custos de compra ({money(upfrontCosts)})
+                  </Text>
+                  <Text fw={700} size="md" mt={6} c={insufficientSavings ? 'danger.7' : 'bright'}>
+                    {insufficientSavings ? 'Insuficiente para cobrir entrada + custos' : money(initialInvestment)}
+                  </Text>
+                </Box>
+              )}
+
               <Divider my="lg" color="var(--mantine-color-default-border)" />
 
-              <Text fw={600} size="sm" mb="sm" c="bright">
-                Retornos de investimento
-              </Text>
-              <Text size="xs" c="dimmed" mb="md">
-                Configure as taxas de retorno esperadas para seus investimentos. Você pode definir diferentes taxas para diferentes períodos.
-              </Text>
-              <InvestmentReturnsFieldArray
-                value={form.values.investment_returns}
-                onChange={(v: any) =>
-                  form.setFieldValue("investment_returns", v)
-                }
-              />
+              <Tabs defaultValue="retorno" variant="pills" color="ocean">
+                <Tabs.List>
+                  <Tabs.Tab value="retorno" leftSection={<IconChartLine size={16} />}>
+                    Retorno
+                  </Tabs.Tab>
+                  <Tabs.Tab value="aportes" leftSection={<IconCash size={16} />}>
+                    Aportes
+                  </Tabs.Tab>
+                  <Tabs.Tab value="tributacao" leftSection={<IconReceipt size={16} />}>
+                    Tributação
+                  </Tabs.Tab>
+                </Tabs.List>
+
+                <Tabs.Panel value="retorno" pt="md">
+                  <Text fw={600} size="sm" mb="sm" c="bright">
+                    Retorno do investimento
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="md">
+                    Configure as taxas de retorno esperadas. Se você não quiser segmentar por períodos, mantenha apenas 1 item.
+                  </Text>
+                  <InvestmentReturnsFieldArray
+                    value={form.values.investment_returns}
+                    onChange={(v: any) => form.setFieldValue("investment_returns", v)}
+                  />
+                </Tabs.Panel>
+
+                <Tabs.Panel value="aportes" pt="md">
+                  <Stack gap="md">
+                    <Text fw={600} size="sm" c="bright">
+                      Aportes programados (opcional)
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      Esses aportes são aplicados nos cenários com investimento ("Alugar e investir" e "Investir e comprar à vista").
+                      Você pode definir aportes únicos, recorrentes, ou variáveis no tempo.
+                    </Text>
+
+                    <Checkbox
+                      label="Continuar aportes após a compra do imóvel"
+                      description="No cenário 'Investir e comprar à vista', se marcado, os aportes programados continuam mesmo após a compra"
+                      {...form.getInputProps("continue_contributions_after_purchase", {
+                        type: "checkbox",
+                      })}
+                    />
+
+                    <Divider color="ocean.2" />
+
+                    <AmortizationsFieldArray
+                      value={form.values.contributions || []}
+                      onChange={(v: any) => form.setFieldValue("contributions", v)}
+                      inflationRate={form.values.inflation_rate || undefined}
+                      termMonths={form.values.loan_term_years * 12}
+                      showFundingSource={false}
+                      uiText={{
+                        configuredTitle: "Aportes Configurados",
+                        emptyTitle: "Nenhum aporte programado",
+                        emptyDescription:
+                          "Adicione aportes programados para aumentar seus investimentos ao longo do tempo",
+                        addButtonLabel: "Adicionar",
+                        addEmptyButtonLabel: "Adicionar Aporte",
+                        itemLabel: "Aporte",
+                        percentageDescription: "Percentual do saldo investido",
+                        previewTitle: "Pré-visualização dos Aportes",
+                        percentageFootnote:
+                          "* Valores percentuais dependem do saldo investido.",
+                      }}
+                    />
+                  </Stack>
+                </Tabs.Panel>
+
+                <Tabs.Panel value="tributacao" pt="md">
+                  <Text fw={600} size="sm" c="bright" mb="sm">
+                    Tributação dos investimentos (opcional)
+                  </Text>
+                  <Grid gutter="lg" align="flex-end">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Checkbox
+                        label="Aplicar imposto sobre rendimentos"
+                        description="Se ligado, aplica IR conforme o modo escolhido"
+                        {...form.getInputProps("investment_tax.enabled", {
+                          type: "checkbox",
+                        })}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <Select
+                        label="Modo de tributação"
+                        description="Mensal (aproximação) ou no resgate (mais realista)"
+                        data={[
+                          { value: "on_withdrawal", label: "No resgate (ganho realizado)" },
+                          { value: "monthly", label: "Mensal (aproximação simples)" },
+                        ]}
+                        {...form.getInputProps("investment_tax.mode")}
+                        disabled={!form.values.investment_tax?.enabled}
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Alíquota efetiva"
+                        description="Percentual sobre ganho (modo mensal/no resgate)"
+                        placeholder="15"
+                        {...form.getInputProps("investment_tax.effective_tax_rate")}
+                        suffix="%"
+                        min={0}
+                        max={100}
+                        disabled={!form.values.investment_tax?.enabled}
+                        size="md"
+                      />
+                    </Grid.Col>
+                  </Grid>
+                  <Text size="xs" c="ocean.6" mt="md">
+                    Esta é uma aproximação. O IR real depende do tipo de investimento e prazo.
+                  </Text>
+                </Tabs.Panel>
+              </Tabs>
             </FormSection>
           )}
 
@@ -685,31 +848,13 @@ export default function ComparisonForm() {
                   <Tabs.Tab value="custos" leftSection={<IconCash size={16} />}>
                     Custos
                   </Tabs.Tab>
-                  <Tabs.Tab
-                    value="inflacao"
-                    leftSection={<IconBuildingBank size={16} />}
-                  >
+                  <Tabs.Tab value="inflacao" leftSection={<IconBuildingBank size={16} />}>
                     Inflação
                   </Tabs.Tab>
-                  <Tabs.Tab
-                    value="tributacao"
-                    leftSection={<IconReceipt size={16} />}
-                  >
-                    Tributação
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="amortizacoes"
-                    leftSection={<IconScale size={16} />}
-                  >
+                  <Tabs.Tab value="amortizacoes" leftSection={<IconScale size={16} />}>
                     Amortizações
                   </Tabs.Tab>
-                  <Tabs.Tab value="aportes" leftSection={<IconCash size={16} />}>
-                    Aportes
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="fgts-avancado"
-                    leftSection={<IconPigMoney size={16} />}
-                  >
+                  <Tabs.Tab value="fgts-avancado" leftSection={<IconPigMoney size={16} />}>
                     FGTS avançado
                   </Tabs.Tab>
                 </Tabs.List>
@@ -769,9 +914,7 @@ export default function ComparisonForm() {
                         decimalSeparator="," 
                         prefix="R$ "
                         size="md"
-                        {...form.getInputProps(
-                          "additional_costs.monthly_property_tax",
-                        )}
+                        {...form.getInputProps("additional_costs.monthly_property_tax")}
                       />
                     </Grid.Col>
                   </Grid>
@@ -824,102 +967,13 @@ export default function ComparisonForm() {
                   </Grid>
                 </Tabs.Panel>
 
-                <Tabs.Panel value="tributacao" pt="md">
-                  <Grid gutter="lg" align="flex-end">
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <Checkbox
-                        label="Aplicar imposto sobre rendimentos"
-                        description="Se ligado, aplica IR conforme o modo escolhido"
-                        {...form.getInputProps("investment_tax.enabled", {
-                          type: "checkbox",
-                        })}
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <Select
-                        label="Modo de tributação"
-                        description="Mensal (aproximação) ou no resgate (mais realista)"
-                        data={[
-                          { value: "on_withdrawal", label: "No resgate (ganho realizado)" },
-                          { value: "monthly", label: "Mensal (aproximação simples)" },
-                        ]}
-                        {...form.getInputProps("investment_tax.mode")}
-                        disabled={!form.values.investment_tax?.enabled}
-                        size="md"
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="Alíquota efetiva"
-                        description="Percentual sobre ganho (modo mensal/no resgate)"
-                        placeholder="15"
-                        {...form.getInputProps(
-                          "investment_tax.effective_tax_rate",
-                        )}
-                        suffix="%"
-                        min={0}
-                        max={100}
-                        disabled={!form.values.investment_tax?.enabled}
-                        size="md"
-                      />
-                    </Grid.Col>
-                  </Grid>
-                  <Text size="xs" c="ocean.6" mt="md">
-                    Esta é uma aproximação. O IR real depende do tipo de
-                    investimento e prazo.
-                  </Text>
-                </Tabs.Panel>
-
                 <Tabs.Panel value="amortizacoes" pt="md">
                   <AmortizationsFieldArray
                     value={form.values.amortizations || []}
-                    onChange={(v: any) =>
-                      form.setFieldValue("amortizations", v)
-                    }
+                    onChange={(v: any) => form.setFieldValue("amortizations", v)}
                     inflationRate={form.values.inflation_rate || undefined}
                     termMonths={form.values.loan_term_years * 12}
                   />
-                </Tabs.Panel>
-
-                <Tabs.Panel value="aportes" pt="md">
-                  <Stack gap="md">
-                    <Text size="sm" c="dimmed">
-                      Configure aportes programados que serão aplicados em todos os cenários de investimento
-                      ("Alugar e investir" e "Investir e comprar à vista"). Você pode definir aportes únicos,
-                      recorrentes, ou com valor variável ao longo do tempo.
-                    </Text>
-                    
-                    <Checkbox
-                      label="Continuar aportes após a compra do imóvel"
-                      description="No cenário 'Investir e comprar à vista', se marcado, os aportes programados continuam mesmo após a compra"
-                      {...form.getInputProps("continue_contributions_after_purchase", {
-                        type: "checkbox",
-                      })}
-                    />
-
-                    <Divider color="ocean.2" />
-                    
-                    <AmortizationsFieldArray
-                      value={form.values.contributions || []}
-                      onChange={(v: any) => form.setFieldValue("contributions", v)}
-                      inflationRate={form.values.inflation_rate || undefined}
-                      termMonths={form.values.loan_term_years * 12}
-                      showFundingSource={false}
-                      uiText={{
-                        configuredTitle: "Aportes Configurados",
-                        emptyTitle: "Nenhum aporte programado",
-                        emptyDescription:
-                          "Adicione aportes programados para aumentar seus investimentos ao longo do tempo",
-                        addButtonLabel: "Adicionar",
-                        addEmptyButtonLabel: "Adicionar Aporte",
-                        itemLabel: "Aporte",
-                        percentageDescription: "Percentual do saldo investido",
-                        previewTitle: "Pré-visualização dos Aportes",
-                        percentageFootnote:
-                          "* Valores percentuais dependem do saldo investido.",
-                      }}
-                    />
-                  </Stack>
                 </Tabs.Panel>
 
                 <Tabs.Panel value="fgts-avancado" pt="md">
@@ -943,11 +997,9 @@ export default function ComparisonForm() {
                         label="Limite de saque"
                         description="Máximo a usar na compra (deixe vazio para sem limite)"
                         placeholder="Sem limite"
-                        {...form.getInputProps(
-                          "fgts.max_withdrawal_at_purchase",
-                        )}
+                        {...form.getInputProps("fgts.max_withdrawal_at_purchase")}
                         thousandSeparator="."
-                        decimalSeparator=","
+                        decimalSeparator="," 
                         prefix="R$ "
                         min={0}
                         size="md"
@@ -1060,7 +1112,11 @@ export default function ComparisonForm() {
                   Aluguel
                 </Text>
                 <Text size="sm" fw={600} c="ocean.7">
-                  {money(rentValue)}
+                  {rentValue > 0
+                    ? money(rentValue)
+                    : rentPercentage > 0
+                      ? `${rentPercentage.toFixed(2)}% a.m. (~${money(rentFromPct)})`
+                      : '—'}
                 </Text>
               </Box>
             </SimpleGrid>

@@ -37,6 +37,12 @@ interface Props {
 export default function InvestmentReturnsFieldArray({ value, onChange }: Props) {
   const [collapsedItems, setCollapsedItems] = useState<Set<number>>(new Set());
 
+  const annualToMonthlyPercent = (annualPercent: number) => {
+    const a = Number(annualPercent);
+    if (!Number.isFinite(a)) return 0;
+    return (Math.pow(1 + a / 100, 1 / 12) - 1) * 100;
+  };
+
   const toggleItemCollapse = (idx: number) => {
     setCollapsedItems((prev) => {
       const next = new Set(prev);
@@ -67,7 +73,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
       <Group justify="space-between">
         <Group gap="xs">
           <Text fw={600} c="ocean.8">
-            Retornos de Investimento
+            Retorno do investimento
           </Text>
           <Badge size="sm" variant="light" color="ocean" radius="sm">
             {(value || []).length}
@@ -152,9 +158,11 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
       {/* Return Items */}
       {(value || []).map((item, idx) => {
         const isCollapsed = collapsedItems.has(idx);
+        const canDelete = (value || []).length > 1;
         const periodLabel = item.end_month
           ? `Mês ${item.start_month} a ${item.end_month}`
           : `Mês ${item.start_month} em diante`;
+        const monthlyEquivalent = annualToMonthlyPercent(item.annual_rate);
 
         return (
           <Box
@@ -193,24 +201,26 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
                         </Text>
                         {isCollapsed && (
                           <Text size="xs" c="dimmed" lineClamp={1}>
-                            — {periodLabel} • {item.annual_rate}% a.a.
+                            — {periodLabel} • {item.annual_rate}% a.a. (~{monthlyEquivalent.toFixed(2)}% a.m.)
                           </Text>
                         )}
                       </Group>
                     </Box>
                   </Group>
-                  <ActionIcon
-                    color="danger"
-                    variant="subtle"
-                    size="md"
-                    radius="lg"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onChange(value.filter((_, i) => i !== idx));
-                    }}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
+                  {canDelete && (
+                    <ActionIcon
+                      color="danger"
+                      variant="subtle"
+                      size="md"
+                      radius="lg"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChange(value.filter((_, i) => i !== idx));
+                      }}
+                    >
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  )}
                 </Group>
               </UnstyledButton>
 
@@ -243,7 +253,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
                     />
                     <NumberInput
                       label="Taxa anual"
-                      description="Retorno anual do investimento"
+                      description={`Retorno anual do investimento (≈ ${monthlyEquivalent.toFixed(2)}% a.m.)`}
                       min={0}
                       max={200}
                       value={item.annual_rate}

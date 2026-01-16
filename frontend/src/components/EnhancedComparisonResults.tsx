@@ -869,7 +869,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     const rentLabel = inputPayload?.rent_value != null
       ? money(inputPayload.rent_value)
       : inputPayload?.rent_percentage != null
-        ? `${numSafe(inputPayload.rent_percentage, 2)}% a.a. (do valor do imóvel)`
+        ? `${numSafe(inputPayload.rent_percentage, 2)}% a.m. (do valor do imóvel)`
         : '—';
 
     const netIncomeLabel = inputPayload?.monthly_net_income != null

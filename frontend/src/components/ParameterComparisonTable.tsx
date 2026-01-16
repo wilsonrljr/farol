@@ -110,10 +110,18 @@ const PARAMETER_DEFINITIONS: ParameterDefinition[] = [
   // Rent & Investment
   {
     key: 'rent_value',
-    label: 'Aluguel Mensal',
+    label: 'Aluguel (R$ / mês)',
     category: 'investment',
     format: 'money_or_null',
     icon: <IconReceipt size={14} />,
+  },
+  {
+    key: 'rent_percentage',
+    label: 'Aluguel (% do imóvel, a.m.)',
+    category: 'investment',
+    format: 'percent',
+    icon: <IconReceipt size={14} />,
+    description: 'Percentual mensal aplicado ao valor do imóvel para estimar o aluguel',
   },
   {
     key: 'investment_returns_rate',
@@ -395,6 +403,7 @@ function findMostImpactfulParameter(
     'down_payment',
     'property_value',
     'rent_value',
+    'rent_percentage',
   ];
 
   // Sort by priority, then by absolute delta magnitude

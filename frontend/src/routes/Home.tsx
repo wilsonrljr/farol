@@ -326,7 +326,7 @@ export default function Home() {
                   }
                 >
                   <Text c="dimmed" size="sm" mt={4}>
-                    Defina aluguel, retorno de investimentos e inflação.
+                    Defina aluguel, retorno do investimento e inflação.
                   </Text>
                 </Timeline.Item>
 
