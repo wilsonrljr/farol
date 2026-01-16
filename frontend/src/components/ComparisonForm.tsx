@@ -40,6 +40,8 @@ import {
   IconReceipt,
   IconScale,
   IconArrowRight,
+  IconWallet,
+  IconAdjustments,
 } from "@tabler/icons-react";
 import { LabelWithHelp } from "./LabelWithHelp";
 import { FormSection, FormWizard } from "./ui/FormWizard";
@@ -341,38 +343,143 @@ export default function ComparisonForm() {
           onStepClick={setActiveStep}
           steps={[
             {
+              label: "Sua situação",
+              description: "Renda e patrimônio",
+              icon: <IconWallet size={16} />,
+            },
+            {
               label: "Imóvel",
-              description: "Entrada e prazo",
+              description: "Valor, entrada e taxa",
               icon: <IconHome2 size={16} />,
             },
             {
-              label: "Taxa",
-              description: "Anual ou mensal",
-              icon: <IconPercentage size={16} />,
-            },
-            {
               label: "Aluguel",
-              description: "Retornos e aluguel",
+              description: "Valor e investimentos",
               icon: <IconChartLine size={16} />,
             },
             {
               label: "Ajustes",
               description: "Opcional",
-              icon: <IconSettings size={16} />,
+              icon: <IconAdjustments size={16} />,
             },
           ]}
         >
           {activeStep === 0 && (
             <FormSection
+              title="Sua situação financeira"
+              description="Informe sua renda e patrimônio disponível. Esses dados são essenciais para uma simulação realista."
+              icon={<IconWallet size={20} />}
+            >
+              <Grid gutter="lg">
+                <Grid.Col span={{ base: 12, sm: 6 }}>
+                  <NumberInput
+                    label={
+                      <LabelWithHelp
+                        label="Renda líquida mensal"
+                        help="Sua renda líquida após impostos e descontos. No cenário de aluguel, os custos de moradia são pagos desta renda e o excedente é investido automaticamente. Se não informada, o sistema assume que os custos são pagos por fonte externa."
+                      />
+                    }
+                    description="Quanto você recebe por mês (já livre de impostos)"
+                    placeholder="R$ 10.000"
+                    {...form.getInputProps("monthly_net_income")}
+                    thousandSeparator="."
+                    decimalSeparator=","
+                    prefix="R$ "
+                    min={0}
+                    size="md"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6 }}>
+                  <NumberInput
+                    label={
+                      <LabelWithHelp 
+                        label="Patrimônio disponível" 
+                        help={`Seu patrimônio líquido disponível para a compra. Este valor deve cobrir: entrada em dinheiro + custos de ITBI e escritura (tipicamente ${(itbiPercentage + deedPercentage).toFixed(0)}% do imóvel). O que sobrar será seu capital inicial para investir nos cenários de aluguel.`} 
+                      />
+                    }
+                    description="Quanto você tem disponível para a compra/investimento"
+                    placeholder="R$ 150.000"
+                    min={0}
+                    {...form.getInputProps("total_savings")}
+                    thousandSeparator="."
+                    decimalSeparator=","
+                    prefix="R$ "
+                    size="md"
+                  />
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Box 
+                    p="md" 
+                    style={{ 
+                      backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))', 
+                      borderRadius: 'var(--mantine-radius-md)',
+                      border: '1px solid var(--mantine-color-ocean-2)'
+                    }}
+                  >
+                    <Group gap="sm" mb="xs">
+                      <ThemeIcon size={24} radius="md" variant="light" color="ocean">
+                        <IconPigMoney size={14} />
+                      </ThemeIcon>
+                      <Text fw={600} size="sm" c="ocean.7">
+                        FGTS (Opcional)
+                      </Text>
+                    </Group>
+                    <Text size="xs" c="dimmed" mb="md">
+                      O FGTS é tratado separadamente da entrada em dinheiro. O valor informado aqui será somado à entrada no momento da compra.
+                    </Text>
+                    <Grid gutter="md">
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <NumberInput
+                          label="Saldo FGTS"
+                          description="Saldo disponível para uso na compra"
+                          placeholder="R$ 0"
+                          {...form.getInputProps("fgts.initial_balance")}
+                          thousandSeparator="."
+                          decimalSeparator=","
+                          prefix="R$ "
+                          min={0}
+                          size="sm"
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <NumberInput
+                          label="Aporte mensal FGTS"
+                          description="Depósito mensal no FGTS"
+                          placeholder="R$ 0"
+                          {...form.getInputProps("fgts.monthly_contribution")}
+                          thousandSeparator="."
+                          decimalSeparator=","
+                          prefix="R$ "
+                          min={0}
+                          size="sm"
+                        />
+                      </Grid.Col>
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <Checkbox
+                          label="Usar FGTS na compra do imóvel"
+                          {...form.getInputProps("fgts.use_at_purchase", {
+                            type: "checkbox",
+                          })}
+                        />
+                      </Grid.Col>
+                    </Grid>
+                  </Box>
+                </Grid.Col>
+              </Grid>
+            </FormSection>
+          )}
+
+          {activeStep === 1 && (
+            <FormSection
               title="Imóvel e financiamento"
-              description="Defina o valor, entrada e o tipo de amortização."
+              description="Defina o valor do imóvel, entrada e condições do financiamento."
               icon={<IconHome2 size={20} />}
             >
               <Grid gutter="lg">
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <NumberInput
                     label="Valor do imóvel"
-                    description="Preço total do imóvel"
+                    description="Preço total do imóvel que você está considerando"
                     placeholder="R$ 500.000"
                     min={0}
                     required
@@ -388,7 +495,7 @@ export default function ComparisonForm() {
                     label={
                       <LabelWithHelp 
                         label="Entrada (em dinheiro)" 
-                        help="Valor em dinheiro que você vai usar como entrada no financiamento. NÃO inclua aqui o FGTS - ele é configurado separadamente na aba 'FGTS' e será somado automaticamente à entrada." 
+                        help="Valor em dinheiro que você vai usar como entrada no financiamento. NÃO inclua aqui o FGTS - ele é somado automaticamente se configurado." 
                       />
                     }
                     description="Apenas dinheiro, sem contar FGTS"
@@ -400,27 +507,9 @@ export default function ComparisonForm() {
                     decimalSeparator=","
                     prefix="R$ "
                     size="md"
-                  />
-                </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <NumberInput
-                    label={
-                      <LabelWithHelp 
-                        label="Patrimônio total disponível" 
-                        help={`Seu patrimônio líquido disponível para a compra. Este valor deve cobrir: entrada em dinheiro (${money(downPayment)}) + custos de ITBI e escritura (${money(upfrontCosts)}). O que sobrar será considerado como capital inicial para investir.`} 
-                      />
-                    }
-                    description={`Mínimo necessário: ${money(minRequiredSavings)} (entrada + ITBI + escritura)`}
-                    placeholder="R$ 150.000"
-                    min={0}
-                    {...form.getInputProps("total_savings")}
-                    thousandSeparator="."
-                    decimalSeparator=","
-                    prefix="R$ "
-                    size="md"
                     error={
                       insufficientSavings
-                        ? `Patrimônio insuficiente. Você precisa de pelo menos ${money(minRequiredSavings)} para cobrir a entrada (${money(downPayment)}) + custos de ITBI e escritura (${money(upfrontCosts)}).`
+                        ? `Patrimônio insuficiente para cobrir entrada (${money(downPayment)}) + custos (${money(upfrontCosts)}). Mínimo: ${money(minRequiredSavings)}.`
                         : undefined
                     }
                   />
@@ -450,17 +539,19 @@ export default function ComparisonForm() {
                     size="md"
                   />
                 </Grid.Col>
-              </Grid>
-            </FormSection>
-          )}
 
-          {activeStep === 1 && (
-            <FormSection
-              title="Taxa de juros"
-              description="Informe a taxa anual ou mensal (apenas uma delas)."
-              icon={<IconPercentage size={20} />}
-            >
-              <Grid gutter="lg">
+                <Grid.Col span={12}>
+                  <Divider 
+                    my="sm" 
+                    label={
+                      <Text size="sm" fw={500} c="dimmed">
+                        Taxa de juros
+                      </Text>
+                    } 
+                    labelPosition="left" 
+                  />
+                </Grid.Col>
+
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <NumberInput
                     label="Taxa anual"
@@ -497,23 +588,22 @@ export default function ComparisonForm() {
                 </Grid.Col>
               </Grid>
               <Text size="xs" c="ocean.6" mt="sm">
-                Informe apenas uma das taxas. A outra será calculada
-                automaticamente.
+                Informe apenas uma das taxas. A outra será calculada automaticamente.
               </Text>
             </FormSection>
           )}
 
           {activeStep === 2 && (
             <FormSection
-              title="Aluguel e retornos"
-              description="Define o aluguel e como o investimento rende ao longo do tempo."
+              title="Cenário de aluguel"
+              description="Defina o valor do aluguel e como você espera que seus investimentos rendam ao longo do tempo."
               icon={<IconChartLine size={20} />}
             >
               <Grid gutter="lg">
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <NumberInput
                     label="Valor do aluguel"
-                    description="Aluguel mensal de imóvel equivalente"
+                    description="Aluguel mensal de um imóvel equivalente"
                     placeholder="R$ 2.000"
                     {...form.getInputProps("rent_value")}
                     onChange={(v) => {
@@ -530,8 +620,13 @@ export default function ComparisonForm() {
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <NumberInput
-                    label="Aluguel como % do valor"
-                    description="Alternativa ao valor fixo"
+                    label={
+                      <LabelWithHelp
+                        label="Aluguel como % do valor"
+                        help="Alternativa ao valor fixo. O yield típico de aluguel no Brasil varia entre 0,3% e 0,5% do valor do imóvel por mês."
+                      />
+                    }
+                    description="Alternativa ao valor fixo (yield típico: 0,3% a 0,5%)"
                     placeholder="0,4"
                     {...form.getInputProps("rent_percentage")}
                     onChange={(v) => {
@@ -545,29 +640,15 @@ export default function ComparisonForm() {
                     size="md"
                   />
                 </Grid.Col>
-                <Grid.Col span={{ base: 12, sm: 6 }}>
-                  <LabelWithHelp
-                    label="Renda líquida mensal"
-                    help="Sua renda líquida mensal. No cenário de aluguel, custos de moradia são pagos desta renda e o excedente é investido automaticamente. Se não informada, o sistema assume que os custos são pagos por fonte externa."
-                  />
-                  <NumberInput
-                    mt={4}
-                    placeholder="R$ 0"
-                    description="Custos de moradia pagos da renda, sobra investida"
-                    {...form.getInputProps("monthly_net_income")}
-                    thousandSeparator="."
-                    decimalSeparator=","
-                    prefix="R$ "
-                    min={0}
-                    size="md"
-                  />
-                </Grid.Col>
               </Grid>
 
               <Divider my="lg" color="var(--mantine-color-default-border)" />
 
               <Text fw={600} size="sm" mb="sm" c="bright">
                 Retornos de investimento
+              </Text>
+              <Text size="xs" c="dimmed" mb="md">
+                Configure as taxas de retorno esperadas para seus investimentos. Você pode definir diferentes taxas para diferentes períodos.
               </Text>
               <InvestmentReturnsFieldArray
                 value={form.values.investment_returns}
@@ -580,26 +661,20 @@ export default function ComparisonForm() {
 
           {activeStep === 3 && (
             <FormSection
-              title="Ajustes (opcional)"
-              description="Refina a simulação com hipóteses e regras adicionais."
-              icon={<IconSettings size={20} />}
+              title="Ajustes avançados (opcional)"
+              description="Refine a simulação com parâmetros adicionais. Esses valores já têm padrões razoáveis."
+              icon={<IconAdjustments size={20} />}
             >
-              <Tabs defaultValue="inflacao" variant="pills" color="ocean">
+              <Tabs defaultValue="custos" variant="pills" color="ocean">
                 <Tabs.List>
+                  <Tabs.Tab value="custos" leftSection={<IconCash size={16} />}>
+                    Custos
+                  </Tabs.Tab>
                   <Tabs.Tab
                     value="inflacao"
                     leftSection={<IconBuildingBank size={16} />}
                   >
                     Inflação
-                  </Tabs.Tab>
-                  <Tabs.Tab value="custos" leftSection={<IconCash size={16} />}>
-                    Custos
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="fgts"
-                    leftSection={<IconPigMoney size={16} />}
-                  >
-                    FGTS
                   </Tabs.Tab>
                   <Tabs.Tab
                     value="tributacao"
@@ -616,9 +691,81 @@ export default function ComparisonForm() {
                   <Tabs.Tab value="aportes" leftSection={<IconCash size={16} />}>
                     Aportes
                   </Tabs.Tab>
+                  <Tabs.Tab
+                    value="fgts-avancado"
+                    leftSection={<IconPigMoney size={16} />}
+                  >
+                    FGTS avançado
+                  </Tabs.Tab>
                 </Tabs.List>
 
+                <Tabs.Panel value="custos" pt="md">
+                  <Text fw={600} size="sm" c="bright" mb="sm">
+                    Custos de compra e posse do imóvel
+                  </Text>
+                  <Text size="xs" c="dimmed" mb="md">
+                    ITBI e Escritura são custos de compra (pagos no momento da aquisição). Condomínio e IPTU são custos mensais de posse.
+                  </Text>
+                  <Grid gutter="lg">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="ITBI"
+                        description="Imposto de transmissão (% do valor do imóvel)"
+                        placeholder="2"
+                        min={0}
+                        suffix="%"
+                        decimalScale={2}
+                        size="md"
+                        {...form.getInputProps("additional_costs.itbi_percentage")}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Escritura"
+                        description="Custos cartorários (% do valor do imóvel)"
+                        placeholder="1"
+                        min={0}
+                        suffix="%"
+                        decimalScale={2}
+                        size="md"
+                        {...form.getInputProps("additional_costs.deed_percentage")}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Condomínio mensal"
+                        description="Taxa de condomínio (se não se aplica, deixe 0)"
+                        placeholder="R$ 0"
+                        min={0}
+                        thousandSeparator="."
+                        decimalSeparator="," 
+                        prefix="R$ "
+                        size="md"
+                        {...form.getInputProps("additional_costs.monthly_hoa")}
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="IPTU mensal"
+                        description="Valor mensal do IPTU (se não se aplica, deixe 0)"
+                        placeholder="R$ 0"
+                        min={0}
+                        thousandSeparator="."
+                        decimalSeparator="," 
+                        prefix="R$ "
+                        size="md"
+                        {...form.getInputProps(
+                          "additional_costs.monthly_property_tax",
+                        )}
+                      />
+                    </Grid.Col>
+                  </Grid>
+                </Tabs.Panel>
+
                 <Tabs.Panel value="inflacao" pt="md">
+                  <Text size="xs" c="dimmed" mb="md">
+                    Configure as taxas de inflação para atualizar os valores ao longo do tempo.
+                  </Text>
                   <Grid gutter="lg">
                     <Grid.Col span={{ base: 12, sm: 4 }}>
                       <LabelWithHelp
@@ -660,152 +807,6 @@ export default function ComparisonForm() {
                       />
                     </Grid.Col>
                   </Grid>
-                </Tabs.Panel>
-
-                <Tabs.Panel value="custos" pt="md">
-                  <Text fw={600} size="sm" c="bright" mb="sm">
-                    Custos adicionais (compra e posse do imóvel)
-                  </Text>
-                  <Text size="xs" c="dimmed" mb="md">
-                    ITBI e Escritura entram como custo de compra (no mês da compra). Condomínio e IPTU entram
-                    como custos mensais do imóvel. Se no aluguel esses custos não se aplicarem, deixe 0.
-                  </Text>
-                  <Grid gutter="lg">
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="ITBI"
-                        description="Custo de compra (percentual do valor do imóvel)"
-                        placeholder="2"
-                        min={0}
-                        suffix="%"
-                        decimalScale={2}
-                        size="md"
-                        {...form.getInputProps("additional_costs.itbi_percentage")}
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="Escritura"
-                        description="Custo de compra (percentual do valor do imóvel)"
-                        placeholder="1"
-                        min={0}
-                        suffix="%"
-                        decimalScale={2}
-                        size="md"
-                        {...form.getInputProps("additional_costs.deed_percentage")}
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="Condomínio"
-                        description="Custo mensal do imóvel (se não se aplica no aluguel, deixe 0)"
-                        placeholder="R$ 0"
-                        min={0}
-                        thousandSeparator="."
-                        decimalSeparator="," 
-                        prefix="R$ "
-                        size="md"
-                        {...form.getInputProps("additional_costs.monthly_hoa")}
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="IPTU"
-                        description="Custo mensal do imóvel (se não se aplica no aluguel, deixe 0)"
-                        placeholder="R$ 0"
-                        min={0}
-                        thousandSeparator="."
-                        decimalSeparator="," 
-                        prefix="R$ "
-                        size="md"
-                        {...form.getInputProps(
-                          "additional_costs.monthly_property_tax",
-                        )}
-                      />
-                    </Grid.Col>
-                  </Grid>
-                </Tabs.Panel>
-
-                <Tabs.Panel value="fgts" pt="md">
-                  <Box 
-                    mb="md" 
-                    p="sm" 
-                    style={{ 
-                      backgroundColor: 'var(--mantine-color-info-0)', 
-                      borderRadius: 'var(--mantine-radius-md)',
-                      border: '1px solid var(--mantine-color-info-3)'
-                    }}
-                  >
-                    <Text size="sm" c="info.7" fw={500}>
-                      ℹ️ O FGTS é tratado separadamente da entrada em dinheiro
-                    </Text>
-                    <Text size="xs" c="info.6">
-                      O valor informado aqui será somado à entrada em dinheiro no momento da compra. 
-                      Por exemplo: se você informou R$ 100.000 de entrada em dinheiro e R$ 50.000 de FGTS, 
-                      a entrada total será R$ 150.000.
-                    </Text>
-                  </Box>
-                  <Grid gutter="lg">
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="Saldo FGTS"
-                        description="Saldo disponível para uso na compra"
-                        placeholder="R$ 0"
-                        {...form.getInputProps("fgts.initial_balance")}
-                        thousandSeparator="."
-                        decimalSeparator=","
-                        prefix="R$ "
-                        min={0}
-                        size="md"
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="Aporte mensal FGTS"
-                        description="Depósito mensal no FGTS"
-                        placeholder="R$ 0"
-                        {...form.getInputProps("fgts.monthly_contribution")}
-                        thousandSeparator="."
-                        decimalSeparator=","
-                        prefix="R$ "
-                        min={0}
-                        size="md"
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="Rendimento FGTS"
-                        description="Taxa anual de rendimento"
-                        placeholder="3"
-                        {...form.getInputProps("fgts.annual_yield_rate")}
-                        suffix="% a.a."
-                        min={0}
-                        size="md"
-                      />
-                    </Grid.Col>
-                    <Grid.Col span={{ base: 12, sm: 6 }}>
-                      <NumberInput
-                        label="Limite de saque"
-                        description="Máximo a usar na compra (opcional)"
-                        placeholder="Sem limite"
-                        {...form.getInputProps(
-                          "fgts.max_withdrawal_at_purchase",
-                        )}
-                        thousandSeparator="."
-                        decimalSeparator=","
-                        prefix="R$ "
-                        min={0}
-                        size="md"
-                      />
-                    </Grid.Col>
-                  </Grid>
-                  <Checkbox
-                    mt="lg"
-                    label="Usar FGTS na compra do imóvel"
-                    {...form.getInputProps("fgts.use_at_purchase", {
-                      type: "checkbox",
-                    })}
-                  />
                 </Tabs.Panel>
 
                 <Tabs.Panel value="tributacao" pt="md">
@@ -905,6 +906,40 @@ export default function ComparisonForm() {
                     />
                   </Stack>
                 </Tabs.Panel>
+
+                <Tabs.Panel value="fgts-avancado" pt="md">
+                  <Text size="xs" c="dimmed" mb="md">
+                    Configure opções avançadas do FGTS. O saldo inicial e opção de uso na compra estão no primeiro passo.
+                  </Text>
+                  <Grid gutter="lg">
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Rendimento FGTS"
+                        description="Taxa anual de rendimento do FGTS (padrão: TR + 3%)"
+                        placeholder="3"
+                        {...form.getInputProps("fgts.annual_yield_rate")}
+                        suffix="% a.a."
+                        min={0}
+                        size="md"
+                      />
+                    </Grid.Col>
+                    <Grid.Col span={{ base: 12, sm: 6 }}>
+                      <NumberInput
+                        label="Limite de saque"
+                        description="Máximo a usar na compra (deixe vazio para sem limite)"
+                        placeholder="Sem limite"
+                        {...form.getInputProps(
+                          "fgts.max_withdrawal_at_purchase",
+                        )}
+                        thousandSeparator="."
+                        decimalSeparator=","
+                        prefix="R$ "
+                        min={0}
+                        size="md"
+                      />
+                    </Grid.Col>
+                  </Grid>
+                </Tabs.Panel>
               </Tabs>
             </FormSection>
           )}
@@ -926,7 +961,7 @@ export default function ComparisonForm() {
             <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
               <Group gap="sm">
                 <ThemeIcon size={32} radius="lg" variant="light" color="ocean">
-                  <IconChartLine size={16} />
+                  <IconScale size={16} />
                 </ThemeIcon>
                 <Box>
                   <Text fw={600} size="sm" c="bright">
@@ -939,7 +974,19 @@ export default function ComparisonForm() {
               </Group>
             </Group>
             
-            <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="md">
+            <SimpleGrid cols={{ base: 2, sm: 4, md: 7 }} spacing="md">
+              {Number(form.values.monthly_net_income || 0) > 0 && (
+                <Tooltip label="Renda líquida mensal informada" withArrow>
+                  <Box style={{ cursor: 'help' }}>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+                      Renda
+                    </Text>
+                    <Text size="sm" fw={600} c="teal.6">
+                      {money(Number(form.values.monthly_net_income || 0))}
+                    </Text>
+                  </Box>
+                </Tooltip>
+              )}
               <Box>
                 <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
                   Imóvel
