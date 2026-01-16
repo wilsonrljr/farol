@@ -111,8 +111,10 @@ const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
   const { extraCash } = getAmortizationParts(m);
   const regularInstallment = getRegularInstallment(m);
 
-  // Prefer explicit housing_due when provided (rent + HOA/IPTU).
-  if (m?.housing_due != null) {
+  // Prefer explicit housing_due when provided (rent + HOA/IPTU or installment + costs).
+  // For buy scenario, backend housing_due already includes extra cash amortization.
+  const hasHousingDue = m?.housing_due != null;
+  if (hasHousingDue) {
     baseCost = m.housing_due;
   } else if (m?.installment != null) {
     // For buy scenario (and some post-purchase months), approximate housing as installment + recurring costs.
@@ -125,7 +127,8 @@ const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
 
   if (includeExtraAmortization) {
     // Include cash amortizations but NOT bonus/13_salario/FGTS (those are external)
-    baseCost += extraCash;
+    // Avoid double-counting if housing_due already includes extra cash amortization.
+    if (!hasHousingDue) baseCost += extraCash;
   }
 
   return baseCost;
@@ -397,10 +400,11 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
   // Uses inflation-adjusted income (effective_income) from backend when available
   const affordabilityMetrics = (() => {
     if (typeof monthlyNetIncome !== 'number' || monthlyNetIncome <= 0) return null;
-    
+
     const monthlyData = Array.isArray(s.monthly_data) ? s.monthly_data : [];
     let monthsNegative = 0;
     let totalHousingCost = 0;
+    let totalIncome = 0;
     let validMonths = 0;
     let maxHousingCost = 0;
     let maxHousingMonth = 1;
@@ -411,9 +415,10 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       const cost = recurringHousingCost(m, true);
       // Use effective_income from backend (inflation-adjusted) or fall back to static input
       const effectiveIncome = m?.effective_income ?? monthlyNetIncome;
-      
+
       if (cost > 0 && effectiveIncome > 0) {
         totalHousingCost += cost;
+        totalIncome += effectiveIncome;
         validMonths++;
         // Compare against inflation-adjusted income for this specific month
         const deficit = cost - effectiveIncome;
@@ -428,12 +433,11 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       }
     }
 
-    const incomeUsedMonth1 = housingCostMonth1 > 0 && effectiveIncomeMonth1 
-      ? (housingCostMonth1 / effectiveIncomeMonth1) * 100 
+    const incomeUsedMonth1 = housingCostMonth1 > 0 && effectiveIncomeMonth1
+      ? (housingCostMonth1 / effectiveIncomeMonth1) * 100
       : 0;
-    const avgHousingCost = validMonths > 0 ? totalHousingCost / validMonths : 0;
-    const avgIncomeUsed = avgHousingCost > 0 
-      ? (avgHousingCost / monthlyNetIncome) * 100 
+    const avgIncomeUsed = totalIncome > 0
+      ? (totalHousingCost / totalIncome) * 100
       : 0;
 
     return {
