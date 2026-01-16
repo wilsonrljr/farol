@@ -167,7 +167,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         current_rent = rent_result["current_rent"]
         total_rent_cost = rent_result["total_rent_cost"]
 
-        # 2) Apply rent cashflows (income covers housing, surplus invested).
+        # 2) Apply rent cashflows (income covers housing, surplus tracked but not auto-invested).
         cashflow_result = self._process_rent_cashflows(total_rent_cost, month)
         housing_due = total_rent_cost
         housing_paid = cashflow_result["actual_housing_paid"]
@@ -182,9 +182,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             month
         )
 
-        # Include income surplus as additional investment
-        income_surplus_invested = cashflow_result.get("income_surplus_invested", 0.0)
-        additional_investment = income_surplus_invested
+        # NOTE: income surplus is no longer auto-invested. Only explicit contributions count.
+        # additional_investment is now just the explicit contributions
+        additional_investment = contrib_total
 
         # 4) Apply investment returns at end of month.
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)
@@ -203,7 +203,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             rent_result=rent_result,
             cashflow_result=cashflow_result,
             investment_result=investment_result,
-            additional_investment=additional_investment + contrib_total,
+            additional_investment=additional_investment,
             progress_percent=progress_percent,
             shortfall=shortfall,
             is_milestone=is_milestone,
@@ -270,14 +270,18 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         When monthly_net_income is provided:
         - Housing costs are paid from income first
-        - Surplus income is invested
+        - Surplus is tracked but NOT automatically invested (user controls via contributions)
         - Shortfall is tracked (housing not fully paid)
 
         When monthly_net_income is not provided:
         - Housing is assumed paid externally (not from modeled sources)
+
+        IMPORTANT: The surplus (sobra) is NOT automatically invested.
+        The user must explicitly configure contributions (aportes) to invest.
+        The surplus is provided as 'income_surplus_available' for validation purposes.
         """
         income_cover = 0.0
-        income_surplus_invested = 0.0
+        income_surplus_available = 0.0
         rent_withdrawal = 0.0
         withdrawal_gross = 0.0
         withdrawal_tax_paid = 0.0
@@ -292,13 +296,15 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
 
         if effective_income is not None and effective_income > 0:
-            # Income-based model: pay housing from income, invest surplus
+            # Income-based model: pay housing from income
+            # Surplus is calculated but NOT automatically invested
             income_cover = min(housing_due, effective_income)
             surplus = effective_income - income_cover
 
             if surplus > 0:
-                self._account.deposit(surplus)
-                income_surplus_invested = surplus
+                # Track the available surplus for budget validation
+                # The user's contributions will be deducted from this
+                income_surplus_available = surplus
 
             remaining_before_return = self._account.balance
             actual_housing_paid = income_cover
@@ -311,7 +317,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         return {
             "rent_withdrawal": rent_withdrawal,
             "income_cover": income_cover,
-            "income_surplus_invested": income_surplus_invested,
+            "income_surplus_available": income_surplus_available,
+            "income_surplus_invested": 0.0,  # No longer auto-invested
             "remaining_before_return": remaining_before_return,
             "investment_withdrawal_gross": withdrawal_gross,
             "investment_withdrawal_net": rent_withdrawal,
@@ -321,7 +328,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             "housing_shortfall": housing_shortfall,
             # Legacy compatibility keys
             "external_cover": income_cover,
-            "external_surplus_invested": income_surplus_invested,
+            "external_surplus_invested": income_surplus_available,
         }
 
     def _update_progress(
@@ -457,10 +464,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         initial_deposit = (
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
-        invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
 
-        # Count every deposit made this month as outflow.
-        # All cash allocations should appear in total_monthly_cost for correct ROI/cost accounting.
+        # NOTE: income surplus is no longer auto-invested. Only explicit contributions count.
+        # additional_investment is now already just contrib_total from the caller.
         additional_investment_effective = additional_investment
 
         # If the purchase happens now, the initial capital already covers the price and
@@ -469,11 +475,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             additional_investment_effective = 0.0
 
         contributions_outflow = (
-            initial_deposit
-            + invested_from_external
-            + contrib_total
-            + additional_investment_effective
+            initial_deposit + contrib_total + additional_investment_effective
         )
+        # Avoid double-counting contrib_total (it's already in additional_investment_effective)
+        if additional_investment_effective == contrib_total:
+            contributions_outflow = initial_deposit + contrib_total
 
         # Rent is always due pre-purchase (purchase month can overlap). Costs (HOA/IPTU)
         # are tracked separately via monthly_additional_costs.
@@ -488,6 +494,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             (investment_result.net_return / withdrawal) if withdrawal > 0 else None
         )
         burn_month = withdrawal > 0 and investment_result.net_return < withdrawal
+
+        # Get income_surplus_available for budget validation
+        income_surplus_available = cashflow_result.get("income_surplus_available", 0.0)
 
         return DomainMonthlyRecord(
             month=month,
@@ -522,7 +531,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 "remaining_before_return"
             ],
             external_cover=cashflow_result["external_cover"],
-            external_surplus_invested=cashflow_result["external_surplus_invested"],
+            # Track income surplus available for budget validation
+            income_surplus_available=(
+                income_surplus_available if income_surplus_available > 0 else None
+            ),
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
             investment_withdrawal_gross=cashflow_result.get(

@@ -183,14 +183,18 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
         When monthly_net_income is provided:
         - Housing costs are paid from income
-        - Surplus income is invested
+        - Surplus is tracked but NOT automatically invested (user controls via contributions)
         - Shortfall is tracked as housing_shortfall
 
         When monthly_net_income is not provided:
         - Housing is assumed paid externally (legacy behavior)
+
+        IMPORTANT: The surplus (sobra) is NOT automatically invested.
+        The user must explicitly configure contributions (aportes) to invest.
+        The surplus is provided as 'income_surplus_available' for validation purposes.
         """
         income_cover = 0.0
-        income_surplus_invested = 0.0
+        income_surplus_available = 0.0
         actual_housing_paid = housing_due
 
         effective_income = self.get_effective_monthly_net_income(
@@ -201,14 +205,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
         if effective_income is not None and effective_income > 0:
             income_cover = min(housing_due, effective_income)
-            income_surplus_invested = max(0.0, effective_income - income_cover)
+            income_surplus_available = max(0.0, effective_income - income_cover)
             actual_housing_paid = income_cover
 
         housing_shortfall = max(0.0, housing_due - actual_housing_paid)
 
         return {
             "income_cover": income_cover,
-            "income_surplus_invested": income_surplus_invested,
+            "income_surplus_available": income_surplus_available,
+            "income_surplus_invested": 0.0,  # No longer auto-invested
             "actual_housing_paid": actual_housing_paid,
             "housing_shortfall": housing_shortfall,
         }
@@ -437,14 +442,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
             cashflow_result = self._process_monthly_cashflows(housing_due, month)
 
-            income_surplus_invested = 0.0
-            if (
-                self._investment_account is not None
-                and cashflow_result["income_surplus_invested"] > 0
-            ):
-                income_surplus_invested = cashflow_result["income_surplus_invested"]
-                self._investment_account.deposit(income_surplus_invested)
-                cumulative_payments += income_surplus_invested
+            # NOTE: income_surplus is no longer automatically invested.
+            # Investments come only from explicit contributions (aportes).
+            # The surplus is tracked for budget validation purposes.
+            income_surplus_available = cashflow_result.get(
+                "income_surplus_available", 0.0
+            )
 
             # Apply investment returns for opportunity cost tracking
             if self._investment_account is not None:
@@ -475,7 +478,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 cashflow_result["actual_housing_paid"],
                 cashflow_result["housing_shortfall"],
                 cashflow_result["income_cover"],
-                income_surplus_invested,
+                income_surplus_available,
             )
             self._monthly_data.append(record)
 
@@ -505,9 +508,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
         housing_paid: float = 0.0,
         housing_shortfall: float = 0.0,
         external_cover: float = 0.0,
-        external_surplus_invested: float = 0.0,
+        income_surplus_available: float = 0.0,
     ) -> DomainMonthlyRecord:
-        """Create a monthly record from loan installment."""
+        """Create a monthly record from loan installment.
+
+        Note: income_surplus_available is the amount available from income after
+        paying housing costs. It is NOT automatically invested - the user must
+        configure contributions (aportes) to invest. This value is for tracking
+        budget feasibility.
+        """
         equity = property_value - outstanding_balance
         upfront_and_initial = 0.0
         initial_allocation = 0.0
@@ -522,13 +531,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 upfront_and_initial += self.initial_investment
                 initial_allocation += self.initial_investment
 
-        # Include contributions and income surplus invested in total monthly cost
+        # Total monthly cost: only explicit outflows count
+        # Contributions are the user-defined investment amount
+        # income_surplus is no longer auto-invested
         total_monthly_cost = (
-            installment_value
-            + monthly_additional
-            + upfront_and_initial
-            + contrib_total
-            + external_surplus_invested
+            installment_value + monthly_additional + upfront_and_initial + contrib_total
         )
 
         extra_total = (
@@ -591,18 +598,16 @@ class BuyScenarioSimulator(ScenarioSimulator):
             housing_paid=housing_paid,
             housing_shortfall=housing_shortfall,
             external_cover=external_cover if external_cover > 0 else None,
-            external_surplus_invested=(
-                external_surplus_invested if external_surplus_invested > 0 else None
+            # income_surplus_available is tracked for budget validation, not invested
+            income_surplus_available=(
+                income_surplus_available if income_surplus_available > 0 else None
             ),
             # Contributions (for consistency with other scenarios)
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
             extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
             extra_contribution_total=contrib_total if contrib_total > 0 else None,
-            additional_investment=(
-                (contrib_total + external_surplus_invested)
-                if (contrib_total + external_surplus_invested) > 0
-                else None
-            ),
+            # additional_investment is now only from explicit contributions
+            additional_investment=(contrib_total if contrib_total > 0 else None),
         )
 
     def _build_fgts_summary(self) -> None:

@@ -196,15 +196,19 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         When monthly_net_income is provided:
         - Housing costs are paid from income first
-        - Surplus income is invested
+        - Surplus is tracked but NOT automatically invested (user controls via contributions)
         - Shortfall is tracked (housing not fully paid)
 
         When monthly_net_income is not provided:
         - Housing is assumed paid externally (not from modeled sources)
         - No withdrawals from investment needed
+
+        IMPORTANT: The surplus (sobra) is NOT automatically invested.
+        The user must explicitly configure contributions (aportes) to invest.
+        The surplus is provided as 'income_surplus_available' for validation purposes.
         """
         income_cover = 0.0
-        income_surplus_invested = 0.0
+        income_surplus_available = 0.0
         rent_withdrawal = 0.0
         withdrawal_gross = 0.0
         withdrawal_tax_paid = 0.0
@@ -219,13 +223,15 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
 
         if effective_income is not None and effective_income > 0:
-            # Income-based model: pay housing from income, invest surplus
+            # Income-based model: pay housing from income
+            # Surplus is calculated but NOT automatically invested
             income_cover = min(housing_due, effective_income)
             surplus = effective_income - income_cover
 
             if surplus > 0:
-                self._account.deposit(surplus)
-                income_surplus_invested = surplus
+                # Track the available surplus for budget validation
+                # The user's contributions will be deducted from this
+                income_surplus_available = surplus
 
             remaining_before_return = self._account.balance
             actual_housing_paid = income_cover
@@ -238,7 +244,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         return {
             "rent_withdrawal": rent_withdrawal,
             "income_cover": income_cover,
-            "income_surplus_invested": income_surplus_invested,
+            "income_surplus_available": income_surplus_available,
+            "income_surplus_invested": 0.0,  # No longer auto-invested
             "remaining_before_return": remaining_before_return,
             "investment_withdrawal_gross": withdrawal_gross,
             "investment_withdrawal_net": rent_withdrawal,
@@ -268,9 +275,14 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         contrib_pct: float = 0.0,
         contrib_total: float = 0.0,
     ) -> DomainMonthlyRecord:
-        """Create a monthly record."""
+        """Create a monthly record.
+
+        Note: income_surplus_available is the amount available from income after
+        paying housing costs. It is NOT automatically invested - the user must
+        configure contributions (aportes) to invest.
+        """
         withdrawal = cashflow_result.get("rent_withdrawal", 0.0)
-        income_surplus_invested = cashflow_result.get("income_surplus_invested", 0.0)
+        income_surplus_available = cashflow_result.get("income_surplus_available", 0.0)
 
         sustainable_withdrawal_ratio = (
             (investment_result.net_return / withdrawal) if withdrawal > 0 else None
@@ -283,8 +295,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
 
-        # Total contribution includes: scheduled contributions + income surplus invested
-        total_invested_this_month = contrib_total + income_surplus_invested
+        # Total investment this month: only explicit contributions (no auto-invest of surplus)
+        total_invested_this_month = contrib_total
         rent_due = current_rent
         total_monthly_cost = housing_due + initial_deposit + total_invested_this_month
 
@@ -325,14 +337,16 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 "remaining_before_return"
             ],
             external_cover=cashflow_result.get("income_cover"),
-            external_surplus_invested=(
-                income_surplus_invested if income_surplus_invested > 0 else None
+            # Track income surplus available for budget validation
+            income_surplus_available=(
+                income_surplus_available if income_surplus_available > 0 else None
             ),
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
             extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
             extra_contribution_total=contrib_total if contrib_total > 0 else None,
+            # additional_investment is now only from explicit contributions
             additional_investment=(
                 total_invested_this_month if total_invested_this_month > 0 else None
             ),

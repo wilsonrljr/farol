@@ -119,7 +119,11 @@ class MonthlyRecord:
     rent_withdrawal_from_investment: float | None = None
     remaining_investment_before_return: float | None = None
     external_cover: float | None = None
+    # DEPRECATED: external_surplus_invested is no longer used (surplus not auto-invested)
     external_surplus_invested: float | None = None
+    # NEW: income_surplus_available shows how much is left from income after housing costs
+    # This is for budget validation - NOT automatically invested
+    income_surplus_available: float | None = None
     sustainable_withdrawal_ratio: float | None = None
     burn_month: bool | None = None
 
