@@ -54,7 +54,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
     initial_investment: float = field(default=0.0)
     investment_returns: Sequence[InvestmentReturnLike] | None = field(default=None)
     investment_tax: InvestmentTaxLike | None = field(default=None)
-    
+
     # Scheduled investment contributions (aportes) - for consistency with other scenarios
     contributions: Sequence[ContributionLike] | None = field(default=None)
     fixed_monthly_investment: float | None = field(default=None)
@@ -101,14 +101,16 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self.term_months = self.loan_term_years * 12
         if self.term_months <= 0:
             raise ValueError("loan_term_years must be > 0")
-        
+
         # Preprocess scheduled contributions
         self._preprocess_contributions()
-        
+
         # Check if we need investment tracking (for opportunity cost or contributions)
-        has_contributions = bool(self.contributions) or bool(self.fixed_monthly_investment)
+        has_contributions = bool(self.contributions) or bool(
+            self.fixed_monthly_investment
+        )
         needs_investment_tracking = self.initial_investment > 0 or has_contributions
-        
+
         # Initialize investment tracking for opportunity cost and/or contributions.
         # We use the same InvestmentAccount engine used by the other scenarios.
         if needs_investment_tracking:
@@ -138,13 +140,13 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
     def _apply_contributions(self, month: int) -> tuple[float, float, float]:
         """Apply scheduled contributions and fixed monthly investment.
-        
+
         Returns:
             Tuple of (fixed_contribution, percentage_contribution, total_contribution)
         """
         if self._investment_account is None:
             return 0.0, 0.0, 0.0
-            
+
         contrib_fixed = 0.0
         contrib_pct = 0.0
 
@@ -366,11 +368,13 @@ class BuyScenarioSimulator(ScenarioSimulator):
             # To avoid double-counting, we subtract them from the raw cash value.
             extra_amortization_bonus = self._bonus_by_month.get(month, 0.0)
             extra_amortization_13_salario = self._13_salario_by_month.get(month, 0.0)
-            
+
             # Pure cash extra amortization (excluding bonus and 13_salario which are shown separately)
             extra_amortization_cash = max(
                 0.0,
-                extra_amortization_cash_raw - extra_amortization_bonus - extra_amortization_13_salario
+                extra_amortization_cash_raw
+                - extra_amortization_bonus
+                - extra_amortization_13_salario,
             )
 
             cumulative_payments += installment_value + monthly_additional

@@ -703,7 +703,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_tax_paid=investment_result.tax_paid,
             investment_return_net=investment_result.net_return,
             # additional_investment is only the fixed_monthly_investment, NOT including scheduled contributions
-            additional_investment=additional_investment if additional_investment > 0 else None,
+            additional_investment=(
+                additional_investment if additional_investment > 0 else None
+            ),
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
             extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
             extra_contribution_total=contrib_total if contrib_total > 0 else None,
