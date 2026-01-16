@@ -104,6 +104,50 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
   const incomeSurplusMonth1 =
     typeof monthlyNetIncome === 'number' ? monthlyNetIncome - housingCostMonth1 : null;
 
+  // Affordability metrics: calculate % of income used and months with negative surplus
+  const affordabilityMetrics = (() => {
+    if (typeof monthlyNetIncome !== 'number' || monthlyNetIncome <= 0) return null;
+    
+    const monthlyData = Array.isArray(s.monthly_data) ? s.monthly_data : [];
+    let monthsNegative = 0;
+    let totalHousingCost = 0;
+    let validMonths = 0;
+    let maxHousingCost = 0;
+    let maxHousingMonth = 1;
+
+    for (const m of monthlyData) {
+      const cost = recurringHousingCost(m);
+      if (cost > 0) {
+        totalHousingCost += cost;
+        validMonths++;
+        if (cost > monthlyNetIncome) {
+          monthsNegative++;
+        }
+        if (cost > maxHousingCost) {
+          maxHousingCost = cost;
+          maxHousingMonth = m.month;
+        }
+      }
+    }
+
+    const incomeUsedMonth1 = housingCostMonth1 > 0 
+      ? (housingCostMonth1 / monthlyNetIncome) * 100 
+      : 0;
+    const avgHousingCost = validMonths > 0 ? totalHousingCost / validMonths : 0;
+    const avgIncomeUsed = avgHousingCost > 0 
+      ? (avgHousingCost / monthlyNetIncome) * 100 
+      : 0;
+
+    return {
+      incomeUsedMonth1,
+      avgIncomeUsed,
+      monthsNegative,
+      totalMonths: validMonths,
+      maxHousingCost,
+      maxHousingMonth,
+    };
+  })();
+
   const Help = ({ label, help }: { label: string; help: ReactNode }) => (
     <Tooltip label={help} multiline w={320} withArrow position="top-start">
       <ActionIcon variant="subtle" color="gray" size="xs" aria-label={`Ajuda: ${label}`}>
@@ -289,7 +333,62 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
             </Text>
           </Box>
         )}
+        {affordabilityMetrics != null && (
+          <Box>
+            <Group gap={6} align="center" wrap="nowrap" mb={2}>
+              <Text size="xs" c="sage.5">
+                % da renda (mês 1)
+              </Text>
+              <Help
+                label="% da renda comprometida"
+                help="Percentual da renda líquida comprometido com moradia no mês 1. Valores acima de 30% são considerados altos."
+              />
+            </Group>
+            <Text
+              fw={600}
+              size="md"
+              c={affordabilityMetrics.incomeUsedMonth1 <= 30 ? 'sage.8' : affordabilityMetrics.incomeUsedMonth1 <= 50 ? 'warning.6' : 'danger.6'}
+            >
+              {affordabilityMetrics.incomeUsedMonth1.toFixed(1)}%
+            </Text>
+          </Box>
+        )}
+        {affordabilityMetrics != null && affordabilityMetrics.monthsNegative > 0 && (
+          <Box>
+            <Group gap={6} align="center" wrap="nowrap" mb={2}>
+              <Text size="xs" c="sage.5">
+                Meses no vermelho
+              </Text>
+              <Help
+                label="Meses no vermelho"
+                help="Quantidade de meses onde o custo de moradia excede sua renda líquida."
+              />
+            </Group>
+            <Text fw={600} size="md" c="danger.6">
+              {affordabilityMetrics.monthsNegative} de {affordabilityMetrics.totalMonths}
+            </Text>
+          </Box>
+        )}
       </SimpleGrid>
+
+      {/* Affordability warning */}
+      {affordabilityMetrics != null && affordabilityMetrics.monthsNegative > 0 && (
+        <Alert
+          mt="md"
+          color="danger"
+          variant="light"
+          icon={<IconAlertCircle size={16} />}
+          radius="md"
+        >
+          <Text size="sm" fw={600} c="danger.7">
+            Atenção: Renda insuficiente em {affordabilityMetrics.monthsNegative} mês(es)
+          </Text>
+          <Text size="xs" c="dimmed">
+            Em alguns meses, o custo de moradia excede sua renda líquida de {money(monthlyNetIncome as number)}.
+            O pico é no mês {affordabilityMetrics.maxHousingMonth} com {money(affordabilityMetrics.maxHousingCost)}.
+          </Text>
+        </Alert>
+      )}
 
       {/* Purchase breakdown (buy scenario) */}
       {s.purchase_breakdown && (
@@ -618,6 +717,59 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           </Menu.Dropdown>
         </Menu>
       </Group>
+
+      {/* Global affordability alert */}
+      {monthlyNetIncome != null && (() => {
+        // Check if any scenario has months where income is insufficient
+        const affordabilityIssues = result.scenarios.map((s) => {
+          const monthlyData = Array.isArray(s.monthly_data) ? s.monthly_data : [];
+          let monthsNegative = 0;
+          let maxDeficit = 0;
+          let maxDeficitMonth = 1;
+          for (const m of monthlyData as any[]) {
+            const cost = recurringHousingCost(m);
+            const deficit = cost - monthlyNetIncome;
+            if (deficit > 0) {
+              monthsNegative++;
+              if (deficit > maxDeficit) {
+                maxDeficit = deficit;
+                maxDeficitMonth = m.month;
+              }
+            }
+          }
+          return { name: s.name, monthsNegative, maxDeficit, maxDeficitMonth, totalMonths: monthlyData.length };
+        }).filter(s => s.monthsNegative > 0);
+
+        if (affordabilityIssues.length > 0) {
+          return (
+            <Alert
+              color="warning"
+              variant="light"
+              icon={<IconAlertCircle size={18} />}
+              radius="lg"
+              title="Análise de Capacidade de Pagamento"
+            >
+              <Text size="sm" c="dimmed" mb="xs">
+                Com base na sua renda líquida de <Text component="span" fw={600}>{money(monthlyNetIncome)}</Text>, identificamos os seguintes pontos de atenção:
+              </Text>
+              <Stack gap="xs">
+                {affordabilityIssues.map((issue) => (
+                  <Group key={issue.name} gap="xs">
+                    <Badge color="warning" variant="light" size="sm">{issue.name}</Badge>
+                    <Text size="xs" c="dimmed">
+                      {issue.monthsNegative} mês(es) com renda insuficiente (maior déficit: {money(issue.maxDeficit)} no mês {issue.maxDeficitMonth})
+                    </Text>
+                  </Group>
+                ))}
+              </Stack>
+              <Text size="xs" c="dimmed" mt="xs">
+                💡 Dica: considere ajustar o valor do imóvel, entrada, ou prazo para melhorar sua capacidade de pagamento.
+              </Text>
+            </Alert>
+          );
+        }
+        return null;
+      })()}
 
       {/* Input payload summary (what was actually simulated) */}
       <Paper
@@ -1100,6 +1252,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               <Table.Th>Extra (FGTS)</Table.Th>
                               <Table.Th>Saldo devedor</Table.Th>
                               <Table.Th>Custos (cond+IPTU)</Table.Th>
+                              {monthlyNetIncome != null && (
+                                <Table.Th>
+                                  <Tooltip label="Renda líquida menos custo de moradia mensal (parcela + custos)" withArrow>
+                                    <Text component="span" size="sm">Sobra</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                              )}
                               <Table.Th>Custos compra</Table.Th>
                               <Table.Th>Entrada (cash)</Table.Th>
                               <Table.Th>FGTS na compra</Table.Th>
@@ -1119,6 +1278,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               const extraFgts = typeof m.extra_amortization_fgts === 'number' ? m.extra_amortization_fgts : 0;
                               const monthlyCosts = typeof m.monthly_additional_costs === 'number' ? m.monthly_additional_costs : 0;
                               const upfront = typeof m.upfront_additional_costs === 'number' ? m.upfront_additional_costs : 0;
+                              const housingCost = installment + monthlyCosts;
+                              const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingCost : null;
+                              const isNegativeSurplus = surplus != null && surplus < 0;
 
                               return (
                                 <Table.Tr
@@ -1126,7 +1288,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   style={{
                                     backgroundColor: isPayoffRow
                                       ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
-                                      : undefined,
+                                      : isNegativeSurplus
+                                        ? 'light-dark(var(--mantine-color-danger-0), var(--mantine-color-dark-7))'
+                                        : undefined,
                                     fontWeight: isPayoffRow ? 700 : 400,
                                   }}
                                 >
@@ -1139,6 +1303,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   <Table.Td>{moneySafe(extraFgts)}</Table.Td>
                                   <Table.Td>{moneySafe(m.outstanding_balance)}</Table.Td>
                                   <Table.Td>{moneySafe(monthlyCosts)}</Table.Td>
+                                  {surplus != null && (
+                                    <Table.Td>
+                                      <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
+                                        {signedMoney(surplus)}
+                                      </Text>
+                                    </Table.Td>
+                                  )}
                                   <Table.Td>{m.month === 1 ? moneySafe(upfront) : '—'}</Table.Td>
                                   <Table.Td>{m.month === 1 && cashDown != null ? moneySafe(cashDown) : '—'}</Table.Td>
                                   <Table.Td>{m.month === 1 && fgtsAtPurchase != null ? moneySafe(fgtsAtPurchase) : '—'}</Table.Td>
@@ -1166,6 +1337,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             {tableView === 'essential' ? (
                               <>
                                 <Table.Th>Moradia (R$)</Table.Th>
+                                {monthlyNetIncome != null && (
+                                  <Table.Th>
+                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                      <Text component="span" size="sm">Sobra</Text>
+                                    </Tooltip>
+                                  </Table.Th>
+                                )}
                                 <Table.Th>Retorno (líq.)</Table.Th>
                                 <Table.Th>Saldo invest.</Table.Th>
                                 <Table.Th>Patrimônio</Table.Th>
@@ -1175,6 +1353,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 <Table.Th>Aluguel devido</Table.Th>
                                 <Table.Th>Custos (cond+IPTU)</Table.Th>
                                 <Table.Th>Moradia (devido)</Table.Th>
+                                {monthlyNetIncome != null && (
+                                  <Table.Th>
+                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                      <Text component="span" size="sm">Sobra</Text>
+                                    </Tooltip>
+                                  </Table.Th>
+                                )}
                                 <Table.Th>Moradia (pago)</Table.Th>
                                 <Table.Th>Shortfall</Table.Th>
                                 <Table.Th>Saque invest.</Table.Th>
@@ -1191,17 +1376,23 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         <Table.Tbody>
                           {rows.slice(0, 600).map((m: any) => {
                             const isBurn = Boolean(m.burn_month);
+                            const housingDue =
+                              m?.housing_due != null
+                                ? m.housing_due
+                                : (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
+                            const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingDue : null;
+                            const isNegativeSurplus = surplus != null && surplus < 0;
                             const rowStyle = isBurn
                               ? {
                                   backgroundColor:
                                     'light-dark(var(--mantine-color-warning-0), var(--mantine-color-dark-7))',
                                 }
-                              : undefined;
-
-                            const housingDue =
-                              m?.housing_due != null
-                                ? m.housing_due
-                                : (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
+                              : isNegativeSurplus
+                                ? {
+                                    backgroundColor:
+                                      'light-dark(var(--mantine-color-danger-0), var(--mantine-color-dark-7))',
+                                  }
+                                : undefined;
 
                             return (
                               <Table.Tr key={m.month} style={rowStyle}>
@@ -1210,6 +1401,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 {tableView === 'essential' ? (
                                   <>
                                     <Table.Td>{moneySafe(housingDue)}</Table.Td>
+                                    {surplus != null && (
+                                      <Table.Td>
+                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
+                                          {signedMoney(surplus)}
+                                        </Text>
+                                      </Table.Td>
+                                    )}
                                     <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
                                     <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
@@ -1219,6 +1417,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(m.rent_due)}</Table.Td>
                                     <Table.Td>{moneySafe(m.monthly_additional_costs)}</Table.Td>
                                     <Table.Td>{moneySafe(housingDue)}</Table.Td>
+                                    {surplus != null && (
+                                      <Table.Td>
+                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
+                                          {signedMoney(surplus)}
+                                        </Text>
+                                      </Table.Td>
+                                    )}
                                     <Table.Td>{moneySafe(m.housing_paid)}</Table.Td>
                                     <Table.Td>{moneySafe(m.housing_shortfall)}</Table.Td>
                                     <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>
@@ -1269,6 +1474,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             <Table.Th>Patrimônio</Table.Th>
                             {tableView === 'essential' ? (
                               <>
+                                {monthlyNetIncome != null && (
+                                  <Table.Th>
+                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                      <Text component="span" size="sm">Sobra</Text>
+                                    </Tooltip>
+                                  </Table.Th>
+                                )}
                                 <Table.Th>Progresso</Table.Th>
                                 <Table.Th>Falta (R$)</Table.Th>
                                 <Table.Th>Saldo invest.</Table.Th>
@@ -1277,6 +1489,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               <>
                                 <Table.Th>Aluguel devido</Table.Th>
                                 <Table.Th>Custos (cond+IPTU)</Table.Th>
+                                {monthlyNetIncome != null && (
+                                  <Table.Th>
+                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                      <Text component="span" size="sm">Sobra</Text>
+                                    </Tooltip>
+                                  </Table.Th>
+                                )}
                                 <Table.Th>Aportes progr.</Table.Th>
                                 <Table.Th>Aporte adicional</Table.Th>
                                 <Table.Th>Sobra ext. investida</Table.Th>
@@ -1298,6 +1517,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             const isPurchase =
                               purchaseMonth != null ? m.month === purchaseMonth : m.status === 'Imóvel comprado';
                             const isPostPurchase = purchaseMonth != null ? m.month > purchaseMonth : m.phase === 'post_purchase';
+                            
+                            // Calculate housing cost and surplus for invest-buy scenario
+                            const housingDue = (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
+                            const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingDue : null;
+                            const isNegativeSurplus = surplus != null && surplus < 0 && !isPurchase && !isPostPurchase;
 
                             return (
                               <Table.Tr
@@ -1307,7 +1531,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
                                     : isPostPurchase
                                       ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
-                                      : undefined,
+                                      : isNegativeSurplus
+                                        ? 'light-dark(var(--mantine-color-danger-0), var(--mantine-color-dark-7))'
+                                        : undefined,
                                   fontWeight: m.is_milestone ? 600 : 400,
                                 }}
                               >
@@ -1326,6 +1552,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
                                 {tableView === 'essential' ? (
                                   <>
+                                    {surplus != null && (
+                                      <Table.Td>
+                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
+                                          {signedMoney(surplus)}
+                                        </Text>
+                                      </Table.Td>
+                                    )}
                                     <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>
                                     <Table.Td>{moneySafe(m.shortfall)}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
@@ -1334,6 +1567,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   <>
                                     <Table.Td>{moneySafe(m.rent_due)}</Table.Td>
                                     <Table.Td>{moneySafe(m.monthly_additional_costs)}</Table.Td>
+                                    {surplus != null && (
+                                      <Table.Td>
+                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
+                                          {signedMoney(surplus)}
+                                        </Text>
+                                      </Table.Td>
+                                    )}
                                     <Table.Td>{moneySafe(m.extra_contribution_total)}</Table.Td>
                                     <Table.Td>{moneySafe(m.additional_investment)}</Table.Td>
                                     <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>

@@ -743,11 +743,12 @@ export default function ComparisonForm() {
                       <Grid.Col span={{ base: 12, sm: 6 }}>
                         <LabelWithHelp
                           label="Renda líquida mensal"
-                          help="Usada apenas para análise de capacidade de pagamento. Não altera a simulação."
+                          help="Informa sua renda para análise de affordability. Não altera a simulação, mas habilita alertas visuais e a coluna 'Sobra' nas tabelas, mostrando se sua renda cobre os custos em cada mês."
                         />
                         <NumberInput
                           mt={4}
                           placeholder="R$ 0"
+                          description="Habilita análise de capacidade de pagamento"
                           {...form.getInputProps("monthly_net_income")}
                           thousandSeparator="."
                           decimalSeparator=","
