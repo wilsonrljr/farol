@@ -132,8 +132,40 @@ const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
 };
 
 /**
+ * Gets the effective surplus (sobra) for a month, using backend-calculated values.
+ * This ensures inflation-adjusted income is used in all calculations.
+ * 
+ * Priority:
+ * 1. Use backend's effective_income if available (inflation-adjusted)
+ * 2. Fall back to frontend's static monthlyNetIncome
+ * 
+ * Returns: { surplus: number | null, effectiveIncome: number | null }
+ */
+const getEffectiveSurplus = (
+  m: any, 
+  housingCost: number, 
+  monthlyNetIncome: number | null,
+  includeExtraAmortization = false
+): { surplus: number | null; effectiveIncome: number | null } => {
+  // If backend provides income_surplus_available, we can derive info
+  // But we need the effective_income to know the actual income used
+  const effectiveIncome = m?.effective_income ?? monthlyNetIncome;
+  
+  if (effectiveIncome == null) {
+    return { surplus: null, effectiveIncome: null };
+  }
+  
+  // Backend provides income_surplus_available only when surplus > 0
+  // We need to calculate the actual surplus including negative values
+  const surplus = effectiveIncome - housingCost;
+  
+  return { surplus, effectiveIncome };
+};
+
+/**
  * Generates a detailed breakdown tooltip explaining the "Sobra" (surplus) calculation.
  * This helps users understand exactly what is being deducted from their net income.
+ * Note: netIncome should be the effective (inflation-adjusted) income for the specific month.
  */
 const SurplusBreakdownTooltip = ({ 
   netIncome, 
@@ -190,7 +222,7 @@ const SurplusBreakdownTooltip = ({
       </Text>
       <Divider size="xs" />
       <Group justify="space-between" gap={16}>
-        <Text size="xs" c="ocean.6">Renda líquida informada</Text>
+        <Text size="xs" c="ocean.6">Renda líquida (corrigida pela inflação)</Text>
         <Text size="xs" fw={600}>{money(netIncome)}</Text>
       </Group>
       <Text size="xs" fw={600} c="dimmed" mt={4}>Menos custos recorrentes:</Text>
@@ -208,7 +240,7 @@ const SurplusBreakdownTooltip = ({
         </Text>
       </Group>
       <Text size="xs" c="dimmed" mt={6} fs="italic">
-        Nota: A sobra considera apenas custos recorrentes mensais. 
+        Nota: A renda e os custos são corrigidos pela inflação ao longo do tempo. 
         Custos pontuais (ITBI, escritura) e aportes não são incluídos.
         {scenarioType === 'buy' && ' Amortizações de FGTS, Bônus e 13º não são consideradas (fontes externas/extraordinárias).'}
       </Text>
@@ -356,10 +388,13 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
     : null;
   // For affordability analysis, include cash amortizations (but not bonus/13_salario)
   const housingCostMonth1 = firstMonth ? recurringHousingCost(firstMonth, true) : 0;
+  // Use effective_income from backend (inflation-adjusted) or fall back to static input
+  const effectiveIncomeMonth1 = firstMonth?.effective_income ?? monthlyNetIncome;
   const incomeSurplusMonth1 =
-    typeof monthlyNetIncome === 'number' ? monthlyNetIncome - housingCostMonth1 : null;
+    typeof effectiveIncomeMonth1 === 'number' ? effectiveIncomeMonth1 - housingCostMonth1 : null;
 
   // Affordability metrics: calculate % of income used and months with negative surplus
+  // Uses inflation-adjusted income (effective_income) from backend when available
   const affordabilityMetrics = (() => {
     if (typeof monthlyNetIncome !== 'number' || monthlyNetIncome <= 0) return null;
     
@@ -369,25 +404,32 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
     let validMonths = 0;
     let maxHousingCost = 0;
     let maxHousingMonth = 1;
+    let maxDeficit = 0;
 
     for (const m of monthlyData) {
       // Include cash amortizations for affordability (but not bonus/13_salario)
       const cost = recurringHousingCost(m, true);
-      if (cost > 0) {
+      // Use effective_income from backend (inflation-adjusted) or fall back to static input
+      const effectiveIncome = m?.effective_income ?? monthlyNetIncome;
+      
+      if (cost > 0 && effectiveIncome > 0) {
         totalHousingCost += cost;
         validMonths++;
-        if (cost > monthlyNetIncome) {
+        // Compare against inflation-adjusted income for this specific month
+        const deficit = cost - effectiveIncome;
+        if (deficit > 0) {
           monthsNegative++;
-        }
-        if (cost > maxHousingCost) {
-          maxHousingCost = cost;
-          maxHousingMonth = m.month;
+          if (deficit > maxDeficit) {
+            maxDeficit = deficit;
+            maxHousingCost = cost;
+            maxHousingMonth = m.month;
+          }
         }
       }
     }
 
-    const incomeUsedMonth1 = housingCostMonth1 > 0 
-      ? (housingCostMonth1 / monthlyNetIncome) * 100 
+    const incomeUsedMonth1 = housingCostMonth1 > 0 && effectiveIncomeMonth1 
+      ? (housingCostMonth1 / effectiveIncomeMonth1) * 100 
       : 0;
     const avgHousingCost = validMonths > 0 ? totalHousingCost / validMonths : 0;
     const avgIncomeUsed = avgHousingCost > 0 
@@ -979,6 +1021,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
       {/* Global affordability alert */}
       {monthlyNetIncome != null && (() => {
         // Check if any scenario has months where income is insufficient
+        // Uses inflation-adjusted income (effective_income) from backend when available
         const affordabilityIssues = result.scenarios.map((s) => {
           const monthlyData = Array.isArray(s.monthly_data) ? s.monthly_data : [];
           let monthsNegative = 0;
@@ -987,7 +1030,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           for (const m of monthlyData as any[]) {
             // Include cash amortizations but not bonus/13_salario for affordability
             const cost = recurringHousingCost(m, true);
-            const deficit = cost - monthlyNetIncome;
+            // Use effective_income from backend (inflation-adjusted) or fall back to static input
+            const effectiveIncome = m?.effective_income ?? monthlyNetIncome;
+            const deficit = cost - effectiveIncome;
             if (deficit > 0) {
               monthsNegative++;
               if (deficit > maxDeficit) {
@@ -1009,7 +1054,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               title="Análise de Capacidade de Pagamento"
             >
               <Text size="sm" c="dimmed" mb="xs">
-                Com base na sua renda líquida de <Text component="span" fw={600}>{money(monthlyNetIncome)}</Text>, identificamos os seguintes pontos de atenção:
+                Com base na sua renda líquida de <Text component="span" fw={600}>{money(monthlyNetIncome)}</Text> (ajustada pela inflação ao longo do tempo), identificamos os seguintes pontos de atenção:
               </Text>
               <Stack gap="xs">
                 {affordabilityIssues.map((issue) => (
@@ -1555,7 +1600,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               const housingCost = typeof m.housing_due === 'number'
                                 ? m.housing_due
                                 : installment + monthlyCosts + extraCash;
-                              const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingCost : null;
+                              // Use backend's inflation-adjusted income for surplus calculation
+                              const { surplus, effectiveIncome } = getEffectiveSurplus(m, housingCost, monthlyNetIncome, true);
                               const isNegativeSurplus = surplus != null && surplus < 0;
 
                               return (
@@ -1586,7 +1632,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                       <Tooltip 
                                         label={
                                           <SurplusBreakdownTooltip
-                                            netIncome={monthlyNetIncome}
+                                            netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                             housingCost={housingCost}
                                             installment={installment}
                                             monthlyCosts={monthlyCosts}
@@ -1735,7 +1781,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               m?.housing_due != null
                                 ? m.housing_due
                                 : (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
-                            const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingDue : null;
+                            // Use backend's inflation-adjusted income for surplus calculation
+                            const { surplus, effectiveIncome } = getEffectiveSurplus(m, housingDue, monthlyNetIncome);
                             const isNegativeSurplus = surplus != null && surplus < 0;
                             const rowStyle = isBurn
                               ? {
@@ -1761,7 +1808,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                         <Tooltip 
                                           label={
                                             <SurplusBreakdownTooltip
-                                              netIncome={monthlyNetIncome}
+                                              netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}
@@ -1797,7 +1844,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                         <Tooltip 
                                           label={
                                             <SurplusBreakdownTooltip
-                                              netIncome={monthlyNetIncome}
+                                              netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}
@@ -1972,7 +2019,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             
                             // Calculate housing cost and surplus for invest-buy scenario
                             const housingDue = (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
-                            const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingDue : null;
+                            // Use backend's inflation-adjusted income for surplus calculation
+                            const { surplus, effectiveIncome } = getEffectiveSurplus(m, housingDue, monthlyNetIncome);
                             const isNegativeSurplus = surplus != null && surplus < 0 && !isPurchase && !isPostPurchase;
 
                             return (
@@ -2020,7 +2068,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                         <Tooltip 
                                           label={
                                             <SurplusBreakdownTooltip
-                                              netIncome={monthlyNetIncome}
+                                              netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}
@@ -2055,7 +2103,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                         <Tooltip 
                                           label={
                                             <SurplusBreakdownTooltip
-                                              netIncome={monthlyNetIncome}
+                                              netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}

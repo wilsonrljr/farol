@@ -253,6 +253,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             "investment_withdrawal_tax_paid": withdrawal_tax_paid,
             "actual_housing_paid": actual_housing_paid,
             "housing_shortfall": housing_shortfall,
+            "effective_income": (
+                effective_income if effective_income is not None else 0.0
+            ),
         }
 
     def _create_monthly_record(
@@ -341,6 +344,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             income_surplus_available=(
                 income_surplus_available if income_surplus_available > 0 else None
             ),
+            # effective_income is the inflation-adjusted income for the month
+            effective_income=(cashflow_result.get("effective_income") or None),
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,

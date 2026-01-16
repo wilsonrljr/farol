@@ -239,5 +239,102 @@ class TestContributionsFromSurplus(unittest.TestCase):
         self.assertIsNotNone(month_1)
 
 
+class TestEffectiveIncomeInflationAdjusted(unittest.TestCase):
+    """Test that effective_income is properly adjusted for inflation."""
+
+    def test_effective_income_increases_with_inflation(self):
+        """effective_income should increase annually when adjust_inflation is True."""
+        additional_costs = AdditionalCostsInput(
+            itbi_percentage=2.0,
+            deed_percentage=1.0,
+            monthly_hoa=500,
+            monthly_property_tax=200,
+        )
+
+        result = compare_scenarios(
+            property_value=500000,
+            down_payment=100000,
+            loan_term_years=30,
+            monthly_interest_rate=0.8,
+            loan_type="SAC",
+            rent_value=3000,
+            investment_returns=[
+                InvestmentReturnInput(start_month=1, end_month=None, annual_rate=10.0)
+            ],
+            additional_costs=additional_costs,
+            inflation_rate=5.0,  # 5% annual inflation
+            monthly_net_income=10000,
+            monthly_net_income_adjust_inflation=True,  # Enable inflation adjustment
+            contributions=None,
+            total_savings=115000,
+        )
+
+        # Check buy scenario
+        buy_scenario = result.scenarios[0]
+        month_1 = buy_scenario.monthly_data[0]
+        month_13 = buy_scenario.monthly_data[12]  # Start of year 2
+
+        # effective_income should be returned in monthly data
+        self.assertIsNotNone(
+            month_1.effective_income, "Month 1 should have effective_income"
+        )
+        self.assertIsNotNone(
+            month_13.effective_income, "Month 13 should have effective_income"
+        )
+
+        # Month 1: effective_income should equal base income (10000)
+        self.assertAlmostEqual(month_1.effective_income, 10000, places=0)
+
+        # Month 13: effective_income should be ~5% higher (10500)
+        self.assertAlmostEqual(month_13.effective_income, 10500, places=0)
+
+        # Check rent_invest scenario
+        rent_scenario = result.scenarios[1]
+        rent_month_1 = rent_scenario.monthly_data[0]
+        rent_month_13 = rent_scenario.monthly_data[12]
+
+        self.assertIsNotNone(rent_month_1.effective_income)
+        self.assertIsNotNone(rent_month_13.effective_income)
+        self.assertAlmostEqual(rent_month_1.effective_income, 10000, places=0)
+        self.assertAlmostEqual(rent_month_13.effective_income, 10500, places=0)
+
+    def test_effective_income_static_when_not_adjusted(self):
+        """effective_income should stay constant when adjust_inflation is False."""
+        additional_costs = AdditionalCostsInput(
+            itbi_percentage=2.0,
+            deed_percentage=1.0,
+            monthly_hoa=500,
+            monthly_property_tax=200,
+        )
+
+        result = compare_scenarios(
+            property_value=500000,
+            down_payment=100000,
+            loan_term_years=30,
+            monthly_interest_rate=0.8,
+            loan_type="SAC",
+            rent_value=3000,
+            investment_returns=[
+                InvestmentReturnInput(start_month=1, end_month=None, annual_rate=10.0)
+            ],
+            additional_costs=additional_costs,
+            inflation_rate=5.0,
+            monthly_net_income=10000,
+            monthly_net_income_adjust_inflation=False,  # Disable inflation adjustment
+            contributions=None,
+            total_savings=115000,
+        )
+
+        buy_scenario = result.scenarios[0]
+        month_1 = buy_scenario.monthly_data[0]
+        month_25 = buy_scenario.monthly_data[24]  # Start of year 3
+
+        # With no adjustment, effective_income should stay at 10000
+        self.assertIsNotNone(month_1.effective_income)
+        self.assertIsNotNone(month_25.effective_income)
+        self.assertAlmostEqual(month_1.effective_income, 10000, places=0)
+        self.assertAlmostEqual(month_25.effective_income, 10000, places=0)
+
+
 if __name__ == "__main__":
     unittest.main()

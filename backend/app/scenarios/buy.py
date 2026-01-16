@@ -216,6 +216,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
             "income_surplus_invested": 0.0,  # No longer auto-invested
             "actual_housing_paid": actual_housing_paid,
             "housing_shortfall": housing_shortfall,
+            "effective_income": (
+                effective_income if effective_income is not None else 0.0
+            ),
         }
 
     def simulate(self) -> ComparisonScenario:
@@ -479,6 +482,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 cashflow_result["housing_shortfall"],
                 cashflow_result["income_cover"],
                 income_surplus_available,
+                cashflow_result.get("effective_income"),
             )
             self._monthly_data.append(record)
 
@@ -509,6 +513,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         housing_shortfall: float = 0.0,
         external_cover: float = 0.0,
         income_surplus_available: float = 0.0,
+        effective_income: float | None = None,
     ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment.
 
@@ -601,6 +606,10 @@ class BuyScenarioSimulator(ScenarioSimulator):
             # income_surplus_available is tracked for budget validation, not invested
             income_surplus_available=(
                 income_surplus_available if income_surplus_available > 0 else None
+            ),
+            # effective_income is the inflation-adjusted income for the month
+            effective_income=(
+                effective_income if effective_income and effective_income > 0 else None
             ),
             # Contributions (for consistency with other scenarios)
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,

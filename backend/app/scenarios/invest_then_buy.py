@@ -329,6 +329,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             # Legacy compatibility keys
             "external_cover": income_cover,
             "external_surplus_invested": income_surplus_available,
+            "effective_income": (
+                effective_income if effective_income is not None else 0.0
+            ),
         }
 
     def _update_progress(
@@ -535,6 +538,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             income_surplus_available=(
                 income_surplus_available if income_surplus_available > 0 else None
             ),
+            # effective_income is the inflation-adjusted income for the month
+            effective_income=(cashflow_result.get("effective_income") or None),
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
             investment_withdrawal_gross=cashflow_result.get(

@@ -124,6 +124,8 @@ class MonthlyRecord:
     # NEW: income_surplus_available shows how much is left from income after housing costs
     # This is for budget validation - NOT automatically invested
     income_surplus_available: float | None = None
+    # NEW: effective_income shows the inflation-adjusted income for the month
+    effective_income: float | None = None
     sustainable_withdrawal_ratio: float | None = None
     burn_month: bool | None = None
 

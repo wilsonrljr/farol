@@ -169,6 +169,11 @@ export interface MonthlyRecord {
   remaining_investment_before_return?: number;
   external_cover?: number;
   external_surplus_invested?: number;
+  // NEW: income_surplus_available shows how much is left from income after housing costs
+  // This is calculated with inflation-adjusted income
+  income_surplus_available?: number;
+  // NEW: effective_income shows the inflation-adjusted income for the month
+  effective_income?: number;
   sustainable_withdrawal_ratio?: number;
   burn_month?: boolean;
 
