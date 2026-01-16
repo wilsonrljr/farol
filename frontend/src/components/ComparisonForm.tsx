@@ -68,6 +68,7 @@ export default function ComparisonForm() {
       investment_returns: [{ start_month: 1, end_month: null, annual_rate: 8 }],
       amortizations: [],
       contributions: [],
+      continue_contributions_after_purchase: true,
       additional_costs: {
         itbi_percentage: 2,
         deed_percentage: 1,
@@ -978,30 +979,44 @@ export default function ComparisonForm() {
                 </Tabs.Panel>
 
                 <Tabs.Panel value="aportes" pt="md">
-                  <Text size="xs" c="dimmed" mb="sm">
-                    Aportes programados valem apenas no cenário “Investir e comprar à vista” e param no mês da compra.
-                    Para aportes contínuos no horizonte inteiro, use “Aporte mensal fixo” na aba Estratégia.
-                  </Text>
-                  <AmortizationsFieldArray
-                    value={form.values.contributions || []}
-                    onChange={(v: any) => form.setFieldValue("contributions", v)}
-                    inflationRate={form.values.inflation_rate || undefined}
-                    termMonths={form.values.loan_term_years * 12}
-                    showFundingSource={false}
-                    uiText={{
-                      configuredTitle: "Aportes Configurados",
-                      emptyTitle: "Nenhum aporte programado",
-                      emptyDescription:
-                        "Adicione aportes extras para acelerar a compra à vista",
-                      addButtonLabel: "Adicionar",
-                      addEmptyButtonLabel: "Adicionar Aporte",
-                      itemLabel: "Aporte",
-                      percentageDescription: "Percentual do saldo investido",
-                      previewTitle: "Pré-visualização dos Aportes",
-                      percentageFootnote:
-                        "* Valores percentuais dependem do saldo investido.",
-                    }}
-                  />
+                  <Stack gap="md">
+                    <Text size="sm" c="dimmed">
+                      Configure aportes programados que serão aplicados em todos os cenários de investimento
+                      ("Alugar e investir" e "Investir e comprar à vista"). Você pode definir aportes únicos,
+                      recorrentes, ou com valor variável ao longo do tempo.
+                    </Text>
+                    
+                    <Checkbox
+                      label="Continuar aportes após a compra do imóvel"
+                      description="No cenário 'Investir e comprar à vista', se marcado, os aportes programados continuam mesmo após a compra"
+                      {...form.getInputProps("continue_contributions_after_purchase", {
+                        type: "checkbox",
+                      })}
+                    />
+
+                    <Divider color="sage.2" />
+                    
+                    <AmortizationsFieldArray
+                      value={form.values.contributions || []}
+                      onChange={(v: any) => form.setFieldValue("contributions", v)}
+                      inflationRate={form.values.inflation_rate || undefined}
+                      termMonths={form.values.loan_term_years * 12}
+                      showFundingSource={false}
+                      uiText={{
+                        configuredTitle: "Aportes Configurados",
+                        emptyTitle: "Nenhum aporte programado",
+                        emptyDescription:
+                          "Adicione aportes programados para aumentar seus investimentos ao longo do tempo",
+                        addButtonLabel: "Adicionar",
+                        addEmptyButtonLabel: "Adicionar Aporte",
+                        itemLabel: "Aporte",
+                        percentageDescription: "Percentual do saldo investido",
+                        previewTitle: "Pré-visualização dos Aportes",
+                        percentageFootnote:
+                          "* Valores percentuais dependem do saldo investido.",
+                      }}
+                    />
+                  </Stack>
                 </Tabs.Panel>
               </Tabs>
 

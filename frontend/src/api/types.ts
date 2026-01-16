@@ -90,6 +90,7 @@ export interface ComparisonInput {
   investment_returns: InvestmentReturnInput[];
   amortizations?: AmortizationInput[];
   contributions?: ContributionInput[];
+  continue_contributions_after_purchase?: boolean; // If true, contributions continue after property purchase
   additional_costs: AdditionalCostsInput;
   inflation_rate?: number | null;
   rent_inflation_rate?: number | null;

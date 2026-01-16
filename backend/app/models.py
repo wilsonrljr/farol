@@ -518,8 +518,15 @@ class ComparisonInput(BaseModel):
     contributions: list[ContributionInput] | None = Field(
         None,
         description=(
-            "Scheduled investment contributions (aportes) for the invest-then-buy scenario. "
-            "Use this instead of amortizations; amortizations are reserved for extra loan prepayments."
+            "Scheduled investment contributions (aportes) for all investment scenarios. "
+            "Applied to both 'rent and invest' and 'invest then buy' scenarios."
+        ),
+    )
+    continue_contributions_after_purchase: bool = Field(
+        True,
+        description=(
+            "If true, scheduled contributions continue after property purchase in the invest-then-buy scenario. "
+            "If false, contributions stop at the purchase month (legacy behavior)."
         ),
     )
     additional_costs: AdditionalCostsInput = Field(

@@ -103,6 +103,7 @@ def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
+        continue_contributions_after_purchase=input_data.continue_contributions_after_purchase,
     )
 
 
@@ -146,6 +147,7 @@ def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
+        continue_contributions_after_purchase=input_data.continue_contributions_after_purchase,
     )
 
     summaries: list[ScenarioMetricsSummary] = []
@@ -214,6 +216,7 @@ def compare_housing_scenarios_enhanced(
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
+        continue_contributions_after_purchase=input_data.continue_contributions_after_purchase,
     )
 
 
@@ -256,6 +259,7 @@ def _run_enhanced_comparison(input_data: ComparisonInput) -> EnhancedComparisonR
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
+        continue_contributions_after_purchase=input_data.continue_contributions_after_purchase,
     )
 
 

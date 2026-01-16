@@ -11,9 +11,10 @@ the Free Software Foundation, either version 3 of the License, or
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from ..core.amortization import preprocess_amortizations
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount, InvestmentResult
-from ..core.protocols import InvestmentReturnLike, InvestmentTaxLike
+from ..core.protocols import ContributionLike, InvestmentReturnLike, InvestmentTaxLike
 from ..domain.mappers import comparison_scenario_to_api
 from ..domain.models import ComparisonScenario as DomainComparisonScenario
 from ..domain.models import MonthlyRecord as DomainMonthlyRecord
@@ -40,12 +41,24 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     invest_external_surplus: bool = field(default=False)
     investment_tax: InvestmentTaxLike | None = field(default=None)
 
+    # Fixed monthly investment (aporte mensal fixo)
+    fixed_monthly_investment: float | None = field(default=None)
+    fixed_investment_start_month: int = field(default=1)
+
+    # Scheduled investment contributions (aportes programados)
+    contributions: Sequence[ContributionLike] | None = field(default=None)
+
     # Initial investment capital (total_savings - down_payment)
     initial_investment: float = field(default=0.0)
 
     # Internal state
     _account: InvestmentAccount = field(init=False)
     _total_rent_paid: float = field(init=False, default=0.0)
+    _total_contributions: float = field(init=False, default=0.0)
+    _fixed_contrib_by_month: dict[int, float] = field(init=False, default_factory=dict)
+    _percent_contrib_by_month: dict[int, list[float]] = field(
+        init=False, default_factory=dict
+    )
 
     @property
     def scenario_name(self) -> str:
@@ -65,6 +78,52 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             principal=initial_balance,
         )
         self._total_rent_paid = 0.0
+        self._total_contributions = 0.0
+        self._preprocess_contributions()
+
+    def _preprocess_contributions(self) -> None:
+        """Preprocess scheduled contributions (aportes)."""
+        if not self.contributions:
+            self._fixed_contrib_by_month = {}
+            self._percent_contrib_by_month = {}
+            return
+
+        fixed, percent = preprocess_amortizations(
+            self.contributions,
+            self.term_months,
+            self.inflation_rate,
+        )
+        self._fixed_contrib_by_month = fixed
+        self._percent_contrib_by_month = percent
+
+    def _apply_contributions(self, month: int) -> tuple[float, float, float]:
+        """Apply scheduled contributions and fixed monthly investment."""
+        contrib_fixed = 0.0
+        contrib_pct = 0.0
+
+        # Apply scheduled contributions (from contributions array)
+        if month in self._fixed_contrib_by_month:
+            val = self._fixed_contrib_by_month[month]
+            contrib_fixed += val
+            self._account.deposit(val)
+
+        if month in self._percent_contrib_by_month:
+            pct_total = sum(self._percent_contrib_by_month[month])
+            if pct_total > 0 and self._account.balance > 0:
+                pct_amount = self._account.balance * (pct_total / 100.0)
+                contrib_pct += pct_amount
+                self._account.deposit(pct_amount)
+
+        # Apply fixed monthly investment
+        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
+            contrib_fixed += self.fixed_monthly_investment
+            self._account.deposit(self.fixed_monthly_investment)
+
+        contrib_total = contrib_fixed + contrib_pct
+        if contrib_total > 0:
+            self._total_contributions += contrib_total
+
+        return contrib_fixed, contrib_pct, contrib_total
 
     def simulate(self) -> ComparisonScenario:
         """Run the rent and invest simulation (API model)."""
@@ -105,6 +164,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         rent_paid = min(current_rent, housing_paid)
         self._total_rent_paid += rent_paid
 
+        # Apply scheduled contributions BEFORE returns
+        contrib_fixed, contrib_pct, contrib_total = self._apply_contributions(month)
+
         # Apply investment returns
         investment_result = self._account.apply_monthly_return(month)
 
@@ -122,6 +184,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             cashflow_result=cashflow_result,
             investment_result=investment_result,
             property_value=current_property_value,
+            contrib_fixed=contrib_fixed,
+            contrib_pct=contrib_pct,
+            contrib_total=contrib_total,
         )
 
     def _process_monthly_cashflows(
@@ -198,6 +263,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         cashflow_result: dict[str, float],
         investment_result: InvestmentResult,
         property_value: float,
+        contrib_fixed: float = 0.0,
+        contrib_pct: float = 0.0,
+        contrib_total: float = 0.0,
     ) -> DomainMonthlyRecord:
         """Create a monthly record."""
         withdrawal = (
@@ -215,7 +283,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
         rent_due = current_rent
-        total_monthly_cost = housing_due + initial_deposit + invested_from_external
+        total_monthly_cost = (
+            housing_due + initial_deposit + invested_from_external + contrib_total
+        )
 
         return DomainMonthlyRecord(
             month=month,
@@ -257,6 +327,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             external_surplus_invested=cashflow_result["external_surplus_invested"],
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
+            extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
+            extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
+            extra_contribution_total=contrib_total if contrib_total > 0 else None,
+            additional_investment=contrib_total if contrib_total > 0 else None,
             investment_withdrawal_gross=cashflow_result.get(
                 "investment_withdrawal_gross"
             )

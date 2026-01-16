@@ -53,6 +53,7 @@ def compare_scenarios(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
+    continue_contributions_after_purchase: bool = True,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     result = _compare_scenarios_domain(
@@ -78,6 +79,7 @@ def compare_scenarios(
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
+        continue_contributions_after_purchase=continue_contributions_after_purchase,
     )
     return comparison_result_to_api(result)
 
@@ -106,6 +108,7 @@ def _compare_scenarios_domain(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
+    continue_contributions_after_purchase: bool = True,
 ) -> domain.ComparisonResult:
     term_months = loan_term_years * 12
 
@@ -159,6 +162,9 @@ def _compare_scenarios_domain(
         investment_tax=investment_tax,
         fgts=fgts,
         initial_investment=rent_initial,
+        fixed_monthly_investment=fixed_monthly_investment,
+        fixed_investment_start_month=fixed_investment_start_month,
+        contributions=contributions,
     ).simulate_domain()
 
     invest_buy = InvestThenBuyScenarioSimulator(
@@ -178,6 +184,7 @@ def _compare_scenarios_domain(
         monthly_interest_rate=monthly_interest_rate,
         loan_amortizations=amortizations,
         contributions=contributions,
+        continue_contributions_after_purchase=continue_contributions_after_purchase,
         rent_reduces_investment=rent_reduces_investment,
         monthly_external_savings=monthly_external_savings,
         invest_external_surplus=invest_external_surplus,
@@ -237,6 +244,7 @@ def enhanced_compare_scenarios(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
+    continue_contributions_after_purchase: bool = True,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
     result = _enhanced_compare_scenarios_domain(
@@ -262,6 +270,7 @@ def enhanced_compare_scenarios(
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
+        continue_contributions_after_purchase=continue_contributions_after_purchase,
     )
     return enhanced_comparison_result_to_api(result)
 
@@ -290,6 +299,7 @@ def _enhanced_compare_scenarios_domain(
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
+    continue_contributions_after_purchase: bool = True,
 ) -> domain.EnhancedComparisonResult:
     basic = _compare_scenarios_domain(
         property_value=property_value,
@@ -314,6 +324,7 @@ def _enhanced_compare_scenarios_domain(
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
+        continue_contributions_after_purchase=continue_contributions_after_purchase,
     )
 
     best_cost = min(s.total_cost for s in basic.scenarios)

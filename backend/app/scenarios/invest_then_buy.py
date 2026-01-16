@@ -58,6 +58,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     # Scheduled investment contributions (aportes).
     contributions: Sequence[ContributionLike] | None = field(default=None)
+    # If true, scheduled contributions continue after property purchase.
+    continue_contributions_after_purchase: bool = field(default=True)
     rent_reduces_investment: bool = field(default=False)
     monthly_external_savings: float | None = field(default=None)
     invest_external_surplus: bool = field(default=False)
@@ -664,6 +666,15 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         """Handle simulation for months after purchase."""
         _, _, monthly_additional = self.get_inflated_monthly_costs(month)
 
+        # Apply scheduled contributions if configured to continue after purchase
+        contrib_fixed = 0.0
+        contrib_pct = 0.0
+        contrib_total = 0.0
+        if self.continue_contributions_after_purchase:
+            contrib_fixed, contrib_pct, contrib_total = (
+                self._apply_scheduled_contributions(month)
+            )
+
         # Apply fixed investment BEFORE returns (consistent timeline).
         additional_investment = 0.0
         if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
@@ -674,7 +685,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         # Apply investment returns
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)
 
-        total_monthly_cost = monthly_additional + additional_investment
+        total_additional = additional_investment + contrib_total
+        total_monthly_cost = monthly_additional + total_additional
         cash_flow = -total_monthly_cost
         self._total_monthly_additional_costs += monthly_additional
 
@@ -690,7 +702,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_return_gross=investment_result.gross_return,
             investment_tax_paid=investment_result.tax_paid,
             investment_return_net=investment_result.net_return,
-            additional_investment=additional_investment,
+            additional_investment=total_additional if total_additional > 0 else None,
+            extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
+            extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
+            extra_contribution_total=contrib_total if contrib_total > 0 else None,
             scenario_type="invest_buy",
             progress_percent=100.0,
             shortfall=0.0,
