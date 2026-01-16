@@ -56,6 +56,15 @@ import {
 import { downloadFile } from '../utils/download';
 
 /**
+ * Column group definitions for standardized table headers
+ */
+interface ColumnGroup {
+  label: string;
+  color?: string;
+  columns: string[];
+}
+
+/**
  * Calculates the recurring housing cost for a month.
  * For affordability analysis, we can optionally include extra amortizations.
  * Bonus and 13_salario amortizations are excluded from affordability since they
@@ -85,6 +94,224 @@ const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
   }
 
   return baseCost;
+};
+
+/**
+ * Generates a detailed breakdown tooltip explaining the "Sobra" (surplus) calculation.
+ * This helps users understand exactly what is being deducted from their net income.
+ */
+const SurplusBreakdownTooltip = ({ 
+  netIncome, 
+  housingCost,
+  installment,
+  rent,
+  monthlyCosts,
+  extraAmortCash,
+  scenarioType,
+}: {
+  netIncome: number;
+  housingCost: number;
+  installment?: number;
+  rent?: number;
+  monthlyCosts?: number;
+  extraAmortCash?: number;
+  scenarioType: 'buy' | 'rent_invest' | 'invest_buy';
+}) => {
+  const surplus = netIncome - housingCost;
+  
+  const getScenarioLabel = () => {
+    switch (scenarioType) {
+      case 'buy': return 'Financiamento';
+      case 'rent_invest': return 'Alugar + Investir';
+      case 'invest_buy': return 'Investir para Comprar';
+    }
+  };
+
+  const costRows = [];
+  
+  if (scenarioType === 'buy') {
+    if (installment && installment > 0) {
+      costRows.push({ label: 'Parcela do financiamento', value: installment });
+    }
+    if (monthlyCosts && monthlyCosts > 0) {
+      costRows.push({ label: 'Condomínio + IPTU', value: monthlyCosts });
+    }
+    if (extraAmortCash && extraAmortCash > 0) {
+      costRows.push({ label: 'Amortização extra (cash)', value: extraAmortCash });
+    }
+  } else {
+    if (rent && rent > 0) {
+      costRows.push({ label: 'Aluguel', value: rent });
+    }
+    if (monthlyCosts && monthlyCosts > 0) {
+      costRows.push({ label: 'Condomínio + IPTU', value: monthlyCosts });
+    }
+  }
+
+  return (
+    <Stack gap={6}>
+      <Text size="xs" fw={700} c="bright">
+        Cálculo da Sobra ({getScenarioLabel()})
+      </Text>
+      <Divider size="xs" />
+      <Group justify="space-between" gap={16}>
+        <Text size="xs" c="sage.6">Renda líquida informada</Text>
+        <Text size="xs" fw={600}>{money(netIncome)}</Text>
+      </Group>
+      <Text size="xs" fw={600} c="dimmed" mt={4}>Menos custos recorrentes:</Text>
+      {costRows.map((row, idx) => (
+        <Group key={idx} justify="space-between" gap={16}>
+          <Text size="xs" c="dimmed">− {row.label}</Text>
+          <Text size="xs">{money(row.value)}</Text>
+        </Group>
+      ))}
+      <Divider size="xs" my={4} />
+      <Group justify="space-between" gap={16}>
+        <Text size="xs" fw={700}>= Sobra mensal</Text>
+        <Text size="xs" fw={700} c={surplus >= 0 ? 'sage.7' : 'danger.6'}>
+          {signedMoney(surplus)}
+        </Text>
+      </Group>
+      <Text size="xs" c="dimmed" mt={6} fs="italic">
+        Nota: A sobra considera apenas custos recorrentes mensais. 
+        Custos pontuais (ITBI, escritura) e aportes não são incluídos.
+        {scenarioType === 'buy' && ' Amortizações de Bônus e 13º não são consideradas (renda extraordinária).'}
+      </Text>
+    </Stack>
+  );
+};
+
+/**
+ * Generates a tooltip explaining the "Saída Total" (total outflow) for invest-buy scenario,
+ * with special handling for month 1 where initial allocation and baseline costs appear.
+ */
+const InvestBuyOutflowExplanation = ({ 
+  m, 
+  investLoanDifference 
+}: { 
+  m: any; 
+  investLoanDifference?: boolean;
+}) => {
+  const total = m?.total_monthly_cost ?? 0;
+  const rent = m?.rent_due ?? 0;
+  const monthlyCosts = m?.monthly_additional_costs ?? 0;
+  const initialAllocation = m?.initial_allocation ?? 0;
+  const additionalInvestment = m?.additional_investment ?? 0;
+  const contributions = m?.extra_contribution_total ?? 0;
+  const externalSurplus = m?.external_surplus_invested ?? 0;
+  const upfrontCosts = m?.upfront_additional_costs ?? 0;
+  const fgtsUsed = m?.fgts_used ?? 0;
+  const isPurchaseMonth = m?.status === 'Imóvel comprado' && m?.phase === 'post_purchase';
+  const isMonth1 = m?.month === 1;
+
+  // Check if additional_investment includes baseline upfront (ITBI) in month 1
+  const hasBaselineUpfront = investLoanDifference && isMonth1 && additionalInvestment > 0;
+
+  return (
+    <Stack gap={6}>
+      <Text size="xs" fw={700} c="bright">
+        Composição da Saída Total (Mês {m?.month})
+      </Text>
+      <Divider size="xs" />
+      
+      {/* Housing costs */}
+      <Text size="xs" fw={600} c="dimmed">Custos de Moradia:</Text>
+      {rent > 0 && (
+        <Group justify="space-between" gap={16}>
+          <Text size="xs" c="dimmed">Aluguel</Text>
+          <Text size="xs">{money(rent)}</Text>
+        </Group>
+      )}
+      {monthlyCosts > 0 && (
+        <Group justify="space-between" gap={16}>
+          <Text size="xs" c="dimmed">Condomínio + IPTU</Text>
+          <Text size="xs">{money(monthlyCosts)}</Text>
+        </Group>
+      )}
+      
+      {/* Investments/Allocations */}
+      {(initialAllocation > 0 || additionalInvestment > 0 || contributions > 0 || externalSurplus > 0) && (
+        <>
+          <Text size="xs" fw={600} c="dimmed" mt={4}>Alocações em Investimento:</Text>
+          {initialAllocation > 0 && (
+            <Group justify="space-between" gap={16}>
+              <Text size="xs" c="dimmed">Alocação inicial (entrada)</Text>
+              <Text size="xs">{money(initialAllocation)}</Text>
+            </Group>
+          )}
+          {contributions > 0 && (
+            <Group justify="space-between" gap={16}>
+              <Text size="xs" c="dimmed">Aportes programados</Text>
+              <Text size="xs">{money(contributions)}</Text>
+            </Group>
+          )}
+          {additionalInvestment > 0 && (
+            <Group justify="space-between" gap={16}>
+              <Tooltip 
+                label={hasBaselineUpfront 
+                  ? "Inclui o valor que seria gasto com ITBI/escritura no financiamento, agora investido." 
+                  : "Diferença entre parcela do financiamento e aluguel, investida."
+                }
+                multiline 
+                w={280}
+              >
+                <Text size="xs" c="dimmed" style={{ textDecoration: 'underline dotted' }}>
+                  Investimento adicional {hasBaselineUpfront && '(incl. ITBI baseline)'}
+                </Text>
+              </Tooltip>
+              <Text size="xs">{money(additionalInvestment)}</Text>
+            </Group>
+          )}
+          {externalSurplus > 0 && (
+            <Group justify="space-between" gap={16}>
+              <Text size="xs" c="dimmed">Sobra externa investida</Text>
+              <Text size="xs">{money(externalSurplus)}</Text>
+            </Group>
+          )}
+        </>
+      )}
+      
+      {/* Purchase costs (only on purchase month) */}
+      {isPurchaseMonth && upfrontCosts > 0 && (
+        <>
+          <Text size="xs" fw={600} c="dimmed" mt={4}>Custos da Compra:</Text>
+          <Group justify="space-between" gap={16}>
+            <Text size="xs" c="dimmed">ITBI + Escritura</Text>
+            <Text size="xs">{money(upfrontCosts)}</Text>
+          </Group>
+        </>
+      )}
+      
+      {fgtsUsed > 0 && (
+        <Group justify="space-between" gap={16}>
+          <Text size="xs" c="dimmed">FGTS utilizado</Text>
+          <Text size="xs">{money(fgtsUsed)}</Text>
+        </Group>
+      )}
+      
+      <Divider size="xs" my={4} />
+      <Group justify="space-between" gap={16}>
+        <Text size="xs" fw={700}>Total</Text>
+        <Text size="xs" fw={700}>{money(total)}</Text>
+      </Group>
+      
+      {hasBaselineUpfront && (
+        <Alert color="info" variant="light" p="xs" mt={6}>
+          <Text size="xs">
+            <strong>Nota:</strong> O "Investimento adicional" no mês 1 inclui o valor que você 
+            gastaria com ITBI/escritura se comprasse com financiamento. Este valor está sendo 
+            <strong> investido</strong>, não gasto.
+          </Text>
+        </Alert>
+      )}
+      
+      {isMonth1 && !hasBaselineUpfront && initialAllocation > 0 && (
+        <Text size="xs" c="dimmed" fs="italic" mt={4}>
+          O mês 1 inclui a alocação inicial de capital, por isso o valor é maior.
+        </Text>
+      )}
+    </Stack>
+  );
 };
 
 interface ScenarioCardNewProps {
@@ -1220,6 +1447,19 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   </Alert>
                 )}
 
+                {/* Explanation for invest_loan_difference mode */}
+                {isInvestBuy && inputPayload?.invest_loan_difference && (
+                  <Alert color="info" variant="light" radius="lg" mb="lg" icon={<IconHelpCircle size={18} />}>
+                    <Text size="sm" fw={600} mb={4}>Modo "Investir a diferença do financiamento" ativo</Text>
+                    <Text size="xs" c="dimmed">
+                      Este cenário compara com o financiamento: a diferença entre a parcela do financiamento e o aluguel 
+                      é <strong>investida</strong> mensalmente. No mês 1, os custos de compra (ITBI/escritura) que seriam 
+                      pagos no financiamento também são investidos. Esses valores aparecem na coluna "Saída total" pois 
+                      representam <strong>alocação de capital</strong> (dinheiro que sai do bolso para investir), não gastos consumidos.
+                    </Text>
+                  </Alert>
+                )}
+
                 {/* Table */}
                 <ScrollArea h={400} type="hover" scrollbarSize={8} offsetScrollbars>
                   {isBuy ? (() => {
@@ -1332,9 +1572,30 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   <Table.Td>{moneySafe(monthlyCosts)}</Table.Td>
                                   {surplus != null && (
                                     <Table.Td>
-                                      <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
-                                        {signedMoney(surplus)}
-                                      </Text>
+                                      <Tooltip 
+                                        label={
+                                          <SurplusBreakdownTooltip
+                                            netIncome={monthlyNetIncome}
+                                            housingCost={housingCost}
+                                            installment={installment}
+                                            monthlyCosts={monthlyCosts}
+                                            extraAmortCash={extraCash}
+                                            scenarioType="buy"
+                                          />
+                                        }
+                                        multiline
+                                        w={320}
+                                        withArrow
+                                        position="left"
+                                      >
+                                        <Text 
+                                          c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                          fw={500}
+                                          style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                        >
+                                          {signedMoney(surplus)}
+                                        </Text>
+                                      </Tooltip>
                                     </Table.Td>
                                   )}
                                   <Table.Td>{m.month === 1 ? moneySafe(upfront) : '—'}</Table.Td>
@@ -1366,7 +1627,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 <Table.Th>Moradia (R$)</Table.Th>
                                 {monthlyNetIncome != null && (
                                   <Table.Th>
-                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                    <Tooltip label="Renda líquida menos custo de moradia (aluguel + cond/IPTU). Clique no valor para detalhes." withArrow>
                                       <Text component="span" size="sm">Sobra</Text>
                                     </Tooltip>
                                   </Table.Th>
@@ -1377,25 +1638,76 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               </>
                             ) : (
                               <>
-                                <Table.Th>Aluguel devido</Table.Th>
-                                <Table.Th>Custos (cond+IPTU)</Table.Th>
-                                <Table.Th>Moradia (devido)</Table.Th>
+                                {/* Custos de Moradia */}
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-sage-3)' }}>
+                                  <Tooltip label="Valor do aluguel no mês" withArrow>
+                                    <Text component="span" size="sm">Aluguel</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Condomínio + IPTU mensal" withArrow>
+                                    <Text component="span" size="sm">Cond+IPTU</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Total de moradia devido (aluguel + cond/IPTU)" withArrow>
+                                    <Text component="span" size="sm">Total devido</Text>
+                                  </Tooltip>
+                                </Table.Th>
                                 {monthlyNetIncome != null && (
                                   <Table.Th>
-                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                    <Tooltip label="Renda líquida menos custo de moradia. Clique no valor para detalhes." withArrow>
                                       <Text component="span" size="sm">Sobra</Text>
                                     </Tooltip>
                                   </Table.Th>
                                 )}
-                                <Table.Th>Moradia (pago)</Table.Th>
-                                <Table.Th>Shortfall</Table.Th>
-                                <Table.Th>Saque invest.</Table.Th>
-                                <Table.Th>Cobertura externa</Table.Th>
-                                <Table.Th>Sobra ext. investida</Table.Th>
-                                <Table.Th>Retorno (líq.)</Table.Th>
-                                <Table.Th>Saldo invest.</Table.Th>
-                                <Table.Th>Patrimônio</Table.Th>
-                                <Table.Th>Valor imóvel</Table.Th>
+                                {/* Fluxo de caixa */}
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-info-3)' }}>
+                                  <Tooltip label="Total efetivamente pago de moradia" withArrow>
+                                    <Text component="span" size="sm">Pago</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Diferença entre devido e pago (falta de caixa)" withArrow>
+                                    <Text component="span" size="sm">Falta</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Valor sacado do investimento para pagar moradia" withArrow>
+                                    <Text component="span" size="sm">Saque</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Cobertura de fonte externa (ex: poupança externa)" withArrow>
+                                    <Text component="span" size="sm">Cob. ext.</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Sobra externa investida" withArrow>
+                                    <Text component="span" size="sm">Sobra inv.</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                {/* Investimentos */}
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-forest-3)' }}>
+                                  <Tooltip label="Retorno líquido do investimento no mês" withArrow>
+                                    <Text component="span" size="sm">Retorno</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Saldo acumulado de investimentos" withArrow>
+                                    <Text component="span" size="sm">Saldo inv.</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Patrimônio total (investimentos + FGTS)" withArrow>
+                                    <Text component="span" size="sm">Patrimônio</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Valor do imóvel de referência (com valorização)" withArrow>
+                                    <Text component="span" size="sm">Imóvel ref.</Text>
+                                  </Tooltip>
+                                </Table.Th>
                               </>
                             )}
                           </Table.Tr>
@@ -1430,9 +1742,29 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(housingDue)}</Table.Td>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
-                                          {signedMoney(surplus)}
-                                        </Text>
+                                        <Tooltip 
+                                          label={
+                                            <SurplusBreakdownTooltip
+                                              netIncome={monthlyNetIncome}
+                                              housingCost={housingDue}
+                                              rent={m.rent_due}
+                                              monthlyCosts={m.monthly_additional_costs}
+                                              scenarioType="rent_invest"
+                                            />
+                                          }
+                                          multiline
+                                          w={320}
+                                          withArrow
+                                          position="left"
+                                        >
+                                          <Text 
+                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            fw={500}
+                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                          >
+                                            {signedMoney(surplus)}
+                                          </Text>
+                                        </Tooltip>
                                       </Table.Td>
                                     )}
                                     <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
@@ -1446,9 +1778,29 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(housingDue)}</Table.Td>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
-                                          {signedMoney(surplus)}
-                                        </Text>
+                                        <Tooltip 
+                                          label={
+                                            <SurplusBreakdownTooltip
+                                              netIncome={monthlyNetIncome}
+                                              housingCost={housingDue}
+                                              rent={m.rent_due}
+                                              monthlyCosts={m.monthly_additional_costs}
+                                              scenarioType="rent_invest"
+                                            />
+                                          }
+                                          multiline
+                                          w={320}
+                                          withArrow
+                                          position="left"
+                                        >
+                                          <Text 
+                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            fw={500}
+                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                          >
+                                            {signedMoney(surplus)}
+                                          </Text>
+                                        </Tooltip>
                                       </Table.Td>
                                     )}
                                     <Table.Td>{moneySafe(m.housing_paid)}</Table.Td>
@@ -1514,27 +1866,83 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               </>
                             ) : (
                               <>
-                                <Table.Th>Aluguel devido</Table.Th>
-                                <Table.Th>Custos (cond+IPTU)</Table.Th>
+                                {/* Custos de Moradia */}
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-sage-3)' }}>
+                                  <Tooltip label="Valor do aluguel no mês" withArrow>
+                                    <Text component="span" size="sm">Aluguel</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Condomínio + IPTU mensal" withArrow>
+                                    <Text component="span" size="sm">Cond+IPTU</Text>
+                                  </Tooltip>
+                                </Table.Th>
                                 {monthlyNetIncome != null && (
                                   <Table.Th>
-                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                    <Tooltip label="Renda líquida menos custo de moradia (aluguel + cond/IPTU). Clique no valor para detalhes." withArrow>
                                       <Text component="span" size="sm">Sobra</Text>
                                     </Tooltip>
                                   </Table.Th>
                                 )}
-                                <Table.Th>Aportes progr.</Table.Th>
-                                <Table.Th>Aporte adicional</Table.Th>
-                                <Table.Th>Sobra ext. investida</Table.Th>
-                                <Table.Th>Saque invest.</Table.Th>
-                                <Table.Th>Retorno (líq.)</Table.Th>
-                                <Table.Th>Saldo invest.</Table.Th>
-                                <Table.Th>Alvo compra</Table.Th>
+                                {/* Investimentos */}
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-info-3)' }}>
+                                  <Tooltip label="Aportes programados (configurados na entrada)" withArrow>
+                                    <Text component="span" size="sm">Aportes</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Investimento adicional (diferença financiamento-aluguel, se ativo)" withArrow>
+                                    <Text component="span" size="sm">Inv. adic.</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Sobra externa investida (quando configurado)" withArrow>
+                                    <Text component="span" size="sm">Sobra ext.</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Valor sacado do investimento para pagar aluguel" withArrow>
+                                    <Text component="span" size="sm">Saque</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Retorno líquido do investimento no mês" withArrow>
+                                    <Text component="span" size="sm">Retorno</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Saldo acumulado de investimentos" withArrow>
+                                    <Text component="span" size="sm">Saldo inv.</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                {/* Meta de compra */}
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-forest-3)' }}>
+                                  <Tooltip label="Valor necessário para comprar (imóvel + custos)" withArrow>
+                                    <Text component="span" size="sm">Alvo</Text>
+                                  </Tooltip>
+                                </Table.Th>
                                 <Table.Th>Progresso</Table.Th>
-                                <Table.Th>Falta (R$)</Table.Th>
-                                <Table.Th>FGTS usado</Table.Th>
-                                <Table.Th>Valor imóvel</Table.Th>
-                                <Table.Th>Equidade</Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Quanto ainda falta para atingir o alvo" withArrow>
+                                    <Text component="span" size="sm">Falta</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="FGTS utilizado neste mês" withArrow>
+                                    <Text component="span" size="sm">FGTS</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                {/* Patrimônio */}
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-sage-3)' }}>
+                                  <Tooltip label="Valor do imóvel (com valorização)" withArrow>
+                                    <Text component="span" size="sm">Imóvel</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
+                                  <Tooltip label="Equidade no imóvel (só após compra)" withArrow>
+                                    <Text component="span" size="sm">Equidade</Text>
+                                  </Tooltip>
+                                </Table.Th>
                               </>
                             )}
                           </Table.Tr>
@@ -1549,6 +1957,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             const housingDue = (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
                             const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingDue : null;
                             const isNegativeSurplus = surplus != null && surplus < 0 && !isPurchase && !isPostPurchase;
+
+                            // Check if invest_loan_difference is enabled (from inputPayload)
+                            const investLoanDifference = inputPayload?.invest_loan_difference ?? false;
 
                             return (
                               <Table.Tr
@@ -1572,8 +1983,19 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   </Badge>
                                 </Table.Td>
                                 <Table.Td>
-                                  <Tooltip label={outflowTooltip(m)} multiline w={360} withArrow position="top-start">
-                                    <Text component="span">{moneySafe(monthlyOutflow(m))}</Text>
+                                  <Tooltip 
+                                    label={<InvestBuyOutflowExplanation m={m} investLoanDifference={investLoanDifference} />} 
+                                    multiline 
+                                    w={400} 
+                                    withArrow 
+                                    position="top-start"
+                                  >
+                                    <Text 
+                                      component="span"
+                                      style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                    >
+                                      {moneySafe(monthlyOutflow(m))}
+                                    </Text>
                                   </Tooltip>
                                 </Table.Td>
                                 <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
@@ -1581,9 +2003,29 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   <>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
-                                          {signedMoney(surplus)}
-                                        </Text>
+                                        <Tooltip 
+                                          label={
+                                            <SurplusBreakdownTooltip
+                                              netIncome={monthlyNetIncome}
+                                              housingCost={housingDue}
+                                              rent={m.rent_due}
+                                              monthlyCosts={m.monthly_additional_costs}
+                                              scenarioType="invest_buy"
+                                            />
+                                          }
+                                          multiline
+                                          w={320}
+                                          withArrow
+                                          position="left"
+                                        >
+                                          <Text 
+                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            fw={500}
+                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                          >
+                                            {signedMoney(surplus)}
+                                          </Text>
+                                        </Tooltip>
                                       </Table.Td>
                                     )}
                                     <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>
@@ -1596,13 +2038,55 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(m.monthly_additional_costs)}</Table.Td>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Text c={surplus >= 0 ? 'sage.7' : 'danger.6'} fw={500}>
-                                          {signedMoney(surplus)}
-                                        </Text>
+                                        <Tooltip 
+                                          label={
+                                            <SurplusBreakdownTooltip
+                                              netIncome={monthlyNetIncome}
+                                              housingCost={housingDue}
+                                              rent={m.rent_due}
+                                              monthlyCosts={m.monthly_additional_costs}
+                                              scenarioType="invest_buy"
+                                            />
+                                          }
+                                          multiline
+                                          w={320}
+                                          withArrow
+                                          position="left"
+                                        >
+                                          <Text 
+                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            fw={500}
+                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                          >
+                                            {signedMoney(surplus)}
+                                          </Text>
+                                        </Tooltip>
                                       </Table.Td>
                                     )}
-                                    <Table.Td>{moneySafe(m.extra_contribution_total)}</Table.Td>
-                                    <Table.Td>{moneySafe(m.additional_investment)}</Table.Td>
+                                    <Table.Td>
+                                      {m.extra_contribution_total > 0 ? moneySafe(m.extra_contribution_total) : '—'}
+                                    </Table.Td>
+                                    <Table.Td>
+                                      {m.additional_investment > 0 ? (
+                                        <Tooltip
+                                          label={
+                                            investLoanDifference && m.month === 1
+                                              ? "Inclui o valor que seria gasto com ITBI/escritura no financiamento. Este valor está sendo investido, não gasto."
+                                              : "Diferença entre parcela do financiamento e aluguel, investida."
+                                          }
+                                          multiline
+                                          w={280}
+                                          withArrow
+                                        >
+                                          <Text 
+                                            component="span"
+                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                          >
+                                            {moneySafe(m.additional_investment)}
+                                          </Text>
+                                        </Tooltip>
+                                      ) : '—'}
+                                    </Table.Td>
                                     <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>
                                     <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
@@ -1610,9 +2094,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(m.target_purchase_cost)}</Table.Td>
                                     <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>
                                     <Table.Td>{moneySafe(m.shortfall)}</Table.Td>
-                                    <Table.Td>{moneySafe(m.fgts_used)}</Table.Td>
+                                    <Table.Td>{m.fgts_used > 0 ? moneySafe(m.fgts_used) : '—'}</Table.Td>
                                     <Table.Td>{moneySafe(m.property_value)}</Table.Td>
-                                    <Table.Td>{moneySafe(m.equity)}</Table.Td>
+                                    <Table.Td>{m.equity > 0 ? moneySafe(m.equity) : '—'}</Table.Td>
                                   </>
                                 )}
                               </Table.Tr>
@@ -1623,6 +2107,57 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     )
                   )}
                 </ScrollArea>
+
+                {/* Color legend for table rows */}
+                <Group gap="md" mt="md" wrap="wrap">
+                  <Text size="xs" c="dimmed" fw={600}>Legenda de cores:</Text>
+                  {isBuy && (
+                    <>
+                      <Group gap={6}>
+                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-success-1)' }} />
+                        <Text size="xs" c="dimmed">Mês de quitação</Text>
+                      </Group>
+                      {monthlyNetIncome != null && (
+                        <Group gap={6}>
+                          <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-danger-1)' }} />
+                          <Text size="xs" c="dimmed">Renda insuficiente</Text>
+                        </Group>
+                      )}
+                    </>
+                  )}
+                  {isRentInvest && (
+                    <>
+                      <Group gap={6}>
+                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-warning-1)' }} />
+                        <Text size="xs" c="dimmed">Mês de &quot;burn&quot; (saque {'>'} retorno)</Text>
+                      </Group>
+                      {monthlyNetIncome != null && (
+                        <Group gap={6}>
+                          <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-danger-1)' }} />
+                          <Text size="xs" c="dimmed">Renda insuficiente</Text>
+                        </Group>
+                      )}
+                    </>
+                  )}
+                  {isInvestBuy && (
+                    <>
+                      <Group gap={6}>
+                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-success-1)' }} />
+                        <Text size="xs" c="dimmed">Mês da compra</Text>
+                      </Group>
+                      <Group gap={6}>
+                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-sage-1)' }} />
+                        <Text size="xs" c="dimmed">Pós-compra</Text>
+                      </Group>
+                      {monthlyNetIncome != null && (
+                        <Group gap={6}>
+                          <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-danger-1)' }} />
+                          <Text size="xs" c="dimmed">Renda insuficiente (pré-compra)</Text>
+                        </Group>
+                      )}
+                    </>
+                  )}
+                </Group>
 
                 <Divider my="md" color="sage.2" />
                 <SimpleGrid cols={{ base: 1, sm: 4 }} spacing="md">

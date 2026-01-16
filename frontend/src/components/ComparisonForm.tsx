@@ -228,13 +228,46 @@ export default function ComparisonForm() {
   const propertyValue = Number(form.values.property_value || 0);
   const downPayment = Number(form.values.down_payment || 0);
   const totalSavings = Number(form.values.total_savings || 0);
-  const initialInvestment = totalSavings > 0 ? Math.max(0, totalSavings - downPayment) : 0;
+  
+  // Calculate upfront costs (ITBI + deed) for validation
+  const itbiPercentage = Number(form.values.additional_costs?.itbi_percentage || 0);
+  const deedPercentage = Number(form.values.additional_costs?.deed_percentage || 0);
+  const upfrontCosts = propertyValue * ((itbiPercentage + deedPercentage) / 100);
+  
+  // The minimum required is: down_payment + ITBI + deed costs
+  const minRequiredSavings = downPayment + upfrontCosts;
+  
+  // Initial investment is what remains after paying entry + transaction costs
+  const initialInvestment = totalSavings > 0 ? Math.max(0, totalSavings - minRequiredSavings) : 0;
+  
+  // Validation: check if total_savings covers all required costs
+  const insufficientSavings = totalSavings > 0 && totalSavings < minRequiredSavings;
+  
   const loanAmount = Math.max(0, propertyValue - downPayment);
   const downPaymentPct =
     propertyValue > 0 ? (downPayment / propertyValue) * 100 : 0;
   const rentValue = Number(form.values.rent_value || 0);
 
   async function onSubmit(values: ComparisonInput) {
+    // Validate savings before submitting
+    const propVal = Number(values.property_value || 0);
+    const downPay = Number(values.down_payment || 0);
+    const savings = Number(values.total_savings || 0);
+    const itbi = Number(values.additional_costs?.itbi_percentage || 0);
+    const deed = Number(values.additional_costs?.deed_percentage || 0);
+    const upfront = propVal * ((itbi + deed) / 100);
+    const minRequired = downPay + upfront;
+    
+    if (savings > 0 && savings < minRequired) {
+      notifications.show({
+        title: "Patrimônio insuficiente",
+        message: `Você informou ${money(savings)} de patrimônio, mas precisa de pelo menos ${money(minRequired)} para cobrir a entrada (${money(downPay)}) + custos de ITBI/escritura (${money(upfront)}).`,
+        color: "red",
+        autoClose: 8000,
+      });
+      return;
+    }
+    
     try {
       const cleaned = cleanInputForBackend(values);
       // Clear previous results immediately so users don't mistake stale cards as "no change".
@@ -298,14 +331,34 @@ export default function ComparisonForm() {
                 {money(propertyValue)}
               </Text>
             </Box>
-            <Box ta="center">
-              <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                Entrada
-              </Text>
-              <Text size="lg" fw={700} c="bright">
-                {money(downPayment)} ({downPaymentPct.toFixed(0)}%)
-              </Text>
-            </Box>
+            <Tooltip 
+              label="Entrada em dinheiro (não inclui FGTS, que é configurado separadamente)"
+              withArrow
+            >
+              <Box ta="center" style={{ cursor: 'help' }}>
+                <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
+                  Entrada (dinheiro)
+                </Text>
+                <Text size="lg" fw={700} c="bright">
+                  {money(downPayment)} ({downPaymentPct.toFixed(0)}%)
+                </Text>
+              </Box>
+            </Tooltip>
+            {upfrontCosts > 0 && (
+              <Tooltip 
+                label="Custos obrigatórios pagos na compra: ITBI (imposto) + escritura. Estes valores são descontados do seu patrimônio."
+                withArrow
+              >
+                <Box ta="center" style={{ cursor: 'help' }}>
+                  <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
+                    ITBI + Escritura
+                  </Text>
+                  <Text size="lg" fw={700} c="warning.6">
+                    {money(upfrontCosts)}
+                  </Text>
+                </Box>
+              </Tooltip>
+            )}
             <Box ta="center">
               <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
                 Valor financiado
@@ -314,15 +367,22 @@ export default function ComparisonForm() {
                 {money(loanAmount)}
               </Text>
             </Box>
-            {initialInvestment > 0 && (
-              <Box ta="center">
-                <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                  Capital para investir
-                </Text>
-                <Text size="lg" fw={700} c="sage.9">
-                  {money(initialInvestment)}
-                </Text>
-              </Box>
+            {totalSavings > 0 && (
+              <Tooltip 
+                label={`Patrimônio (${money(totalSavings)}) - Entrada (${money(downPayment)}) - ITBI/Escritura (${money(upfrontCosts)}) = Capital para investir`}
+                withArrow
+                multiline
+                w={300}
+              >
+                <Box ta="center" style={{ cursor: 'help' }}>
+                  <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
+                    Capital para investir
+                  </Text>
+                  <Text size="lg" fw={700} c={insufficientSavings ? 'danger.6' : 'sage.9'}>
+                    {insufficientSavings ? 'Insuficiente' : money(initialInvestment)}
+                  </Text>
+                </Box>
+              </Tooltip>
             )}
             <Box ta="center">
               <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
@@ -334,6 +394,28 @@ export default function ComparisonForm() {
             </Box>
           </Group>
         </Group>
+        
+        {/* Warning when savings are insufficient */}
+        {insufficientSavings && (
+          <Box 
+            mt="md" 
+            p="sm" 
+            style={{ 
+              backgroundColor: 'var(--mantine-color-danger-0)', 
+              borderRadius: 'var(--mantine-radius-md)',
+              border: '1px solid var(--mantine-color-danger-3)'
+            }}
+          >
+            <Text size="sm" c="danger.7" fw={500}>
+              ⚠️ Patrimônio insuficiente para cobrir entrada + custos de compra
+            </Text>
+            <Text size="xs" c="danger.6">
+              Você informou {money(totalSavings)} de patrimônio, mas precisa de pelo menos {money(minRequiredSavings)} 
+              ({money(downPayment)} de entrada + {money(upfrontCosts)} de ITBI/escritura).
+              Aumente o patrimônio ou reduza a entrada.
+            </Text>
+          </Box>
+        )}
       </Paper>
 
       {/* Preset Management */}
@@ -417,8 +499,13 @@ export default function ComparisonForm() {
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <NumberInput
-                    label="Entrada"
-                    description="Valor que você vai usar de entrada"
+                    label={
+                      <LabelWithHelp 
+                        label="Entrada (em dinheiro)" 
+                        help="Valor em dinheiro que você vai usar como entrada no financiamento. NÃO inclua aqui o FGTS - ele é configurado separadamente na aba 'FGTS' e será somado automaticamente à entrada." 
+                      />
+                    }
+                    description="Apenas dinheiro, sem contar FGTS"
                     placeholder="R$ 100.000"
                     min={0}
                     required
@@ -431,8 +518,13 @@ export default function ComparisonForm() {
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <NumberInput
-                    label="Patrimônio total disponível"
-                    description="Valor total que você tem (entrada + reserva para investir)"
+                    label={
+                      <LabelWithHelp 
+                        label="Patrimônio total disponível" 
+                        help={`Seu patrimônio líquido disponível para a compra. Este valor deve cobrir: entrada em dinheiro (${money(downPayment)}) + custos de ITBI e escritura (${money(upfrontCosts)}). O que sobrar será considerado como capital inicial para investir.`} 
+                      />
+                    }
+                    description={`Mínimo necessário: ${money(minRequiredSavings)} (entrada + ITBI + escritura)`}
                     placeholder="R$ 150.000"
                     min={0}
                     {...form.getInputProps("total_savings")}
@@ -441,8 +533,8 @@ export default function ComparisonForm() {
                     prefix="R$ "
                     size="md"
                     error={
-                      totalSavings > 0 && totalSavings < downPayment
-                        ? "Deve ser maior ou igual à entrada"
+                      insufficientSavings
+                        ? `Patrimônio insuficiente. Você precisa de pelo menos ${money(minRequiredSavings)} para cobrir a entrada (${money(downPayment)}) + custos de ITBI e escritura (${money(upfrontCosts)}).`
                         : undefined
                     }
                   />
@@ -859,11 +951,29 @@ export default function ComparisonForm() {
                 </Tabs.Panel>
 
                 <Tabs.Panel value="fgts" pt="md">
+                  <Box 
+                    mb="md" 
+                    p="sm" 
+                    style={{ 
+                      backgroundColor: 'var(--mantine-color-info-0)', 
+                      borderRadius: 'var(--mantine-radius-md)',
+                      border: '1px solid var(--mantine-color-info-3)'
+                    }}
+                  >
+                    <Text size="sm" c="info.7" fw={500}>
+                      ℹ️ O FGTS é tratado separadamente da entrada em dinheiro
+                    </Text>
+                    <Text size="xs" c="info.6">
+                      O valor informado aqui será somado à entrada em dinheiro no momento da compra. 
+                      Por exemplo: se você informou R$ 100.000 de entrada em dinheiro e R$ 50.000 de FGTS, 
+                      a entrada total será R$ 150.000.
+                    </Text>
+                  </Box>
                   <Grid gutter="lg">
                     <Grid.Col span={{ base: 12, sm: 6 }}>
                       <NumberInput
                         label="Saldo FGTS"
-                        description="Saldo disponível para uso"
+                        description="Saldo disponível para uso na compra"
                         placeholder="R$ 0"
                         {...form.getInputProps("fgts.initial_balance")}
                         thousandSeparator="."
