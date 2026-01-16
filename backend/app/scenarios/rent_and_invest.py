@@ -45,6 +45,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     # Monthly net income - when provided, enables income-based simulation
     monthly_net_income: float | None = field(default=None)
+    monthly_net_income_adjust_inflation: bool = field(default=False)
 
     # Scheduled investment contributions (aportes programados)
     contributions: Sequence[ContributionLike] | None = field(default=None)
@@ -155,7 +156,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         housing_due = current_rent + monthly_additional
 
         # Process cashflows (income covers housing, surplus invested)
-        cashflow_result = self._process_monthly_cashflows(housing_due)
+        cashflow_result = self._process_monthly_cashflows(housing_due, month)
         housing_paid = cashflow_result["actual_housing_paid"]
         housing_shortfall = cashflow_result["housing_shortfall"]
         rent_paid = min(current_rent, housing_paid)
@@ -189,6 +190,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     def _process_monthly_cashflows(
         self,
         housing_due: float,
+        month: int,
     ) -> dict[str, float]:
         """Process monthly cashflows based on income or withdrawal model.
 
@@ -210,10 +212,16 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         remaining_before_return = self._account.balance
 
-        if self.monthly_net_income is not None and self.monthly_net_income > 0:
+        effective_income = self.get_effective_monthly_net_income(
+            month,
+            self.monthly_net_income,
+            self.monthly_net_income_adjust_inflation,
+        )
+
+        if effective_income is not None and effective_income > 0:
             # Income-based model: pay housing from income, invest surplus
-            income_cover = min(housing_due, self.monthly_net_income)
-            surplus = self.monthly_net_income - income_cover
+            income_cover = min(housing_due, effective_income)
+            surplus = effective_income - income_cover
 
             if surplus > 0:
                 self._account.deposit(surplus)

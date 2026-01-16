@@ -44,13 +44,14 @@ def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult:
     )
 
     term_months = input_data.loan_term_years * 12
+    amortizations = cast(Any, input_data.amortizations)
 
     if input_data.loan_type == "SAC":
         return simulate_sac_loan(
             loan_value,
             term_months,
             monthly_rate,
-            input_data.amortizations,
+            amortizations,
             input_data.inflation_rate,
         )
 
@@ -58,7 +59,7 @@ def simulate_loan(input_data: LoanSimulationInput) -> LoanSimulationResult:
         loan_value,
         term_months,
         monthly_rate,
-        input_data.amortizations,
+        amortizations,
         input_data.inflation_rate,
     )
 
@@ -95,6 +96,7 @@ def compare_housing_scenarios(input_data: ComparisonInput) -> ComparisonResult:
         rent_inflation_rate=input_data.rent_inflation_rate,
         property_appreciation_rate=input_data.property_appreciation_rate,
         monthly_net_income=input_data.monthly_net_income,
+        monthly_net_income_adjust_inflation=input_data.monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
@@ -134,6 +136,7 @@ def scenario_metrics(input_data: ComparisonInput) -> ScenariosMetricsResult:
         rent_inflation_rate=input_data.rent_inflation_rate,
         property_appreciation_rate=input_data.property_appreciation_rate,
         monthly_net_income=input_data.monthly_net_income,
+        monthly_net_income_adjust_inflation=input_data.monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
@@ -198,6 +201,7 @@ def compare_housing_scenarios_enhanced(
         rent_inflation_rate=input_data.rent_inflation_rate,
         property_appreciation_rate=input_data.property_appreciation_rate,
         monthly_net_income=input_data.monthly_net_income,
+        monthly_net_income_adjust_inflation=input_data.monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
@@ -236,6 +240,7 @@ def _run_enhanced_comparison(input_data: ComparisonInput) -> EnhancedComparisonR
         rent_inflation_rate=input_data.rent_inflation_rate,
         property_appreciation_rate=input_data.property_appreciation_rate,
         monthly_net_income=input_data.monthly_net_income,
+        monthly_net_income_adjust_inflation=input_data.monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,

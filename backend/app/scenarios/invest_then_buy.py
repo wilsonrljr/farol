@@ -60,6 +60,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     # Monthly net income - when provided, enables income-based simulation
     monthly_net_income: float | None = field(default=None)
+    monthly_net_income_adjust_inflation: bool = field(default=False)
 
     # Initial investment capital (total_savings - down_payment)
     initial_investment: float = field(default=0.0)
@@ -167,7 +168,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_rent_cost = rent_result["total_rent_cost"]
 
         # 2) Apply rent cashflows (income covers housing, surplus invested).
-        cashflow_result = self._process_rent_cashflows(total_rent_cost)
+        cashflow_result = self._process_rent_cashflows(total_rent_cost, month)
         housing_due = total_rent_cost
         housing_paid = cashflow_result["actual_housing_paid"]
         housing_shortfall = cashflow_result["housing_shortfall"]
@@ -260,7 +261,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             "total_rent_cost": total_rent_cost,
         }
 
-    def _process_rent_cashflows(self, housing_due: float) -> dict[str, float]:
+    def _process_rent_cashflows(
+        self,
+        housing_due: float,
+        month: int,
+    ) -> dict[str, float]:
         """Process monthly cashflows based on income model.
 
         When monthly_net_income is provided:
@@ -280,10 +285,16 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         remaining_before_return = self._account.balance
 
-        if self.monthly_net_income is not None and self.monthly_net_income > 0:
+        effective_income = self.get_effective_monthly_net_income(
+            month,
+            self.monthly_net_income,
+            self.monthly_net_income_adjust_inflation,
+        )
+
+        if effective_income is not None and effective_income > 0:
             # Income-based model: pay housing from income, invest surplus
-            income_cover = min(housing_due, self.monthly_net_income)
-            surplus = self.monthly_net_income - income_cover
+            income_cover = min(housing_due, effective_income)
+            surplus = effective_income - income_cover
 
             if surplus > 0:
                 self._account.deposit(surplus)
@@ -553,9 +564,6 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             contrib_fixed, contrib_pct, contrib_total = (
                 self._apply_scheduled_contributions(month)
             )
-
-        # No fixed investment logic post-purchase anymore - only scheduled contributions
-        additional_investment = 0.0
 
         # Apply investment returns
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)

@@ -98,7 +98,7 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
         "housing_due": {
             "label": "Moradia devida",
             "unit": "R$",
-            "description": "Aluguel + custos mensais (condomínio/IPTU).",
+            "description": "Total de moradia do mês. Aluguel + custos mensais (condomínio/IPTU) ou, no financiamento, parcela base + custos + amortização extra em cash.",
         },
         "housing_paid": {
             "label": "Moradia paga",
@@ -109,6 +109,21 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
             "label": "Falta de moradia",
             "unit": "R$",
             "description": "Parte do total de moradia não coberta por fontes modeladas.",
+        },
+        "external_cover": {
+            "label": "Cobertura externa",
+            "unit": "R$",
+            "description": "Parte da moradia coberta por renda externa (ex.: renda líquida mensal).",
+        },
+        "external_surplus_invested": {
+            "label": "Sobra externa investida",
+            "unit": "R$",
+            "description": "Excedente de renda externa investido no mês.",
+        },
+        "additional_investment": {
+            "label": "Investimento adicional",
+            "unit": "R$",
+            "description": "Aporte total investido no mês além do saldo inicial (ex.: aportes programados e sobras investidas).",
         },
         "investment_balance": {
             "label": "Saldo investido",
@@ -265,13 +280,14 @@ def export_simulate_loan(
         monthly_interest_rate=input_data.monthly_interest_rate,
     )
     term_months = input_data.loan_term_years * 12
+    amortizations = cast(Any, input_data.amortizations)
 
     if input_data.loan_type == "SAC":
         result = simulate_sac_loan(
             loan_value,
             term_months,
             monthly_rate,
-            input_data.amortizations,
+            amortizations,
             input_data.inflation_rate,
         )
     else:
@@ -279,7 +295,7 @@ def export_simulate_loan(
             loan_value,
             term_months,
             monthly_rate,
-            input_data.amortizations,
+            amortizations,
             input_data.inflation_rate,
         )
     rows = [
@@ -344,6 +360,7 @@ def export_compare_scenarios(
         rent_inflation_rate=input_data.rent_inflation_rate,
         property_appreciation_rate=input_data.property_appreciation_rate,
         monthly_net_income=input_data.monthly_net_income,
+        monthly_net_income_adjust_inflation=input_data.monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
@@ -487,6 +504,12 @@ def export_compare_scenarios_enhanced(
     amortizations = cast(Any, input_data.amortizations)
     contributions = cast(Any, input_data.contributions)
     investment_tax = cast(Any, input_data.investment_tax)
+    extra_kwargs = cast(
+        Any,
+        {
+            "monthly_net_income_adjust_inflation": input_data.monthly_net_income_adjust_inflation,
+        },
+    )
     result = enhanced_compare_scenarios(
         property_value=input_data.property_value,
         down_payment=input_data.down_payment,
@@ -505,6 +528,7 @@ def export_compare_scenarios_enhanced(
         investment_tax=investment_tax,
         fgts=input_data.fgts,
         total_savings=input_data.total_savings,
+        **extra_kwargs,
     )
 
     long_rows: list[dict] = []

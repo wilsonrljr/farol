@@ -8,9 +8,10 @@ the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 """
 
-from typing import TypedDict
 from collections.abc import Sequence
+from typing import TypedDict
 
+from ..core.costs import AdditionalCostsCalculator
 from ..core.protocols import (
     AdditionalCostsLike,
     AmortizationLike,
@@ -20,14 +21,12 @@ from ..core.protocols import (
     InvestmentTaxLike,
 )
 from ..domain import models as domain
-from ..domain.models import ComparisonScenario as DomainComparisonScenario
 from ..domain.mappers import comparison_result_to_api, enhanced_comparison_result_to_api
+from ..domain.models import ComparisonScenario as DomainComparisonScenario
 from ..models import ComparisonResult, EnhancedComparisonResult
 from .buy import BuyScenarioSimulator
 from .invest_then_buy import InvestThenBuyScenarioSimulator
 from .rent_and_invest import RentAndInvestScenarioSimulator
-
-from ..core.costs import AdditionalCostsCalculator
 
 
 def compare_scenarios(
@@ -45,6 +44,7 @@ def compare_scenarios(
     rent_inflation_rate: float | None = None,
     property_appreciation_rate: float | None = None,
     monthly_net_income: float | None = None,
+    monthly_net_income_adjust_inflation: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
@@ -66,6 +66,7 @@ def compare_scenarios(
         rent_inflation_rate=rent_inflation_rate,
         property_appreciation_rate=property_appreciation_rate,
         monthly_net_income=monthly_net_income,
+        monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
@@ -90,6 +91,7 @@ def _compare_scenarios_domain(
     rent_inflation_rate: float | None = None,
     property_appreciation_rate: float | None = None,
     monthly_net_income: float | None = None,
+    monthly_net_income_adjust_inflation: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
@@ -130,6 +132,8 @@ def _compare_scenarios_domain(
         investment_returns=list(investment_returns) if investment_returns else None,
         investment_tax=investment_tax,
         contributions=contributions,
+        monthly_net_income=monthly_net_income,
+        monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
     ).simulate_domain()
 
     rent = RentAndInvestScenarioSimulator(
@@ -139,6 +143,7 @@ def _compare_scenarios_domain(
         rent_value=rent_value,
         investment_returns=investment_returns,
         additional_costs=additional_costs,
+        monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
         inflation_rate=inflation_rate,
         rent_inflation_rate=rent_inflation_rate,
         property_appreciation_rate=property_appreciation_rate,
@@ -164,6 +169,7 @@ def _compare_scenarios_domain(
         contributions=contributions,
         continue_contributions_after_purchase=continue_contributions_after_purchase,
         monthly_net_income=monthly_net_income,
+        monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=fgts,
         initial_investment=invest_buy_initial,
@@ -212,6 +218,7 @@ def enhanced_compare_scenarios(
     rent_inflation_rate: float | None = None,
     property_appreciation_rate: float | None = None,
     monthly_net_income: float | None = None,
+    monthly_net_income_adjust_inflation: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
@@ -233,6 +240,7 @@ def enhanced_compare_scenarios(
         rent_inflation_rate=rent_inflation_rate,
         property_appreciation_rate=property_appreciation_rate,
         monthly_net_income=monthly_net_income,
+        monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,
@@ -257,6 +265,7 @@ def _enhanced_compare_scenarios_domain(
     rent_inflation_rate: float | None = None,
     property_appreciation_rate: float | None = None,
     monthly_net_income: float | None = None,
+    monthly_net_income_adjust_inflation: bool = False,
     investment_tax: InvestmentTaxLike | None = None,
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
@@ -277,6 +286,7 @@ def _enhanced_compare_scenarios_domain(
         rent_inflation_rate=rent_inflation_rate,
         property_appreciation_rate=property_appreciation_rate,
         monthly_net_income=monthly_net_income,
+        monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
         investment_tax=investment_tax,
         fgts=fgts,
         total_savings=total_savings,

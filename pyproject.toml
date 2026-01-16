@@ -84,3 +84,8 @@ known-first-party = ["backend"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+]

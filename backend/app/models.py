@@ -564,6 +564,12 @@ class ComparisonInput(BaseModel):
             "the shortfall is tracked (housing_shortfall)."
         ),
     )
+    monthly_net_income_adjust_inflation: bool = Field(
+        False,
+        description=(
+            "If true, monthly net income is adjusted by inflation over time (uses inflation_rate)."
+        ),
+    )
 
     investment_tax: InvestmentTaxInput | None = Field(
         None,

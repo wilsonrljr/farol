@@ -58,6 +58,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
     # Scheduled investment contributions (aportes) - for consistency with other scenarios
     contributions: Sequence[ContributionLike] | None = field(default=None)
 
+    # Monthly net income (optional): housing costs are paid from this income;
+    # any surplus is invested. This keeps the buy scenario consistent with
+    # rent/invest behavior, especially after early payoff.
+    monthly_net_income: float | None = field(default=None)
+    monthly_net_income_adjust_inflation: bool = field(default=False)
+
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
     _fgts_used_at_purchase: float = field(init=False, default=0.0)
@@ -105,7 +111,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
         # Check if we need investment tracking (for opportunity cost or contributions)
         has_contributions = bool(self.contributions)
-        needs_investment_tracking = self.initial_investment > 0 or has_contributions
+        has_income_surplus = bool(
+            self.monthly_net_income and self.monthly_net_income > 0
+        )
+        needs_investment_tracking = (
+            self.initial_investment > 0 or has_contributions or has_income_surplus
+        )
 
         # Initialize investment tracking for opportunity cost and/or contributions.
         # We use the same InvestmentAccount engine used by the other scenarios.
@@ -164,6 +175,43 @@ class BuyScenarioSimulator(ScenarioSimulator):
             self._total_contributions += contrib_total
 
         return contrib_fixed, contrib_pct, contrib_total
+
+    def _process_monthly_cashflows(
+        self, housing_due: float, month: int
+    ) -> dict[str, float]:
+        """Process monthly cashflows based on income (if provided).
+
+        When monthly_net_income is provided:
+        - Housing costs are paid from income
+        - Surplus income is invested
+        - Shortfall is tracked as housing_shortfall
+
+        When monthly_net_income is not provided:
+        - Housing is assumed paid externally (legacy behavior)
+        """
+        income_cover = 0.0
+        income_surplus_invested = 0.0
+        actual_housing_paid = housing_due
+
+        effective_income = self.get_effective_monthly_net_income(
+            month,
+            self.monthly_net_income,
+            self.monthly_net_income_adjust_inflation,
+        )
+
+        if effective_income is not None and effective_income > 0:
+            income_cover = min(housing_due, effective_income)
+            income_surplus_invested = max(0.0, effective_income - income_cover)
+            actual_housing_paid = income_cover
+
+        housing_shortfall = max(0.0, housing_due - actual_housing_paid)
+
+        return {
+            "income_cover": income_cover,
+            "income_surplus_invested": income_surplus_invested,
+            "actual_housing_paid": actual_housing_paid,
+            "housing_shortfall": housing_shortfall,
+        }
 
     def simulate(self) -> ComparisonScenario:
         """Run the buy scenario simulation (API model)."""
@@ -368,6 +416,17 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 - extra_amortization_13_salario,
             )
 
+            extra_total = (
+                extra_amortization_cash
+                + extra_amortization_fgts
+                + extra_amortization_bonus
+                + extra_amortization_13_salario
+            )
+            installment_base = max(0.0, installment_value - extra_total)
+            housing_due = (
+                installment_base + monthly_additional + extra_amortization_cash
+            )
+
             cumulative_payments += installment_value + monthly_additional
             cumulative_interest += interest_value
 
@@ -375,6 +434,17 @@ class BuyScenarioSimulator(ScenarioSimulator):
             contrib_fixed, contrib_pct, contrib_total = self._apply_contributions(month)
             if contrib_total > 0:
                 cumulative_payments += contrib_total
+
+            cashflow_result = self._process_monthly_cashflows(housing_due, month)
+
+            income_surplus_invested = 0.0
+            if (
+                self._investment_account is not None
+                and cashflow_result["income_surplus_invested"] > 0
+            ):
+                income_surplus_invested = cashflow_result["income_surplus_invested"]
+                self._investment_account.deposit(income_surplus_invested)
+                cumulative_payments += income_surplus_invested
 
             # Apply investment returns for opportunity cost tracking
             if self._investment_account is not None:
@@ -401,6 +471,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 contrib_fixed,
                 contrib_pct,
                 contrib_total,
+                housing_due,
+                cashflow_result["actual_housing_paid"],
+                cashflow_result["housing_shortfall"],
+                cashflow_result["income_cover"],
+                income_surplus_invested,
             )
             self._monthly_data.append(record)
 
@@ -426,6 +501,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
         contrib_fixed: float = 0.0,
         contrib_pct: float = 0.0,
         contrib_total: float = 0.0,
+        housing_due: float = 0.0,
+        housing_paid: float = 0.0,
+        housing_shortfall: float = 0.0,
+        external_cover: float = 0.0,
+        external_surplus_invested: float = 0.0,
     ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment."""
         equity = property_value - outstanding_balance
@@ -442,9 +522,13 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 upfront_and_initial += self.initial_investment
                 initial_allocation += self.initial_investment
 
-        # Include contributions in total monthly cost
+        # Include contributions and income surplus invested in total monthly cost
         total_monthly_cost = (
-            installment_value + monthly_additional + upfront_and_initial + contrib_total
+            installment_value
+            + monthly_additional
+            + upfront_and_initial
+            + contrib_total
+            + external_surplus_invested
         )
 
         extra_total = (
@@ -503,10 +587,22 @@ class BuyScenarioSimulator(ScenarioSimulator):
             fgts_used=(
                 self._fgts_used_at_purchase if (self.fgts and month == 1) else 0.0
             ),
+            housing_due=housing_due,
+            housing_paid=housing_paid,
+            housing_shortfall=housing_shortfall,
+            external_cover=external_cover if external_cover > 0 else None,
+            external_surplus_invested=(
+                external_surplus_invested if external_surplus_invested > 0 else None
+            ),
             # Contributions (for consistency with other scenarios)
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
             extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
             extra_contribution_total=contrib_total if contrib_total > 0 else None,
+            additional_investment=(
+                (contrib_total + external_surplus_invested)
+                if (contrib_total + external_surplus_invested) > 0
+                else None
+            ),
         )
 
     def _build_fgts_summary(self) -> None:

@@ -101,6 +101,21 @@ class ScenarioSimulator(ABC):
             month, self.inflation_rate
         )
 
+    def get_effective_monthly_net_income(
+        self,
+        month: int,
+        base_income: float | None,
+        adjust_inflation: bool,
+    ) -> float | None:
+        """Resolve monthly net income, optionally adjusted by inflation."""
+        if base_income is None:
+            return None
+        if not adjust_inflation:
+            return base_income
+        if self.inflation_rate is None:
+            return base_income
+        return apply_inflation(base_income, month, 1, self.inflation_rate)
+
     @abstractmethod
     def simulate(self) -> ComparisonScenario:
         """Run the scenario simulation."""
