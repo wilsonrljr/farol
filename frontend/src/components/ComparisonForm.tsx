@@ -280,154 +280,57 @@ export default function ComparisonForm() {
 
   return (
     <Stack gap="xl">
-      {/* Quick Summary Card */}
+      {/* Preset Management - First section for loading saved configurations */}
       <Paper
-        p="lg"
+        p="md"
         radius="xl"
         style={{
           border: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+          backgroundColor: 'var(--mantine-color-body)',
         }}
       >
-        <Group justify="space-between" align="flex-start" wrap="wrap" gap="lg">
+        <Group justify="space-between" align="center" wrap="wrap" gap="md">
           <Group gap="sm">
-            <ThemeIcon size={36} radius="lg" variant="light" color="sage">
-              <IconChartLine size={18} />
+            <ThemeIcon size={32} radius="lg" variant="light" color="sage">
+              <IconSettings size={16} />
             </ThemeIcon>
             <Box>
-              <Text fw={600} c="bright">
-                Resumo da simulação
+              <Text fw={600} size="sm" c="bright">
+                Presets
               </Text>
               <Text size="xs" c="dimmed">
-                O que você está simulando
+                Salve e carregue configurações
               </Text>
             </Box>
           </Group>
-          <Group gap="xl" wrap="wrap">
-            <Box ta="center">
-              <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                Valor do imóvel
-              </Text>
-              <Text size="lg" fw={700} c="bright">
-                {money(propertyValue)}
-              </Text>
-            </Box>
-            <Tooltip 
-              label="Entrada em dinheiro (não inclui FGTS, que é configurado separadamente)"
-              withArrow
-            >
-              <Box ta="center" style={{ cursor: 'help' }}>
-                <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                  Entrada (dinheiro)
-                </Text>
-                <Text size="lg" fw={700} c="bright">
-                  {money(downPayment)} ({downPaymentPct.toFixed(0)}%)
-                </Text>
-              </Box>
-            </Tooltip>
-            {upfrontCosts > 0 && (
-              <Tooltip 
-                label="Custos obrigatórios pagos na compra: ITBI (imposto) + escritura. Estes valores são descontados do seu patrimônio."
-                withArrow
-              >
-                <Box ta="center" style={{ cursor: 'help' }}>
-                  <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                    ITBI + Escritura
-                  </Text>
-                  <Text size="lg" fw={700} c="warning.6">
-                    {money(upfrontCosts)}
-                  </Text>
-                </Box>
-              </Tooltip>
-            )}
-            <Box ta="center">
-              <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                Valor financiado
-              </Text>
-              <Text size="lg" fw={700} c="sage.9">
-                {money(loanAmount)}
-              </Text>
-            </Box>
-            {totalSavings > 0 && (
-              <Tooltip 
-                label={`Patrimônio (${money(totalSavings)}) - Entrada (${money(downPayment)}) - ITBI/Escritura (${money(upfrontCosts)}) = Capital para investir`}
-                withArrow
-                multiline
-                w={300}
-              >
-                <Box ta="center" style={{ cursor: 'help' }}>
-                  <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                    Capital para investir
-                  </Text>
-                  <Text size="lg" fw={700} c={insufficientSavings ? 'danger.6' : 'sage.9'}>
-                    {insufficientSavings ? 'Insuficiente' : money(initialInvestment)}
-                  </Text>
-                </Box>
-              </Tooltip>
-            )}
-            <Box ta="center">
-              <Text size="xs" c="sage.6" tt="uppercase" fw={500}>
-                Aluguel mensal
-              </Text>
-              <Text size="lg" fw={700} c="sage.9">
-                {money(rentValue)}
-              </Text>
-            </Box>
+          <Group gap="xs">
+            <PresetManager<ComparisonInput>
+              presets={presetsManager.presets}
+              onSave={(name, description, tags) => presetsManager.addPreset(name, form.values, description, tags)}
+              onLoad={handleLoadPreset}
+              onDelete={presetsManager.removePreset}
+              onDuplicate={presetsManager.duplicatePreset}
+              onEdit={(id, updates) => presetsManager.editPreset(id, updates)}
+              onExportAll={presetsManager.exportAllPresets}
+              onExportSelected={presetsManager.exportSelectedPresets}
+              onImport={presetsManager.importPresets}
+              onClearAll={presetsManager.clearAllPresets}
+              onCompare={handleBatchCompare}
+              isCompareLoading={batchLoading}
+              minCompareSelection={2}
+              allTags={presetsManager.allTags}
+              onAddTag={presetsManager.addTagToPreset}
+              onRemoveTag={presetsManager.removeTagFromPreset}
+              isLoading={loading}
+            />
+            <PresetCompareSelector
+              presets={presetsManager.presets}
+              onCompare={handleBatchCompare}
+              isLoading={batchLoading}
+            />
           </Group>
         </Group>
-        
-        {/* Warning when savings are insufficient */}
-        {insufficientSavings && (
-          <Box 
-            mt="md" 
-            p="sm" 
-            style={{ 
-              backgroundColor: 'var(--mantine-color-danger-0)', 
-              borderRadius: 'var(--mantine-radius-md)',
-              border: '1px solid var(--mantine-color-danger-3)'
-            }}
-          >
-            <Text size="sm" c="danger.7" fw={500}>
-              ⚠️ Patrimônio insuficiente para cobrir entrada + custos de compra
-            </Text>
-            <Text size="xs" c="danger.6">
-              Você informou {money(totalSavings)} de patrimônio, mas precisa de pelo menos {money(minRequiredSavings)} 
-              ({money(downPayment)} de entrada + {money(upfrontCosts)} de ITBI/escritura).
-              Aumente o patrimônio ou reduza a entrada.
-            </Text>
-          </Box>
-        )}
       </Paper>
-
-      {/* Preset Management */}
-      <Group justify="space-between" align="center">
-        <PresetManager<ComparisonInput>
-          presets={presetsManager.presets}
-          onSave={(name, description, tags) => presetsManager.addPreset(name, form.values, description, tags)}
-          onLoad={handleLoadPreset}
-          onDelete={presetsManager.removePreset}
-          onDuplicate={presetsManager.duplicatePreset}
-          onEdit={(id, updates) => presetsManager.editPreset(id, updates)}
-          onExportAll={presetsManager.exportAllPresets}
-          onExportSelected={presetsManager.exportSelectedPresets}
-          onImport={presetsManager.importPresets}
-          onClearAll={presetsManager.clearAllPresets}
-          // Quick Compare
-          onCompare={handleBatchCompare}
-          isCompareLoading={batchLoading}
-          minCompareSelection={2}
-          // Tag management
-          allTags={presetsManager.allTags}
-          onAddTag={presetsManager.addTagToPreset}
-          onRemoveTag={presetsManager.removeTagFromPreset}
-          isLoading={loading}
-        />
-        <PresetCompareSelector
-          presets={presetsManager.presets}
-          onCompare={handleBatchCompare}
-          isLoading={batchLoading}
-        />
-      </Group>
 
       {/* Form Section */}
       <form onSubmit={form.onSubmit(onSubmit)}>
@@ -1001,27 +904,139 @@ export default function ComparisonForm() {
                   </Stack>
                 </Tabs.Panel>
               </Tabs>
-
-              <Divider my="lg" color="sage.2" />
-
-              <Button
-                type="submit"
-                loading={loading}
-                size="lg"
-                radius="lg"
-                fullWidth
-                rightSection={<IconArrowRight size={18} />}
-                style={{
-                  height: rem(52),
-                  fontSize: rem(15),
-                  fontWeight: 600,
-                }}
-              >
-                Simular Comprar vs Alugar
-              </Button>
             </FormSection>
           )}
         </FormWizard>
+
+        {/* Simulation Summary and Submit - Always visible */}
+        <Paper
+          p="lg"
+          radius="xl"
+          mt="xl"
+          style={{
+            border: '1px solid var(--mantine-color-default-border)',
+            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+          }}
+        >
+          <Stack gap="md">
+            <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+              <Group gap="sm">
+                <ThemeIcon size={32} radius="lg" variant="light" color="sage">
+                  <IconChartLine size={16} />
+                </ThemeIcon>
+                <Box>
+                  <Text fw={600} size="sm" c="bright">
+                    Resumo da simulação
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Confira os valores antes de simular
+                  </Text>
+                </Box>
+              </Group>
+            </Group>
+            
+            <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }} spacing="md">
+              <Box>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+                  Imóvel
+                </Text>
+                <Text size="sm" fw={600} c="bright">
+                  {money(propertyValue)}
+                </Text>
+              </Box>
+              <Tooltip label="Entrada em dinheiro (FGTS é somado separadamente)" withArrow>
+                <Box style={{ cursor: 'help' }}>
+                  <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+                    Entrada
+                  </Text>
+                  <Text size="sm" fw={600} c="bright">
+                    {money(downPayment)} ({downPaymentPct.toFixed(0)}%)
+                  </Text>
+                </Box>
+              </Tooltip>
+              <Box>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+                  Financiado
+                </Text>
+                <Text size="sm" fw={600} c="sage.7">
+                  {money(loanAmount)}
+                </Text>
+              </Box>
+              {upfrontCosts > 0 && (
+                <Tooltip label="ITBI + Escritura (custos de compra)" withArrow>
+                  <Box style={{ cursor: 'help' }}>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+                      Custos
+                    </Text>
+                    <Text size="sm" fw={600} c="warning.6">
+                      {money(upfrontCosts)}
+                    </Text>
+                  </Box>
+                </Tooltip>
+              )}
+              {totalSavings > 0 && (
+                <Tooltip 
+                  label={`Patrimônio - Entrada - Custos = Capital para investir`}
+                  withArrow
+                >
+                  <Box style={{ cursor: 'help' }}>
+                    <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+                      Investir
+                    </Text>
+                    <Text size="sm" fw={600} c={insufficientSavings ? 'danger.6' : 'sage.7'}>
+                      {insufficientSavings ? 'Insuficiente' : money(initialInvestment)}
+                    </Text>
+                  </Box>
+                </Tooltip>
+              )}
+              <Box>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+                  Aluguel
+                </Text>
+                <Text size="sm" fw={600} c="sage.7">
+                  {money(rentValue)}
+                </Text>
+              </Box>
+            </SimpleGrid>
+
+            {/* Warning when savings are insufficient */}
+            {insufficientSavings && (
+              <Box 
+                p="sm" 
+                style={{ 
+                  backgroundColor: 'var(--mantine-color-danger-0)', 
+                  borderRadius: 'var(--mantine-radius-md)',
+                  border: '1px solid var(--mantine-color-danger-3)'
+                }}
+              >
+                <Text size="sm" c="danger.7" fw={500}>
+                  ⚠️ Patrimônio insuficiente
+                </Text>
+                <Text size="xs" c="danger.6">
+                  Você precisa de {money(minRequiredSavings)} ({money(downPayment)} entrada + {money(upfrontCosts)} custos).
+                </Text>
+              </Box>
+            )}
+
+            <Divider color="var(--mantine-color-default-border)" />
+
+            <Button
+              type="submit"
+              loading={loading}
+              size="lg"
+              radius="lg"
+              fullWidth
+              rightSection={<IconArrowRight size={18} />}
+              style={{
+                height: rem(52),
+                fontSize: rem(15),
+                fontWeight: 600,
+              }}
+            >
+              Simular Comprar vs Alugar
+            </Button>
+          </Stack>
+        </Paper>
       </form>
 
       {/* Single Simulation Results */}

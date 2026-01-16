@@ -15,8 +15,11 @@ import {
   Text,
   ThemeIcon,
   Tooltip,
+  Badge,
+  UnstyledButton,
+  rem,
 } from '@mantine/core';
-import { IconCalendar, IconCoin, IconEye, IconInfoCircle, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconCalendar, IconCoin, IconEye, IconInfoCircle, IconPlus, IconTrash, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
 import type { AmortizationInput } from '../api/types';
 
 interface UIText {
@@ -62,6 +65,27 @@ export default function AmortizationsFieldArray({
   };
 
   const [showPreview, setShowPreview] = useState(false);
+  const [collapsedItems, setCollapsedItems] = useState<Set<number>>(new Set());
+
+  const toggleItemCollapse = (idx: number) => {
+    setCollapsedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  };
+
+  const collapseAll = () => {
+    setCollapsedItems(new Set((value || []).map((_, i) => i)));
+  };
+
+  const expandAll = () => {
+    setCollapsedItems(new Set());
+  };
 
   const previewData = useMemo(() => {
     const out: { month: number; fixed: number; pct: number; fixedInflated: number }[] = [];
@@ -125,11 +149,37 @@ export default function AmortizationsFieldArray({
           <Text fw={600} c="sage.8">
             {ui.configuredTitle}
           </Text>
-          <Text size="xs" c="sage.5">
-            ({(value || []).length})
-          </Text>
+          <Badge size="sm" variant="light" color="sage" radius="sm">
+            {(value || []).length}
+          </Badge>
         </Group>
         <Group gap="xs">
+          {(value || []).length > 1 && (
+            <>
+              <Tooltip label="Minimizar todos">
+                <ActionIcon
+                  variant="subtle"
+                  color="sage"
+                  size="md"
+                  radius="lg"
+                  onClick={collapseAll}
+                >
+                  <IconChevronRight size={16} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Expandir todos">
+                <ActionIcon
+                  variant="subtle"
+                  color="sage"
+                  size="md"
+                  radius="lg"
+                  onClick={expandAll}
+                >
+                  <IconChevronDown size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </>
+          )}
           <Tooltip label="Pré-visualizar meses gerados">
             <ActionIcon
               variant={showPreview ? 'filled' : 'light'}
@@ -191,38 +241,77 @@ export default function AmortizationsFieldArray({
       )}
 
       {/* Amortization Items */}
-      {(value || []).map((item, idx) => (
-        <Paper
-          key={idx}
-          p="md"
-          radius="lg"
-          style={{
-            border: '1px solid var(--mantine-color-default-border)',
-            backgroundColor: 'var(--mantine-color-body)',
-          }}
-        >
-          <Stack gap="md">
-            <Group justify="space-between">
-              <Group gap="xs">
-                <ThemeIcon size={32} radius="lg" variant="light" color="sage">
-                  <IconCalendar size={16} />
-                </ThemeIcon>
-                <Text fw={500} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
-                  {ui.itemLabel} {idx + 1}
-                </Text>
-              </Group>
-              <ActionIcon
-                color="danger"
-                variant="subtle"
-                size="md"
-                radius="lg"
-                onClick={() => onChange(value.filter((_, i) => i !== idx))}
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Group>
+      {(value || []).map((item, idx) => {
+        const isCollapsed = collapsedItems.has(idx);
+        const itemSummary = item.value_type === 'percentage'
+          ? `${item.value}% do saldo`
+          : `R$ ${item.value?.toLocaleString('pt-BR')}`;
+        const recurrenceLabel = item.interval_months
+          ? `a cada ${item.interval_months} meses`
+          : 'única';
 
-            <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : 3 }} spacing="md">
+        return (
+          <Paper
+            key={idx}
+            p={isCollapsed ? 'sm' : 'md'}
+            radius="lg"
+            style={{
+              border: '1px solid var(--mantine-color-default-border)',
+              backgroundColor: 'var(--mantine-color-body)',
+              transition: 'all 200ms ease',
+            }}
+          >
+            <Stack gap={isCollapsed ? 0 : 'md'}>
+              {/* Header - Always visible, clickable to toggle */}
+              <UnstyledButton
+                onClick={() => toggleItemCollapse(idx)}
+                style={{ width: '100%' }}
+              >
+                <Group justify="space-between" wrap="nowrap">
+                  <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="sage"
+                      size="sm"
+                      radius="lg"
+                    >
+                      {isCollapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
+                    </ActionIcon>
+                    <ThemeIcon size={28} radius="lg" variant="light" color="sage">
+                      <IconCalendar size={14} />
+                    </ThemeIcon>
+                    <Box style={{ minWidth: 0, flex: 1 }}>
+                      <Group gap="xs" wrap="nowrap">
+                        <Text fw={500} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                          {ui.itemLabel} {idx + 1}
+                        </Text>
+                        {isCollapsed && (
+                          <Text size="xs" c="dimmed" lineClamp={1}>
+                            — Mês {item.month || 1} • {itemSummary} • {recurrenceLabel}
+                          </Text>
+                        )}
+                      </Group>
+                    </Box>
+                  </Group>
+                  <ActionIcon
+                    color="danger"
+                    variant="subtle"
+                    size="md"
+                    radius="lg"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onChange(value.filter((_, i) => i !== idx));
+                    }}
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Group>
+              </UnstyledButton>
+
+              {/* Collapsible content */}
+              <Collapse in={!isCollapsed}>
+                <Stack gap="md" pt="sm">
+                  <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : 3 }} spacing="md">
               <NumberInput
                 label="Mês inicial"
                 description="Quando começa"
@@ -402,9 +491,12 @@ export default function AmortizationsFieldArray({
                 </Box>
               )}
             </SimpleGrid>
-          </Stack>
-        </Paper>
-      ))}
+                </Stack>
+              </Collapse>
+            </Stack>
+          </Paper>
+        );
+      })}
 
       {/* Preview Panel */}
       <Collapse in={showPreview}>
