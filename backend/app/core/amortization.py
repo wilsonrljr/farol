@@ -135,3 +135,48 @@ def _distribute_amortization(
             if amort.inflation_adjust:
                 value = apply_inflation(value, month, base_month, annual_inflation_rate)
             fixed_by_month[month] += value
+
+
+def expand_amortization_to_months(
+    amortizations: Sequence[AmortizationOrContributionLike] | None,
+    term_months: int,
+    annual_inflation_rate: float | None = None,
+) -> dict[int, float]:
+    """Expand amortizations to a per-month value mapping.
+
+    Similar to preprocess_amortizations but returns a simple month->value dict
+    that sums all fixed amortization values for each month. Percentages are ignored.
+
+    Args:
+        amortizations: List of amortization configurations.
+        term_months: Total loan term in months.
+        annual_inflation_rate: Annual inflation rate for adjustments.
+
+    Returns:
+        Dictionary mapping month number to total fixed amortization value.
+    """
+    if not amortizations:
+        return {}
+
+    fixed_by_month: dict[int, float] = defaultdict(float)
+
+    for amort in amortizations:
+        months = _get_amortization_months(amort, term_months)
+        if not months:
+            continue
+
+        base_month = months[0]
+        for month in months:
+            if month < 1 or month > term_months:
+                continue
+
+            if amort.value_type == "percentage":
+                # Skip percentages for this helper - only fixed values
+                continue
+
+            value = amort.value
+            if amort.inflation_adjust:
+                value = apply_inflation(value, month, base_month, annual_inflation_rate)
+            fixed_by_month[month] += value
+
+    return dict(fixed_by_month)

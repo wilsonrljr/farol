@@ -287,13 +287,15 @@ export default function AmortizationsFieldArray({
                     const next = [...(value || [])];
                     next[idx] = {
                       ...next[idx],
-                      funding_source: (val as 'cash' | 'fgts') || 'cash',
+                      funding_source: (val as 'cash' | 'fgts' | 'bonus' | '13_salario') || 'cash',
                     } as any;
                     onChange(next as any);
                   }}
                   data={[
                     { value: 'cash', label: '💵 Recursos Próprios' },
                     { value: 'fgts', label: '🏦 FGTS' },
+                    { value: '13_salario', label: '🎄 13º Salário' },
+                    { value: 'bonus', label: '🎯 Bônus' },
                   ]}
                 />
               )}

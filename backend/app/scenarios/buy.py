@@ -11,6 +11,7 @@ the Free Software Foundation, either version 3 of the License, or
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from ..core.amortization import expand_amortization_to_months
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount
 from ..core.protocols import (
@@ -65,6 +66,14 @@ class BuyScenarioSimulator(ScenarioSimulator):
     _fgts_amortizations: Sequence[AmortizationLike] | None = field(
         init=False, default=None
     )
+    _bonus_amortizations: Sequence[AmortizationLike] | None = field(
+        init=False, default=None
+    )
+    _13_salario_amortizations: Sequence[AmortizationLike] | None = field(
+        init=False, default=None
+    )
+    _bonus_by_month: dict[int, float] = field(init=False, default_factory=dict)
+    _13_salario_by_month: dict[int, float] = field(init=False, default_factory=dict)
     _loan_value: float = field(init=False, default=0.0)
     _total_upfront_costs: float = field(init=False, default=0.0)
     _total_monthly_additional_costs: float = field(init=False, default=0.0)
@@ -145,20 +154,42 @@ class BuyScenarioSimulator(ScenarioSimulator):
         )
 
     def _split_amortizations(self) -> None:
-        """Separate amortizations by funding source (cash vs FGTS)."""
+        """Separate amortizations by funding source (cash, FGTS, bonus, 13_salario).
+        
+        All non-FGTS sources are treated as cash for loan purposes, but we track
+        bonus and 13_salario separately for affordability analysis.
+        """
 
         cash: list[AmortizationLike] = []
         fgts: list[AmortizationLike] = []
+        bonus: list[AmortizationLike] = []
+        decimo_terceiro: list[AmortizationLike] = []
 
         for amort in self.amortizations or []:
             source = getattr(amort, "funding_source", None) or "cash"
             if source == "fgts":
                 fgts.append(amort)
+            elif source == "bonus":
+                bonus.append(amort)
+                cash.append(amort)  # Also include in cash for loan simulation
+            elif source == "13_salario":
+                decimo_terceiro.append(amort)
+                cash.append(amort)  # Also include in cash for loan simulation
             else:
                 cash.append(amort)
 
         self._cash_amortizations = cash or None
         self._fgts_amortizations = fgts or None
+        self._bonus_amortizations = bonus or None
+        self._13_salario_amortizations = decimo_terceiro or None
+
+        # Expand bonus and 13_salario to per-month values for tracking
+        self._bonus_by_month = expand_amortization_to_months(
+            bonus, self.term_months, self.inflation_rate
+        )
+        self._13_salario_by_month = expand_amortization_to_months(
+            decimo_terceiro, self.term_months, self.inflation_rate
+        )
 
     def _simulate_loan(self) -> None:
         """Simulate the loan using appropriate method."""
@@ -260,6 +291,10 @@ class BuyScenarioSimulator(ScenarioSimulator):
             )
             outstanding_balance = inst.outstanding_balance if inst is not None else 0.0
 
+            # Get bonus and 13_salario values for this month (for affordability tracking)
+            extra_amortization_bonus = self._bonus_by_month.get(month, 0.0)
+            extra_amortization_13_salario = self._13_salario_by_month.get(month, 0.0)
+
             cumulative_payments += installment_value + monthly_additional
             cumulative_interest += interest_value
 
@@ -281,6 +316,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 extra_amortization_value,
                 extra_amortization_cash,
                 extra_amortization_fgts,
+                extra_amortization_bonus,
+                extra_amortization_13_salario,
                 outstanding_balance,
                 fgts_balance_current,
             )
@@ -301,6 +338,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
         extra_amortization_value: float,
         extra_amortization_cash: float,
         extra_amortization_fgts: float,
+        extra_amortization_bonus: float,
+        extra_amortization_13_salario: float,
         outstanding_balance: float,
         fgts_balance_current: float | None,
     ) -> DomainMonthlyRecord:
@@ -348,6 +387,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
             extra_amortization=extra_amortization_value,
             extra_amortization_cash=extra_amortization_cash,
             extra_amortization_fgts=extra_amortization_fgts,
+            extra_amortization_bonus=extra_amortization_bonus or None,
+            extra_amortization_13_salario=extra_amortization_13_salario or None,
             outstanding_balance=outstanding_balance,
             initial_allocation=initial_allocation,
             monthly_hoa=monthly_hoa,

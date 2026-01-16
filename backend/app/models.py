@@ -122,9 +122,9 @@ class AmortizationInput(BaseModel):
         False,
         description="If true, fixed values are inflation-adjusted from the first occurrence month",
     )
-    funding_source: Literal["cash", "fgts"] | None = Field(
+    funding_source: Literal["cash", "fgts", "bonus", "13_salario"] | None = Field(
         "cash",
-        description="Source of funds for extra amortization: cash (default) or FGTS",
+        description="Source of funds for extra amortization: cash (default), FGTS, bonus, or 13_salario (13th salary)",
     )
 
     @model_validator(mode="after")
@@ -338,6 +338,8 @@ class MonthlyRecord(BaseModel):
     extra_amortization: float | None = None
     extra_amortization_cash: float | None = None
     extra_amortization_fgts: float | None = None
+    extra_amortization_bonus: float | None = None
+    extra_amortization_13_salario: float | None = None
     outstanding_balance: float | None = None
     equity_percentage: float | None = None
 

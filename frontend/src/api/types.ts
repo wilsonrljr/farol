@@ -10,7 +10,7 @@ export interface AmortizationInput {
   occurrences?: number | null; // alternative to end_month
   value_type?: 'fixed' | 'percentage';
   inflation_adjust?: boolean; // adjust fixed values by inflation
-  funding_source?: 'cash' | 'fgts';
+  funding_source?: 'cash' | 'fgts' | 'bonus' | '13_salario';
 }
 
 // Mirrors backend ContributionInput (same recurrence fields as AmortizationInput,
@@ -126,6 +126,8 @@ export interface MonthlyRecord {
   extra_amortization?: number;
   extra_amortization_cash?: number;
   extra_amortization_fgts?: number;
+  extra_amortization_bonus?: number;
+  extra_amortization_13_salario?: number;
   outstanding_balance?: number;
   equity_percentage?: number;
 

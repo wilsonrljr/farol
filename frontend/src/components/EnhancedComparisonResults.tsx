@@ -55,19 +55,36 @@ import {
 } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 
-const recurringHousingCost = (m: any) => {
+/**
+ * Calculates the recurring housing cost for a month.
+ * For affordability analysis, we can optionally include extra amortizations.
+ * Bonus and 13_salario amortizations are excluded from affordability since they
+ * are funded by extraordinary income, not regular monthly income.
+ */
+const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
+  // Base cost calculation
+  let baseCost = 0;
+
   // Prefer explicit housing_due when provided (rent + HOA/IPTU).
-  if (m?.housing_due != null) return m.housing_due;
+  if (m?.housing_due != null) {
+    baseCost = m.housing_due;
+  } else if (m?.installment != null) {
+    // For buy scenario (and some post-purchase months), approximate housing as installment + recurring costs.
+    const installment = m?.installment ?? 0;
+    const additional = m?.monthly_additional_costs ?? 0;
+    baseCost = installment + additional;
+  } else if (m?.monthly_additional_costs != null) {
+    // Post-purchase invest-buy months may have only HOA/IPTU.
+    baseCost = m?.monthly_additional_costs ?? 0;
+  }
 
-  // For buy scenario (and some post-purchase months), approximate housing as installment + recurring costs.
-  const installment = m?.installment ?? 0;
-  const additional = m?.monthly_additional_costs ?? 0;
-  if (m?.installment != null) return installment + additional;
+  if (includeExtraAmortization) {
+    // Include cash amortizations but NOT bonus or 13_salario (those are extraordinary)
+    const extraCash = m?.extra_amortization_cash ?? 0;
+    baseCost += extraCash;
+  }
 
-  // Post-purchase invest-buy months may have only HOA/IPTU.
-  if (m?.monthly_additional_costs != null) return additional;
-
-  return 0;
+  return baseCost;
 };
 
 interface ScenarioCardNewProps {
@@ -100,7 +117,8 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
   const firstMonth = Array.isArray(s.monthly_data) && s.monthly_data.length > 0
     ? (s.monthly_data.find((m: any) => m.month === 1) || s.monthly_data[0])
     : null;
-  const housingCostMonth1 = firstMonth ? recurringHousingCost(firstMonth) : 0;
+  // For affordability analysis, include cash amortizations (but not bonus/13_salario)
+  const housingCostMonth1 = firstMonth ? recurringHousingCost(firstMonth, true) : 0;
   const incomeSurplusMonth1 =
     typeof monthlyNetIncome === 'number' ? monthlyNetIncome - housingCostMonth1 : null;
 
@@ -116,7 +134,8 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
     let maxHousingMonth = 1;
 
     for (const m of monthlyData) {
-      const cost = recurringHousingCost(m);
+      // Include cash amortizations for affordability (but not bonus/13_salario)
+      const cost = recurringHousingCost(m, true);
       if (cost > 0) {
         totalHousingCost += cost;
         validMonths++;
@@ -727,7 +746,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           let maxDeficit = 0;
           let maxDeficitMonth = 1;
           for (const m of monthlyData as any[]) {
-            const cost = recurringHousingCost(m);
+            // Include cash amortizations but not bonus/13_salario for affordability
+            const cost = recurringHousingCost(m, true);
             const deficit = cost - monthlyNetIncome;
             if (deficit > 0) {
               monthsNegative++;
@@ -1250,11 +1270,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               <Table.Th>Amortização</Table.Th>
                               <Table.Th>Extra (cash)</Table.Th>
                               <Table.Th>Extra (FGTS)</Table.Th>
+                              <Table.Th>Extra (Bônus)</Table.Th>
+                              <Table.Th>Extra (13º)</Table.Th>
                               <Table.Th>Saldo devedor</Table.Th>
                               <Table.Th>Custos (cond+IPTU)</Table.Th>
                               {monthlyNetIncome != null && (
                                 <Table.Th>
-                                  <Tooltip label="Renda líquida menos custo de moradia mensal (parcela + custos)" withArrow>
+                                  <Tooltip label="Renda líquida menos custo de moradia mensal (parcela + custos + amort. cash). Amortizações de Bônus e 13º não são consideradas." withArrow>
                                     <Text component="span" size="sm">Sobra</Text>
                                   </Tooltip>
                                 </Table.Th>
@@ -1276,9 +1298,12 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 ? m.extra_amortization_cash
                                 : (typeof m.extra_amortization === 'number' ? m.extra_amortization : 0);
                               const extraFgts = typeof m.extra_amortization_fgts === 'number' ? m.extra_amortization_fgts : 0;
+                              const extraBonus = typeof m.extra_amortization_bonus === 'number' ? m.extra_amortization_bonus : 0;
+                              const extra13Salario = typeof m.extra_amortization_13_salario === 'number' ? m.extra_amortization_13_salario : 0;
                               const monthlyCosts = typeof m.monthly_additional_costs === 'number' ? m.monthly_additional_costs : 0;
                               const upfront = typeof m.upfront_additional_costs === 'number' ? m.upfront_additional_costs : 0;
-                              const housingCost = installment + monthlyCosts;
+                              // Affordability: include cash amortizations but NOT bonus/13_salario (extraordinary income)
+                              const housingCost = installment + monthlyCosts + extraCash;
                               const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingCost : null;
                               const isNegativeSurplus = surplus != null && surplus < 0;
 
@@ -1301,6 +1326,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   <Table.Td>{moneySafe(principal)}</Table.Td>
                                   <Table.Td>{moneySafe(extraCash)}</Table.Td>
                                   <Table.Td>{moneySafe(extraFgts)}</Table.Td>
+                                  <Table.Td>{extraBonus > 0 ? moneySafe(extraBonus) : '—'}</Table.Td>
+                                  <Table.Td>{extra13Salario > 0 ? moneySafe(extra13Salario) : '—'}</Table.Td>
                                   <Table.Td>{moneySafe(m.outstanding_balance)}</Table.Td>
                                   <Table.Td>{moneySafe(monthlyCosts)}</Table.Td>
                                   {surplus != null && (

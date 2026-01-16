@@ -67,6 +67,8 @@ class MonthlyRecord:
     extra_amortization: float | None = None
     extra_amortization_cash: float | None = None
     extra_amortization_fgts: float | None = None
+    extra_amortization_bonus: float | None = None
+    extra_amortization_13_salario: float | None = None
     outstanding_balance: float | None = None
     equity_percentage: float | None = None
 
