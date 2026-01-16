@@ -57,10 +57,10 @@ interface InsightsDashboardProps {
 
 // Color mapping for insight types
 const INSIGHT_COLORS: Record<InsightType, string> = {
-  success: 'sage',
-  warning: 'orange',
-  info: 'blue',
-  opportunity: 'grape',
+  success: 'emerald',
+  warning: 'amber',
+  info: 'sky',
+  opportunity: 'violet',
 };
 
 const INSIGHT_ICONS: Record<InsightType, React.ReactNode> = {

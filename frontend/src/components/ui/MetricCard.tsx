@@ -36,13 +36,13 @@ export function MetricCard({
 
   const bgColors = {
     default: 'var(--mantine-color-body)',
-    highlight: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
-    subtle: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+    highlight: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
+    subtle: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
   };
 
   const borderColors = {
     default: 'var(--mantine-color-default-border)',
-    highlight: 'light-dark(var(--mantine-color-sage-3), var(--mantine-color-dark-5))',
+    highlight: 'light-dark(var(--mantine-color-ocean-3), var(--mantine-color-dark-5))',
     subtle: 'var(--mantine-color-default-border)',
   };
 
@@ -84,7 +84,7 @@ export function MetricCard({
             fw={600}
             c={
               variant === 'highlight'
-                ? 'light-dark(var(--mantine-color-sage-9), var(--mantine-color-text))'
+                ? 'light-dark(var(--mantine-color-ocean-9), var(--mantine-color-text))'
                 : 'bright'
             }
             style={{ fontSize: currentSize.value, lineHeight: 1.2 }}
@@ -102,7 +102,7 @@ export function MetricCard({
               <Text
                 size="xs"
                 fw={500}
-                c={trend.value >= 0 ? 'sage.7' : 'danger.6'}
+                c={trend.value >= 0 ? 'ocean.7' : 'danger.6'}
               >
                 {trend.value >= 0 ? '+' : ''}{trend.value}%
               </Text>
@@ -119,7 +119,7 @@ export function MetricCard({
             size={currentSize.icon}
             radius="lg"
             variant="light"
-            color="sage"
+            color="ocean"
           >
             {icon}
           </ThemeIcon>

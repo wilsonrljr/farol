@@ -182,7 +182,7 @@ export default function ComparisonForm() {
       notifications.show({
         title: "Comparação concluída",
         message: `${selectedPresets.length} presets analisados com sucesso`,
-        color: "sage",
+        color: "ocean",
       });
 
       // Scroll to results after a brief delay for DOM update
@@ -260,7 +260,7 @@ export default function ComparisonForm() {
       notifications.show({
         title: "Análise concluída",
         message: "Os resultados estão prontos abaixo",
-        color: "sage",
+        color: "ocean",
       });
       // Scroll to results
       setTimeout(() => {
@@ -291,7 +291,7 @@ export default function ComparisonForm() {
       >
         <Group justify="space-between" align="center" wrap="wrap" gap="md">
           <Group gap="sm">
-            <ThemeIcon size={32} radius="lg" variant="light" color="sage">
+            <ThemeIcon size={32} radius="lg" variant="light" color="ocean">
               <IconSettings size={16} />
             </ThemeIcon>
             <Box>
@@ -494,7 +494,7 @@ export default function ComparisonForm() {
                   />
                 </Grid.Col>
               </Grid>
-              <Text size="xs" c="sage.6" mt="sm">
+              <Text size="xs" c="ocean.6" mt="sm">
                 Informe apenas uma das taxas. A outra será calculada
                 automaticamente.
               </Text>
@@ -582,7 +582,7 @@ export default function ComparisonForm() {
               description="Refina a simulação com hipóteses e regras adicionais."
               icon={<IconSettings size={20} />}
             >
-              <Tabs defaultValue="inflacao" variant="pills" color="sage">
+              <Tabs defaultValue="inflacao" variant="pills" color="ocean">
                 <Tabs.List>
                   <Tabs.Tab
                     value="inflacao"
@@ -846,7 +846,7 @@ export default function ComparisonForm() {
                       />
                     </Grid.Col>
                   </Grid>
-                  <Text size="xs" c="sage.6" mt="md">
+                  <Text size="xs" c="ocean.6" mt="md">
                     Esta é uma aproximação. O IR real depende do tipo de
                     investimento e prazo.
                   </Text>
@@ -879,7 +879,7 @@ export default function ComparisonForm() {
                       })}
                     />
 
-                    <Divider color="sage.2" />
+                    <Divider color="ocean.2" />
                     
                     <AmortizationsFieldArray
                       value={form.values.contributions || []}
@@ -915,13 +915,13 @@ export default function ComparisonForm() {
           mt="xl"
           style={{
             border: '1px solid var(--mantine-color-default-border)',
-            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
           }}
         >
           <Stack gap="md">
             <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
               <Group gap="sm">
-                <ThemeIcon size={32} radius="lg" variant="light" color="sage">
+                <ThemeIcon size={32} radius="lg" variant="light" color="ocean">
                   <IconChartLine size={16} />
                 </ThemeIcon>
                 <Box>
@@ -958,7 +958,7 @@ export default function ComparisonForm() {
                 <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
                   Financiado
                 </Text>
-                <Text size="sm" fw={600} c="sage.7">
+                <Text size="sm" fw={600} c="ocean.7">
                   {money(loanAmount)}
                 </Text>
               </Box>
@@ -983,7 +983,7 @@ export default function ComparisonForm() {
                     <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
                       Investir
                     </Text>
-                    <Text size="sm" fw={600} c={insufficientSavings ? 'danger.6' : 'sage.7'}>
+                    <Text size="sm" fw={600} c={insufficientSavings ? 'danger.6' : 'ocean.7'}>
                       {insufficientSavings ? 'Insuficiente' : money(initialInvestment)}
                     </Text>
                   </Box>
@@ -993,7 +993,7 @@ export default function ComparisonForm() {
                 <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
                   Aluguel
                 </Text>
-                <Text size="sm" fw={600} c="sage.7">
+                <Text size="sm" fw={600} c="ocean.7">
                   {money(rentValue)}
                 </Text>
               </Box>

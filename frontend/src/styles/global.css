@@ -1,4 +1,5 @@
-/* Farol Design System - Global Styles */
+/* Farol Design System v2 - Global Styles */
+/* Based on scientific color psychology research */
 
 :root {
   /* Custom properties */
@@ -12,10 +13,32 @@
   --farol-animate-slide-down: slideDown 0.3s ease-out;
   --farol-animate-scale-in: scaleIn 0.2s ease-out;
   
-  /* Neutral accents */
-  --farol-accent-gold: var(--mantine-color-warning-7);
-  --farol-accent-gold-light: var(--mantine-color-warning-1);
-  --farol-accent-coral: var(--mantine-color-danger-6);
+  /* Semantic accent colors - light mode */
+  --farol-accent-gold: var(--mantine-color-amber-6);
+  --farol-accent-gold-light: var(--mantine-color-amber-1);
+  --farol-accent-coral: var(--mantine-color-rose-5);
+  
+  /* Chart colors - optimized for legibility and colorblind accessibility */
+  --farol-chart-1: var(--mantine-color-ocean-6);
+  --farol-chart-2: var(--mantine-color-teal-5);
+  --farol-chart-3: var(--mantine-color-violet-5);
+  --farol-chart-4: var(--mantine-color-amber-5);
+  --farol-chart-positive: var(--mantine-color-emerald-6);
+  --farol-chart-negative: var(--mantine-color-rose-5);
+}
+
+/* Dark mode overrides */
+[data-mantine-color-scheme="dark"] {
+  --farol-accent-gold: var(--mantine-color-amber-5);
+  --farol-accent-gold-light: var(--mantine-color-amber-9);
+  --farol-accent-coral: var(--mantine-color-rose-4);
+  
+  --farol-chart-1: var(--mantine-color-ocean-4);
+  --farol-chart-2: var(--mantine-color-teal-4);
+  --farol-chart-3: var(--mantine-color-violet-4);
+  --farol-chart-4: var(--mantine-color-amber-4);
+  --farol-chart-positive: var(--mantine-color-emerald-4);
+  --farol-chart-negative: var(--mantine-color-rose-4);
 }
 
 /* Base styles */
@@ -275,7 +298,7 @@ input[type="number"] {
   left: 0;
   width: 60px;
   height: 3px;
-  background: var(--mantine-color-warning-5);
+  background: var(--mantine-color-ocean-5);
   border-radius: 2px;
 }
 
@@ -291,18 +314,18 @@ input[type="number"] {
 
 /* Warm accent card */
 .accent-card {
-  border-left: 4px solid var(--mantine-color-warning-5);
+  border-left: 4px solid var(--mantine-color-ocean-5);
 }
 
 /* Selection color */
 ::selection {
-  background: var(--mantine-color-warning-2);
-  color: var(--mantine-color-warning-9);
+  background: var(--mantine-color-ocean-2);
+  color: var(--mantine-color-ocean-9);
 }
 
 [data-mantine-color-scheme="dark"] ::selection {
-  background: var(--mantine-color-warning-8);
-  color: var(--mantine-color-warning-1);
+  background: var(--mantine-color-ocean-8);
+  color: var(--mantine-color-ocean-1);
 }
 
 /* Smooth page transitions */
@@ -328,11 +351,11 @@ input[type="number"] {
 
 /* Metric card positive/negative indicators */
 .metric-positive {
-  color: var(--mantine-color-success-6);
+  color: var(--mantine-color-emerald-6);
 }
 
 .metric-negative {
-  color: var(--mantine-color-danger-6);
+  color: var(--mantine-color-rose-6);
 }
 
 /* Stepper and Timeline enhancements */
@@ -342,7 +365,7 @@ input[type="number"] {
 }
 
 .step-connector-active {
-  background: var(--mantine-color-warning-5);
+  background: var(--mantine-color-ocean-5);
 }
 
 /* Interactive number badge */
@@ -355,18 +378,22 @@ input[type="number"] {
   justify-content: center;
   font-weight: 600;
   font-size: 14px;
-  background: var(--mantine-color-gray-2);
+  background: var(--mantine-color-slate-2);
   color: var(--mantine-color-text);
   transition: all var(--farol-transition-normal);
 }
 
+[data-mantine-color-scheme="dark"] .number-badge {
+  background: var(--mantine-color-dark-6);
+}
+
 .number-badge-active {
-  background: var(--mantine-color-warning-5);
+  background: var(--mantine-color-ocean-5);
   color: white;
 }
 
 .number-badge-completed {
-  background: var(--mantine-color-success-5);
+  background: var(--mantine-color-emerald-5);
   color: white;
 }
 

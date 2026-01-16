@@ -10,23 +10,23 @@ export default function ScenarioComparison() {
         py={{ base: 40, md: 60 }}
         style={{
           borderBottom: '1px solid var(--mantine-color-default-border)',
-          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-sage-0) 0%, var(--mantine-color-cream-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
+          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-ocean-0) 0%, var(--mantine-color-slate-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
         }}
       >
         <Container size="lg">
           <Stack gap="md" align="center" ta="center">
-            <Badge size="lg" variant="light" color="sage" radius="sm">
+            <Badge size="lg" variant="light" color="ocean" radius="sm">
               Comprar vs Alugar
             </Badge>
             <ThemeIcon 
               size={64} 
               radius="xl" 
               variant="gradient"
-              gradient={{ from: 'sage.5', to: 'sage.7', deg: 135 }}
+              gradient={{ from: 'ocean.5', to: 'ocean.7', deg: 135 }}
             >
               <IconScale size={32} />
             </ThemeIcon>
-            <Title order={1} fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+            <Title order={1} fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">
               Comprar vs Alugar
             </Title>
             <Text size="lg" c="dimmed" maw={600}>
@@ -46,11 +46,11 @@ export default function ScenarioComparison() {
               }}
             >
               <Group gap="sm" wrap="nowrap">
-                <ThemeIcon size={40} radius="xl" variant="light" color="sage">
+                <ThemeIcon size={40} radius="xl" variant="light" color="ocean">
                   <IconBuildingBank size={20} />
                 </ThemeIcon>
                 <Box>
-                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                     Comprar Financiado
                   </Text>
                   <Text size="xs" c="dimmed">
@@ -68,11 +68,11 @@ export default function ScenarioComparison() {
               }}
             >
               <Group gap="sm" wrap="nowrap">
-                <ThemeIcon size={40} radius="xl" variant="light" color="sage">
+                <ThemeIcon size={40} radius="xl" variant="light" color="teal">
                   <IconChartLine size={20} />
                 </ThemeIcon>
                 <Box>
-                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-teal-8), var(--mantine-color-text))">
                     Alugar e Investir
                   </Text>
                   <Text size="xs" c="dimmed">
@@ -90,11 +90,11 @@ export default function ScenarioComparison() {
               }}
             >
               <Group gap="sm" wrap="nowrap">
-                <ThemeIcon size={40} radius="xl" variant="light" color="sage">
+                <ThemeIcon size={40} radius="xl" variant="light" color="violet">
                   <IconPigMoney size={20} />
                 </ThemeIcon>
                 <Box>
-                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-violet-8), var(--mantine-color-text))">
                     Investir e Comprar
                   </Text>
                   <Text size="xs" c="dimmed">

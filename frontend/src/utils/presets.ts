@@ -22,7 +22,7 @@ export interface PresetTag {
 // Default tag definitions
 export const DEFAULT_TAGS: Record<PresetTagType, Omit<PresetTag, 'id'>> = {
   conservative: { label: 'Conservador', type: 'conservative', color: 'blue' },
-  moderate: { label: 'Moderado', type: 'moderate', color: 'sage' },
+  moderate: { label: 'Moderado', type: 'moderate', color: 'ocean' },
   aggressive: { label: 'Agressivo', type: 'aggressive', color: 'orange' },
   optimistic: { label: 'Otimista', type: 'optimistic', color: 'green' },
   pessimistic: { label: 'Pessimista', type: 'pessimistic', color: 'red' },

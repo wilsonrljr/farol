@@ -1,136 +1,159 @@
 import { createTheme, rem, MantineColorsTuple, virtualColor } from '@mantine/core';
 
-// Design System: Farol
-// Paleta orgânica e natural baseada nas cores:
-// #727D73 (Sage Dark), #AAB99A (Sage), #D0DDD0 (Mint), #F0F0D7 (Cream)
-// Foco em legibilidade e hierarquia visual clara
+/**
+ * Design System: Farol v2
+ * 
+ * Paleta baseada em evidência científica:
+ * - Azuis transmitem confiança e são universalmente preferidos (Valdez & Mehrabian, 1994)
+ * - Verde-azulado (teal) reduz ansiedade e melhora tomada de decisão financeira
+ * - Alto contraste WCAG AA (4.5:1) para legibilidade
+ * - Harmonia análoga com accent complementar para hierarquia visual
+ * 
+ * Cores semânticas consistentes:
+ * - Primary (ocean): confiança, profissionalismo, decisões financeiras
+ * - Success (emerald): ganhos, crescimento positivo
+ * - Warning (amber): atenção, alertas moderados
+ * - Danger (rose): perdas, alertas críticos
+ * - Info (sky): informação neutra, dados secundários
+ */
 
-// Primary - Sage tones (verde-acinzentado sofisticado)
-const sage: MantineColorsTuple = [
-  '#f6f8f6', // 0 - lightest
-  '#e8ede8', // 1
-  '#d0ddd0', // 2 - base light (from palette)
-  '#b8ccb8', // 3
-  '#aab99a', // 4 - mid (from palette)
-  '#94a885', // 5
-  '#7d9370', // 6
-  '#727d73', // 7 - base dark (from palette)
-  '#5c665d', // 8
-  '#475048', // 9 - darkest
+// Primary - Ocean Blue (confiança, finanças, profissionalismo)
+// Baseado em estudos de percepção de cores em contextos financeiros
+const ocean: MantineColorsTuple = [
+  '#f0f7ff', // 0 - lightest bg
+  '#e0efff', // 1 - subtle bg
+  '#bfdbfe', // 2 - very light accent
+  '#93c5fd', // 3 - light accent
+  '#60a5fa', // 4 - mid
+  '#3b82f6', // 5 - primary
+  '#2563eb', // 6 - primary hover
+  '#1d4ed8', // 7 - dark
+  '#1e40af', // 8 - darker
+  '#1e3a8a', // 9 - darkest
 ];
 
-// Cream/Warm neutral tones
-const cream: MantineColorsTuple = [
-  '#fafaf5', // 0 - lightest bg
-  '#f6f6ed', // 1
-  '#f0f0d7', // 2 - base (from palette)
-  '#e8e8c8', // 3
-  '#dedeb8', // 4
-  '#d0d0a0', // 5
-  '#b8b888', // 6
-  '#989870', // 7
-  '#787858', // 8
-  '#585840', // 9 - darkest
+// Slate - Modern neutral with subtle blue undertone
+// Melhor legibilidade que neutrals amarelados
+const slate: MantineColorsTuple = [
+  '#f8fafc', // 0 - lightest bg
+  '#f1f5f9', // 1 - subtle bg
+  '#e2e8f0', // 2 - muted bg
+  '#cbd5e1', // 3 - border light
+  '#94a3b8', // 4 - border/placeholder
+  '#64748b', // 5 - secondary text
+  '#475569', // 6 - subtle text
+  '#334155', // 7 - secondary text dark
+  '#1e293b', // 8 - primary text
+  '#0f172a', // 9 - heading
 ];
 
-// Neutrals - for text and backgrounds
-const neutral: MantineColorsTuple = [
-  '#fafaf9', // 0 - lightest bg
-  '#f5f5f4', // 1 - subtle bg
-  '#e7e5e4', // 2 - muted bg
-  '#d6d3d1', // 3 - border light
-  '#a8a29e', // 4 - border
-  '#78716c', // 5 - placeholder
-  '#57534e', // 6 - subtle text
-  '#44403c', // 7 - secondary text
-  '#292524', // 8 - primary text
-  '#1c1917', // 9 - heading
-];
-
-// Dark palette (Farol) - deep sage/charcoal for dark scheme surfaces
-// Used by Mantine as `theme.colors.dark` to define default dark surfaces/text
+// Dark palette - Deep slate for dark mode surfaces
 const dark: MantineColorsTuple = [
-  '#f2f5f3', // 0 - brightest (text on dark)
-  '#d9dfdc', // 1
-  '#c0c8c3', // 2
-  '#a3aea8', // 3
-  '#86928b', // 4
-  '#66736b', // 5
-  '#3f4843', // 6
-  '#171d1a', // 7 - surface
-  '#0f1311', // 8 - background
-  '#070a08', // 9 - deepest
+  '#f8fafc', // 0 - brightest (text on dark)
+  '#e2e8f0', // 1
+  '#cbd5e1', // 2
+  '#94a3b8', // 3
+  '#64748b', // 4
+  '#475569', // 5
+  '#334155', // 6 - elevated surface
+  '#1e293b', // 7 - surface
+  '#0f172a', // 8 - background
+  '#020617', // 9 - deepest
 ];
 
-// Forest - deeper green accent
-const forest: MantineColorsTuple = [
-  '#f0f7f0', // 0
-  '#dceadc', // 1
-  '#c5d9c5', // 2
-  '#a8c4a8', // 3
-  '#8aae8a', // 4
-  '#6b946b', // 5
-  '#4f7a4f', // 6
-  '#3d603d', // 7
-  '#2d462d', // 8
-  '#1e2e1e', // 9
+// Teal - Secondary accent (equilíbrio, crescimento)
+const teal: MantineColorsTuple = [
+  '#f0fdfa', // 0
+  '#ccfbf1', // 1
+  '#99f6e4', // 2
+  '#5eead4', // 3
+  '#2dd4bf', // 4
+  '#14b8a6', // 5
+  '#0d9488', // 6
+  '#0f766e', // 7
+  '#115e59', // 8
+  '#134e4a', // 9
 ];
 
-// Success - natural green
-const success: MantineColorsTuple = [
-  '#ecfdf5',
-  '#d1fae5',
-  '#a7f3d0',
-  '#6ee7b7',
-  '#34d399',
-  '#10b981',
-  '#059669',
-  '#047857',
-  '#065f46',
-  '#064e3b',
+// Emerald - Success (ganhos, crescimento positivo)
+const emerald: MantineColorsTuple = [
+  '#ecfdf5', // 0
+  '#d1fae5', // 1
+  '#a7f3d0', // 2
+  '#6ee7b7', // 3
+  '#34d399', // 4
+  '#10b981', // 5
+  '#059669', // 6
+  '#047857', // 7
+  '#065f46', // 8
+  '#064e3b', // 9
 ];
 
-// Warning - warm amber
-const warning: MantineColorsTuple = [
-  '#fffbeb',
-  '#fef3c7',
-  '#fde68a',
-  '#fcd34d',
-  '#fbbf24',
-  '#f59e0b',
-  '#d97706',
-  '#b45309',
-  '#92400e',
-  '#78350f',
+// Amber - Warning (atenção moderada)
+const amber: MantineColorsTuple = [
+  '#fffbeb', // 0
+  '#fef3c7', // 1
+  '#fde68a', // 2
+  '#fcd34d', // 3
+  '#fbbf24', // 4
+  '#f59e0b', // 5
+  '#d97706', // 6
+  '#b45309', // 7
+  '#92400e', // 8
+  '#78350f', // 9
 ];
 
-// Error/Danger - soft red
-const danger: MantineColorsTuple = [
-  '#fef2f2',
-  '#fee2e2',
-  '#fecaca',
-  '#fca5a5',
-  '#f87171',
-  '#ef4444',
-  '#dc2626',
-  '#b91c1c',
-  '#991b1b',
-  '#7f1d1d',
+// Rose - Danger/Error (perdas, alertas críticos)
+const rose: MantineColorsTuple = [
+  '#fff1f2', // 0
+  '#ffe4e6', // 1
+  '#fecdd3', // 2
+  '#fda4af', // 3
+  '#fb7185', // 4
+  '#f43f5e', // 5
+  '#e11d48', // 6
+  '#be123c', // 7
+  '#9f1239', // 8
+  '#881337', // 9
 ];
 
-// Info - muted blue-sage
-const info: MantineColorsTuple = [
-  '#f0f7fa',
-  '#dceef5',
-  '#b8dce8',
-  '#8ec5d8',
-  '#68acc5',
-  '#4a93b0',
-  '#3a7a96',
-  '#2f6278',
-  '#264c5c',
-  '#1d3842',
+// Sky - Info (informação neutra, dados secundários)
+const sky: MantineColorsTuple = [
+  '#f0f9ff', // 0
+  '#e0f2fe', // 1
+  '#bae6fd', // 2
+  '#7dd3fc', // 3
+  '#38bdf8', // 4
+  '#0ea5e9', // 5
+  '#0284c7', // 6
+  '#0369a1', // 7
+  '#075985', // 8
+  '#0c4a6e', // 9
 ];
+
+// Violet - Accent para destacar oportunidades
+const violet: MantineColorsTuple = [
+  '#f5f3ff', // 0
+  '#ede9fe', // 1
+  '#ddd6fe', // 2
+  '#c4b5fd', // 3
+  '#a78bfa', // 4
+  '#8b5cf6', // 5
+  '#7c3aed', // 6
+  '#6d28d9', // 7
+  '#5b21b6', // 8
+  '#4c1d95', // 9
+];
+
+// Legacy aliases for backwards compatibility (will be remapped)
+const sage = ocean;  // Remap sage -> ocean
+const cream = slate;  // Remap cream -> slate
+const neutral = slate; // Remap neutral -> slate
+const forest = teal;  // Remap forest -> teal
+const success = emerald;
+const warning = amber;
+const danger = rose;
+const info = sky;
 
 export const theme = createTheme({
   fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -147,10 +170,20 @@ export const theme = createTheme({
     },
   },
   colors: {
+    // New primary colors
+    ocean,
+    slate,
+    teal,
+    emerald,
+    amber,
+    rose,
+    sky,
+    violet,
+    // Legacy aliases for backwards compatibility
     sage,
     cream,
     neutral,
-    gray: neutral,
+    gray: slate,
     dark,
     forest,
     success,
@@ -158,12 +191,12 @@ export const theme = createTheme({
     danger,
     info,
     // Virtual colors for semantic usage
-    primary: virtualColor({ name: 'primary', dark: 'sage', light: 'sage' }),
-    accent: virtualColor({ name: 'accent', dark: 'forest', light: 'forest' }),
+    primary: virtualColor({ name: 'primary', dark: 'ocean', light: 'ocean' }),
+    accent: virtualColor({ name: 'accent', dark: 'teal', light: 'teal' }),
   },
-  primaryColor: 'sage',
-  primaryShade: { light: 7, dark: 5 },
-  black: '#1c1917',
+  primaryColor: 'ocean',
+  primaryShade: { light: 6, dark: 5 },
+  black: '#0f172a',
   white: '#ffffff',
   defaultRadius: 'md',
   cursorType: 'pointer',
@@ -278,6 +311,13 @@ export const theme = createTheme({
         radius: 'md',
         withArrow: true,
       },
+      styles: {
+        tooltip: {
+          // Ensure tooltip respects color scheme
+          backgroundColor: 'light-dark(var(--mantine-color-slate-8), var(--mantine-color-dark-6))',
+          color: 'light-dark(var(--mantine-color-white), var(--mantine-color-slate-0))',
+        },
+      },
     },
     Modal: {
       defaultProps: {
@@ -297,23 +337,30 @@ export const theme = createTheme({
     Stepper: {
       styles: {
         stepIcon: {
-          backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-7))',
-          borderColor: 'light-dark(var(--mantine-color-sage-3), var(--mantine-color-dark-5))',
+          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
+          borderColor: 'light-dark(var(--mantine-color-ocean-3), var(--mantine-color-dark-5))',
         },
       },
     },
     Timeline: {
       styles: {
         itemBullet: {
-          backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-7))',
-          borderColor: 'light-dark(var(--mantine-color-sage-4), var(--mantine-color-dark-5))',
+          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
+          borderColor: 'light-dark(var(--mantine-color-ocean-4), var(--mantine-color-dark-5))',
         },
       },
     },
     Progress: {
       styles: {
         root: {
-          backgroundColor: 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-6))',
+          backgroundColor: 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-6))',
+        },
+      },
+    },
+    Table: {
+      styles: {
+        th: {
+          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
         },
       },
     },

@@ -49,10 +49,10 @@ function FeatureCard({
       radius="lg"
       style={{
         border: highlight
-          ? '2px solid var(--mantine-color-sage-3)'
+          ? '2px solid var(--mantine-color-ocean-3)'
           : '1px solid var(--mantine-color-default-border)',
         backgroundColor: highlight
-          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
+          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))'
           : 'var(--mantine-color-body)',
       }}
     >
@@ -61,12 +61,12 @@ function FeatureCard({
           size={44}
           radius="lg"
           variant={highlight ? 'filled' : 'light'}
-          color="sage"
+          color="ocean"
         >
           <Icon size={22} />
         </ThemeIcon>
         <div>
-          <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb={4}>
+          <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))" mb={4}>
             {title}
           </Text>
           <Text size="sm" c="dimmed" style={{ lineHeight: 1.5 }}>
@@ -98,11 +98,11 @@ function TechCard({
       }}
     >
       <Group gap="md" wrap="nowrap" align="flex-start">
-        <ThemeIcon size={40} radius="lg" variant="light" color="sage">
+        <ThemeIcon size={40} radius="lg" variant="light" color="ocean">
           <Icon size={20} />
         </ThemeIcon>
         <div>
-          <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="xs">
+          <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))" mb="xs">
             {title}
           </Text>
           <Stack gap={4}>
@@ -126,18 +126,18 @@ export default function About() {
         py={{ base: 40, md: 60 }}
         style={{
           borderBottom: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
         }}
       >
         <Container size="lg">
           <Stack gap="md" align="center" ta="center">
-            <ThemeIcon size={60} radius="xl" color="sage">
+            <ThemeIcon size={60} radius="xl" color="ocean">
               <IconInfoCircle size={30} />
             </ThemeIcon>
             <Title order={1} fw={700}>
               Sobre o Farol
             </Title>
-            <Text size="lg" c="sage.6" maw={600}>
+            <Text size="lg" c="ocean.6" maw={600}>
               Uma ferramenta educativa para ajudar você a entender melhor as opções de aquisição
               imobiliária no Brasil.
             </Text>
@@ -149,10 +149,10 @@ export default function About() {
       <Container size="lg" py={{ base: 40, md: 60 }}>
         <Stack gap="xl">
           <div>
-            <Text size="sm" fw={600} c="sage.6" tt="uppercase" mb="xs">
+            <Text size="sm" fw={600} c="ocean.6" tt="uppercase" mb="xs">
               Propósito
             </Text>
-            <Title order={2} fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="md">
+            <Title order={2} fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))" mb="md">
               Por que criamos o Farol?
             </Title>
           </div>
@@ -178,10 +178,10 @@ export default function About() {
 
           {/* Technologies */}
           <Box mt="xl">
-            <Text size="sm" fw={600} c="sage.6" tt="uppercase" mb="xs">
+            <Text size="sm" fw={600} c="ocean.6" tt="uppercase" mb="xs">
               Tecnologias
             </Text>
-            <Title order={2} fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="md">
+            <Title order={2} fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))" mb="md">
               Como foi construído
             </Title>
 
@@ -215,12 +215,12 @@ export default function About() {
             }}
           >
             <Group align="flex-start" gap="lg" wrap="nowrap">
-              <ThemeIcon size={50} radius="xl" variant="light" color="sage">
+              <ThemeIcon size={50} radius="xl" variant="light" color="ocean">
                 <IconUser size={24} />
               </ThemeIcon>
               <Stack gap="sm" style={{ flex: 1 }}>
                 <div>
-                  <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                  <Text fw={600} size="lg" c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">
                     Autor
                   </Text>
                   <Text size="sm" c="dimmed">
@@ -233,7 +233,7 @@ export default function About() {
                     href="https://github.com/wilsonrljr/sysidentpy"
                     target="_blank"
                     rel="noopener noreferrer"
-                    c="sage.6"
+                    c="ocean.6"
                   >
                     SysIdentPy
                   </Anchor>
@@ -243,13 +243,13 @@ export default function About() {
                   espero que tenha uma reserva de emergência.
                 </Text>
                 <Group gap="xs">
-                  <Badge size="sm" variant="light" color="sage">
+                  <Badge size="sm" variant="light" color="ocean">
                     Software
                   </Badge>
-                  <Badge size="sm" variant="light" color="sage">
+                  <Badge size="sm" variant="light" color="ocean">
                     Finanças
                   </Badge>
-                  <Badge size="sm" variant="light" color="coral">
+                  <Badge size="sm" variant="light" color="rose">
                     Open Source
                   </Badge>
                 </Group>
@@ -258,7 +258,7 @@ export default function About() {
                     <ActionIcon
                       size="md"
                       variant="light"
-                      color="sage"
+                      color="ocean"
                       component="a"
                       href="https://github.com/wilsonrljr"
                       target="_blank"
@@ -273,7 +273,7 @@ export default function About() {
                     <ActionIcon
                       size="md"
                       variant="light"
-                      color="sage"
+                      color="ocean"
                       component="a"
                       href="https://www.linkedin.com/in/wilsonrljr"
                       target="_blank"
@@ -288,7 +288,7 @@ export default function About() {
                     <ActionIcon
                       size="md"
                       variant="light"
-                      color="sage"
+                      color="ocean"
                       component="a"
                       href="https://twitter.com/wilsonrljr"
                       target="_blank"
@@ -303,7 +303,7 @@ export default function About() {
                     <ActionIcon
                       size="md"
                       variant="light"
-                      color="sage"
+                      color="ocean"
                       component="a"
                       href="https://orcid.org/0000-0002-3263-1152"
                       target="_blank"
@@ -325,15 +325,15 @@ export default function About() {
             radius="lg"
             style={{
               border: '1px solid var(--mantine-color-default-border)',
-              backgroundColor: 'light-dark(var(--mantine-color-sage-1), var(--mantine-color-dark-7))',
+              backgroundColor: 'light-dark(var(--mantine-color-ocean-1), var(--mantine-color-dark-7))',
             }}
           >
             <Group align="flex-start" gap="md" wrap="nowrap">
-              <ThemeIcon size={40} radius="lg" variant="light" color="sage">
+              <ThemeIcon size={40} radius="lg" variant="light" color="ocean">
                 <IconCode size={20} />
               </ThemeIcon>
               <Stack gap="xs">
-                <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                   Uso de IA
                 </Text>
                 <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
@@ -360,7 +360,7 @@ export default function About() {
                 <IconShieldCheck size={20} />
               </ThemeIcon>
               <Stack gap="xs">
-                <Text fw={600} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                   Disclaimer
                 </Text>
                 <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>

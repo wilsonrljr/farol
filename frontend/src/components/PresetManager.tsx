@@ -162,7 +162,7 @@ export function PresetManager<T>({
     notifications.show({
       title: 'Preset salvo',
       message: `"${saveName}" foi salvo com sucesso`,
-      color: 'sage',
+      color: 'ocean',
       icon: <IconCheck size={16} />,
     });
   };
@@ -173,7 +173,7 @@ export function PresetManager<T>({
     notifications.show({
       title: 'Preset carregado',
       message: `"${preset.name}" foi aplicado ao formulário`,
-      color: 'sage',
+      color: 'ocean',
       icon: <IconCheck size={16} />,
     });
   };
@@ -199,7 +199,7 @@ export function PresetManager<T>({
     notifications.show({
       title: 'Preset atualizado',
       message: 'As alterações foram salvas',
-      color: 'sage',
+      color: 'ocean',
       icon: <IconCheck size={16} />,
     });
   };
@@ -217,7 +217,7 @@ export function PresetManager<T>({
       notifications.show({
         title: 'Preset excluído',
         message: 'O preset foi removido',
-        color: 'sage',
+        color: 'ocean',
         icon: <IconTrash size={16} />,
       });
     }
@@ -228,7 +228,7 @@ export function PresetManager<T>({
     notifications.show({
       title: 'Preset duplicado',
       message: 'Uma cópia foi criada',
-      color: 'sage',
+      color: 'ocean',
       icon: <IconCopy size={16} />,
     });
   };
@@ -246,7 +246,7 @@ export function PresetManager<T>({
       notifications.show({
         title: 'Importação concluída',
         message,
-        color: 'sage',
+        color: 'ocean',
         icon: <IconCheck size={16} />,
       });
     } else {
@@ -274,7 +274,7 @@ export function PresetManager<T>({
     notifications.show({
       title: 'Exportação concluída',
       message: `${selectedPresets.size} preset(s) exportado(s)`,
-      color: 'sage',
+      color: 'ocean',
       icon: <IconDownload size={16} />,
     });
   };
@@ -286,7 +286,7 @@ export function PresetManager<T>({
     notifications.show({
       title: 'Presets removidos',
       message: 'Todos os presets foram excluídos',
-      color: 'sage',
+      color: 'ocean',
       icon: <IconTrash size={16} />,
     });
   };
@@ -320,7 +320,7 @@ export function PresetManager<T>({
         <Tooltip label="Salvar configuração atual" withArrow>
           <Button
             variant="light"
-            color="sage"
+            color="ocean"
             size="sm"
             leftSection={<IconDeviceFloppy size={16} />}
             onClick={openSaveModal}
@@ -332,13 +332,13 @@ export function PresetManager<T>({
         <Tooltip label="Gerenciar presets salvos" withArrow>
           <Button
             variant="subtle"
-            color="sage"
+            color="ocean"
             size="sm"
             leftSection={<IconFolderOpen size={16} />}
             onClick={open}
             rightSection={
               presets.length > 0 && (
-                <Badge size="xs" color="sage" variant="filled" circle>
+                <Badge size="xs" color="ocean" variant="filled" circle>
                   {presets.length}
                 </Badge>
               )
@@ -355,7 +355,7 @@ export function PresetManager<T>({
         onClose={closeSaveModal}
         title={
           <Group gap="sm">
-            <ThemeIcon size="md" radius="md" variant="light" color="sage">
+            <ThemeIcon size="md" radius="md" variant="light" color="ocean">
               <IconDeviceFloppy size={16} />
             </ThemeIcon>
             <Text fw={600}>Salvar Preset</Text>
@@ -399,7 +399,7 @@ export function PresetManager<T>({
               Cancelar
             </Button>
             <Button
-              color="sage"
+              color="ocean"
               leftSection={<IconCheck size={16} />}
               onClick={handleSave}
             >
@@ -415,7 +415,7 @@ export function PresetManager<T>({
         onClose={closeEditModal}
         title={
           <Group gap="sm">
-            <ThemeIcon size="md" radius="md" variant="light" color="sage">
+            <ThemeIcon size="md" radius="md" variant="light" color="ocean">
               <IconPencil size={16} />
             </ThemeIcon>
             <Text fw={600}>Editar Preset</Text>
@@ -458,7 +458,7 @@ export function PresetManager<T>({
               Cancelar
             </Button>
             <Button
-              color="sage"
+              color="ocean"
               leftSection={<IconCheck size={16} />}
               onClick={handleEditSave}
             >
@@ -541,7 +541,7 @@ export function PresetManager<T>({
         }}
         title={
           <Group gap="sm">
-            <ThemeIcon size="lg" radius="md" variant="gradient" gradient={{ from: 'sage.5', to: 'sage.7', deg: 135 }}>
+            <ThemeIcon size="lg" radius="md" variant="gradient" gradient={{ from: 'ocean.5', to: 'ocean.7', deg: 135 }}>
               <IconBookmarkFilled size={18} />
             </ThemeIcon>
             <Box>
@@ -577,7 +577,7 @@ export function PresetManager<T>({
                   <Button
                     size="xs"
                     variant={compareMode ? 'filled' : 'light'}
-                    color="sage"
+                    color="ocean"
                     leftSection={<IconScale size={14} />}
                     onClick={() => {
                       setCompareMode(!compareMode);
@@ -608,7 +608,7 @@ export function PresetManager<T>({
                     <Button
                       {...props}
                       variant="light"
-                      color="sage"
+                      color="ocean"
                       size="xs"
                       leftSection={<IconUpload size={14} />}
                     >
@@ -620,7 +620,7 @@ export function PresetManager<T>({
                   <>
                     <Button
                       variant="light"
-                      color="sage"
+                      color="ocean"
                       size="xs"
                       leftSection={<IconDownload size={14} />}
                       onClick={onExportAll}
@@ -630,7 +630,7 @@ export function PresetManager<T>({
                     {selectedPresets.size > 0 && (
                       <Button
                         variant="filled"
-                        color="sage"
+                        color="ocean"
                         size="xs"
                         leftSection={<IconDownload size={14} />}
                         onClick={handleExportSelected}
@@ -661,13 +661,13 @@ export function PresetManager<T>({
               px="md"
               py="sm"
               style={{
-                backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+                backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
                 borderBottom: '1px solid var(--mantine-color-default-border)',
               }}
             >
               <Group justify="space-between">
                 <Group gap="xs">
-                  <Badge size="lg" variant={canCompare ? 'filled' : 'light'} color={canCompare ? 'sage' : 'gray'}>
+                  <Badge size="lg" variant={canCompare ? 'filled' : 'light'} color={canCompare ? 'ocean' : 'gray'}>
                     {compareSelection.size} selecionado{compareSelection.size !== 1 ? 's' : ''}
                   </Badge>
                   <Text size="xs" c="dimmed">
@@ -676,7 +676,7 @@ export function PresetManager<T>({
                 </Group>
                 <Button
                   size="xs"
-                  color="sage"
+                  color="ocean"
                   leftSection={<IconScale size={14} />}
                   disabled={!canCompare}
                   loading={isCompareLoading}
@@ -691,7 +691,7 @@ export function PresetManager<T>({
           {/* Presets List */}
           {presets.length === 0 ? (
             <Box p="xl" ta="center">
-              <ThemeIcon size={60} radius="xl" variant="light" color="sage" mx="auto" mb="md">
+              <ThemeIcon size={60} radius="xl" variant="light" color="ocean" mx="auto" mb="md">
                 <IconBookmark size={30} />
               </ThemeIcon>
               <Text fw={600} size="lg" mb="xs">
@@ -703,7 +703,7 @@ export function PresetManager<T>({
               <Group justify="center" gap="sm">
                 <Button
                   variant="light"
-                  color="sage"
+                  color="ocean"
                   leftSection={<IconPlus size={16} />}
                   onClick={() => {
                     close();
@@ -721,7 +721,7 @@ export function PresetManager<T>({
                     <Button
                       {...props}
                       variant="subtle"
-                      color="sage"
+                      color="ocean"
                       leftSection={<IconUpload size={16} />}
                     >
                       Importar arquivo
@@ -743,7 +743,7 @@ export function PresetManager<T>({
               </Text>
               <Button
                 variant="light"
-                color="sage"
+                color="ocean"
                 onClick={() => setTagFilters([])}
               >
                 Limpar filtros
@@ -765,7 +765,7 @@ export function PresetManager<T>({
                         borderRadius: 0,
                         borderBottom: index < filteredPresets.length - 1 ? '1px solid var(--mantine-color-default-border)' : undefined,
                         backgroundColor: isSelected
-                          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
+                          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))'
                           : undefined,
                         cursor: 'pointer',
                         transition: 'background-color 150ms ease',
@@ -784,7 +784,7 @@ export function PresetManager<T>({
                             <Checkbox
                               checked={isSelected}
                               onChange={() => {}}
-                              color="sage"
+                              color="ocean"
                               size="md"
                               styles={{ input: { cursor: 'pointer' } }}
                             />
@@ -793,7 +793,7 @@ export function PresetManager<T>({
                               size="lg"
                               radius="md"
                               variant={isSelected ? 'filled' : 'light'}
-                              color="sage"
+                              color="ocean"
                             >
                               {isSelected ? (
                                 <IconCheck size={16} />
@@ -808,7 +808,7 @@ export function PresetManager<T>({
                                 {preset.name}
                               </Text>
                               {index === 0 && (
-                                <Badge size="xs" variant="light" color="sage">
+                                <Badge size="xs" variant="light" color="ocean">
                                   Recente
                                 </Badge>
                               )}
@@ -834,7 +834,7 @@ export function PresetManager<T>({
                             <Tooltip label="Carregar preset" withArrow>
                               <Button
                                 variant="light"
-                                color="sage"
+                                color="ocean"
                                 size="xs"
                                 onClick={(e) => {
                                   e.stopPropagation();

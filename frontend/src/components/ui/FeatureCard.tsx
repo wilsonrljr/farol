@@ -16,7 +16,7 @@ export function FeatureCard({
   description,
   icon,
   link,
-  color = 'sage',
+  color = 'ocean',
 }: FeatureCardProps) {
   const content = (
     <Paper
@@ -56,7 +56,7 @@ export function FeatureCard({
       >
         {icon}
       </ThemeIcon>
-      <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb="xs">
+      <Text fw={600} size="lg" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))" mb="xs">
         {title}
       </Text>
       <Text size="sm" c="dimmed" lh={1.6}>
@@ -100,7 +100,7 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
         padding: rem(16),
         borderRadius: rem(12),
         backgroundColor: isActive
-          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
+          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))'
           : 'transparent',
         border: isActive
           ? '1px solid var(--mantine-color-default-border)'
@@ -114,9 +114,9 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
           height: rem(36),
           borderRadius: rem(8),
           backgroundColor: isActive
-            ? 'var(--mantine-color-sage-6)'
-            : 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-7))',
-          color: isActive ? 'white' : 'var(--mantine-color-sage-6)',
+            ? 'var(--mantine-color-ocean-6)'
+            : 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-7))',
+          color: isActive ? 'white' : 'var(--mantine-color-ocean-6)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -128,7 +128,7 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
         {step}
       </Box>
       <Box>
-        <Text fw={600} size="md" c={isActive ? 'sage.7' : 'bright'}>
+        <Text fw={600} size="md" c={isActive ? 'ocean.7' : 'bright'}>
           {title}
         </Text>
         <Text size="sm" c="dimmed" lh={1.5}>
@@ -155,7 +155,7 @@ export function InfoCard({
   variant = 'default',
 }: InfoCardProps) {
   const colors = {
-    default: { bg: 'sage', text: 'sage' },
+    default: { bg: 'ocean', text: 'ocean' },
     success: { bg: 'success', text: 'success' },
     warning: { bg: 'warning', text: 'warning' },
     danger: { bg: 'danger', text: 'danger' },

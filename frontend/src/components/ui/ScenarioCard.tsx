@@ -25,7 +25,7 @@ export function ScenarioCard({
   isWinner = false,
   metrics,
   icon,
-  color = 'sage',
+  color = 'ocean',
 }: ScenarioCardProps) {
   return (
     <Paper
@@ -109,7 +109,7 @@ export function ScenarioCard({
             key={metric.label}
             p="xs"
             style={{
-              backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+              backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
               borderRadius: rem(8),
             }}
           >
@@ -129,7 +129,7 @@ export function ScenarioCard({
                     <IconArrowDownRight size={14} color="var(--mantine-color-danger-6)" />
                   )}
                   {metric.trend === 'neutral' && (
-                    <IconMinus size={14} color="var(--mantine-color-sage-5)" />
+                    <IconMinus size={14} color="var(--mantine-color-ocean-5)" />
                   )}
                 </>
               )}

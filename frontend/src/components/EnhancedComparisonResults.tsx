@@ -38,6 +38,7 @@ import {
   ratio,
   ratioAsPercent,
 } from '../utils/format';
+import { CHART_COLORS } from '../utils/colors';
 import { AreaChart, LineChart } from '@mantine/charts';
 import {
   IconArrowDownRight,
@@ -155,7 +156,7 @@ const SurplusBreakdownTooltip = ({
       </Text>
       <Divider size="xs" />
       <Group justify="space-between" gap={16}>
-        <Text size="xs" c="sage.6">Renda líquida informada</Text>
+        <Text size="xs" c="ocean.6">Renda líquida informada</Text>
         <Text size="xs" fw={600}>{money(netIncome)}</Text>
       </Group>
       <Text size="xs" fw={600} c="dimmed" mt={4}>Menos custos recorrentes:</Text>
@@ -168,7 +169,7 @@ const SurplusBreakdownTooltip = ({
       <Divider size="xs" my={4} />
       <Group justify="space-between" gap={16}>
         <Text size="xs" fw={700}>= Sobra mensal</Text>
-        <Text size="xs" fw={700} c={surplus >= 0 ? 'sage.7' : 'danger.6'}>
+        <Text size="xs" fw={700} c={surplus >= 0 ? 'ocean.7' : 'danger.6'}>
           {signedMoney(surplus)}
         </Text>
       </Group>
@@ -298,7 +299,8 @@ interface ScenarioCardNewProps {
 
 function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetIncome }: ScenarioCardNewProps) {
   const s = scenario;
-  const colorMap = ['sage', 'info', 'forest'] as const;
+  // Use new semantic colors for scenarios
+  const colorMap = ['ocean', 'teal', 'violet'] as const;
   const color = colorMap[index % colorMap.length];
   const iconMap = [<IconBuildingBank size={24} />, <IconChartLine size={24} />, <IconPigMoney size={24} />];
   
@@ -383,10 +385,10 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       className={isBest ? 'card-hover' : ''}
       style={{
         backgroundColor: isBest
-          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))'
           : 'var(--mantine-color-body)',
         border: isBest
-          ? '2px solid light-dark(var(--mantine-color-sage-3), var(--mantine-color-sage-6))'
+          ? '2px solid light-dark(var(--mantine-color-ocean-3), var(--mantine-color-ocean-6))'
           : '1px solid var(--mantine-color-default-border)',
         position: 'relative',
         overflow: 'hidden',
@@ -396,7 +398,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       {/* Winner badge */}
       {isBest && (
         <Badge
-          color="sage"
+          color="ocean"
           variant="filled"
           size="sm"
           leftSection={<IconCrown size={12} />}
@@ -435,12 +437,12 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
         p="lg"
         mb="lg"
         style={{
-          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
           borderRadius: rem(10),
         }}
       >
         <Group gap={6} align="center" wrap="nowrap">
-          <Text size="xs" c="sage.6" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
+          <Text size="xs" c="ocean.6" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
             Patrimônio Final
           </Text>
           <Help
@@ -456,9 +458,9 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
             {wealthDelta < 0 ? (
               <IconArrowDownRight size={14} color="var(--mantine-color-danger-6)" />
             ) : (
-              <IconArrowUpRight size={14} color="var(--mantine-color-sage-7)" />
+              <IconArrowUpRight size={14} color="var(--mantine-color-ocean-7)" />
             )}
-            <Text size="xs" c={wealthDelta < 0 ? 'danger.6' : 'sage.7'} fw={500}>
+            <Text size="xs" c={wealthDelta < 0 ? 'danger.6' : 'ocean.7'} fw={500}>
               {wealthDelta > 0 ? '+' : ''}{money(wealthDelta)} vs melhor
             </Text>
           </Group>
@@ -469,7 +471,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       <SimpleGrid cols={2} spacing="md">
         <Box>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="sage.5">
+            <Text size="xs" c="ocean.5">
               Custo Líquido
             </Text>
             <Help
@@ -478,11 +480,11 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
             />
           </Group>
           <Group gap={4} align="center">
-            <Text fw={600} size="md" c="sage.8">
+            <Text fw={600} size="md" c="ocean.8">
               {money(s.total_cost)}
             </Text>
             {!isBest && costDelta !== 0 && (
-              <Text size="xs" c={costDelta > 0 ? 'danger.6' : 'sage.7'}>
+              <Text size="xs" c={costDelta > 0 ? 'danger.6' : 'ocean.7'}>
                 ({costDelta > 0 ? '+' : ''}{money(costDelta)})
               </Text>
             )}
@@ -490,7 +492,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
         </Box>
         <Box>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="sage.5">
+            <Text size="xs" c="ocean.5">
               Equidade
             </Text>
             <Help
@@ -498,13 +500,13 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
               help="Equidade do imóvel (valor do imóvel menos saldo devedor). Não inclui investimentos nem FGTS. Em cenários sem compra, fica 0."
             />
           </Group>
-          <Text fw={600} size="md" c="sage.8">
+          <Text fw={600} size="md" c="ocean.8">
             {money(propertyEquity)}
           </Text>
         </Box>
         <Box>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="sage.5">
+            <Text size="xs" c="ocean.5">
               ROI
             </Text>
             <Help
@@ -512,13 +514,13 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
               help="Retorno percentual estimado. Em geral, compara o que você terminou com o que saiu do seu bolso (varia por cenário e regras)."
             />
           </Group>
-          <Text fw={600} size="md" c="sage.8">
+          <Text fw={600} size="md" c="ocean.8">
             {percent(s.metrics.roi_percentage)}
           </Text>
         </Box>
         <Box>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="sage.5">
+            <Text size="xs" c="ocean.5">
               Saída mensal média
             </Text>
             <Help
@@ -526,17 +528,17 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
               help="Média da saída total mensal ao longo do horizonte (inclui entrada/alocação inicial e aportes quando aplicável). Útil para comparar esforço de caixa entre estratégias."
             />
           </Group>
-          <Text size="xs" c="sage.5" mb={2}>
+          <Text size="xs" c="ocean.5" mb={2}>
             (inclui entrada/aportes)
           </Text>
-          <Text fw={600} size="md" c="sage.8">
+          <Text fw={600} size="md" c="ocean.8">
             {money(s.metrics.average_monthly_cost)}
           </Text>
         </Box>
         {incomeSurplusMonth1 != null && (
           <Box>
             <Group gap={6} align="center" wrap="nowrap" mb={2}>
-              <Text size="xs" c="sage.5">
+              <Text size="xs" c="ocean.5">
                 Sobra mensal (mês 1)
               </Text>
               <Help
@@ -547,7 +549,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
             <Text
               fw={600}
               size="md"
-              c={incomeSurplusMonth1 >= 0 ? 'sage.8' : 'danger.6'}
+              c={incomeSurplusMonth1 >= 0 ? 'ocean.8' : 'danger.6'}
             >
               {signedMoney(incomeSurplusMonth1)}
             </Text>
@@ -556,7 +558,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
         {affordabilityMetrics != null && (
           <Box>
             <Group gap={6} align="center" wrap="nowrap" mb={2}>
-              <Text size="xs" c="sage.5">
+              <Text size="xs" c="ocean.5">
                 % da renda (mês 1)
               </Text>
               <Help
@@ -567,7 +569,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
             <Text
               fw={600}
               size="md"
-              c={affordabilityMetrics.incomeUsedMonth1 <= 30 ? 'sage.8' : affordabilityMetrics.incomeUsedMonth1 <= 50 ? 'warning.6' : 'danger.6'}
+              c={affordabilityMetrics.incomeUsedMonth1 <= 30 ? 'ocean.8' : affordabilityMetrics.incomeUsedMonth1 <= 50 ? 'warning.6' : 'danger.6'}
             >
               {affordabilityMetrics.incomeUsedMonth1.toFixed(1)}%
             </Text>
@@ -576,7 +578,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
         {affordabilityMetrics != null && affordabilityMetrics.monthsNegative > 0 && (
           <Box>
             <Group gap={6} align="center" wrap="nowrap" mb={2}>
-              <Text size="xs" c="sage.5">
+              <Text size="xs" c="ocean.5">
                 Meses no vermelho
               </Text>
               <Help
@@ -625,19 +627,19 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           </Text>
           <SimpleGrid cols={2} spacing="xs">
             <Group gap={6} align="center">
-              <Text size="sm" c="sage.7">Entrada em dinheiro</Text>
+              <Text size="sm" c="ocean.7">Entrada em dinheiro</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.cash_down_payment)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="sage.7">FGTS na entrada</Text>
+              <Text size="sm" c="ocean.7">FGTS na entrada</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.fgts_at_purchase)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="sage.7">Financiado</Text>
+              <Text size="sm" c="ocean.7">Financiado</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.financed_amount)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="sage.7">Custos (ITBI+escritura)</Text>
+              <Text size="sm" c="ocean.7">Custos (ITBI+escritura)</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.upfront_costs)}</Text>
             </Group>
           </SimpleGrid>
@@ -650,12 +652,12 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           p="md"
           mt="md"
           style={{
-            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
             borderRadius: rem(10),
           }}
         >
           <Group gap={8} mb={8}>
-            <ThemeIcon size={28} radius="xl" color="sage" variant="filled">
+            <ThemeIcon size={28} radius="xl" color="ocean" variant="filled">
               <IconPigMoney size={16} />
             </ThemeIcon>
             <Box>
@@ -665,11 +667,11 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           </Group>
           <SimpleGrid cols={2} spacing="xs">
             <Group gap={6} align="center">
-              <Text size="sm" c="sage.7">Usado na entrada</Text>
+              <Text size="sm" c="ocean.7">Usado na entrada</Text>
               <Text size="sm" fw={700}>{money(s.fgts_summary.withdrawn_at_purchase)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="sage.7">Amortizações FGTS</Text>
+              <Text size="sm" c="ocean.7">Amortizações FGTS</Text>
               <Text size="sm" fw={700}>{money(s.fgts_summary.withdrawn_for_amortizations)}</Text>
             </Group>
           </SimpleGrid>
@@ -692,12 +694,12 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       )}
 
       {/* Additional info */}
-      <Divider my="md" color="sage.2" />
+      <Divider my="md" color="ocean.2" />
       <Group gap="xs" wrap="wrap">
-        <Badge variant="light" color="sage" size="sm">
+        <Badge variant="light" color="ocean" size="sm">
           {s.monthly_data.length} meses
         </Badge>
-        <Badge variant="light" color="sage" size="sm">
+        <Badge variant="light" color="ocean" size="sm">
           Juros/Aluguel: {money(s.metrics.total_interest_or_rent_paid)}
         </Badge>
         {s.opportunity_cost != null && s.opportunity_cost > 0 && (
@@ -900,18 +902,18 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
         <Box>
           <Group gap="sm" mb="xs">
-            <ThemeIcon size={40} radius="md" variant="filled" color="sage">
+            <ThemeIcon size={40} radius="md" variant="filled" color="ocean">
               <IconChartLine size={20} />
             </ThemeIcon>
-            <Title order={2} fw={600} c="sage.9">
+            <Title order={2} fw={600} c="ocean.9">
               Resultados da Análise
             </Title>
           </Group>
-          <Text size="md" c="sage.6">
+          <Text size="md" c="ocean.6">
             Melhor cenário (critério: maior variação de patrimônio):{' '}
-            <Text component="span" fw={600} c="sage.8">{result.best_scenario}</Text>
+            <Text component="span" fw={600} c="ocean.8">{result.best_scenario}</Text>
           </Text>
-          <Text size="xs" c="sage.6" mt={4}>
+          <Text size="xs" c="ocean.6" mt={4}>
             “Melhor” aqui significa maior variação de patrimônio (não menor desembolso/custo líquido).
           </Text>
         </Box>
@@ -919,7 +921,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           <Menu.Target>
             <Button
               variant="light"
-              color="sage"
+              color="ocean"
               leftSection={<IconDownload size={16} />}
               radius="lg"
             >
@@ -998,12 +1000,12 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         radius="xl"
         style={{
           border: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
         }}
       >
         <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="xs">
           <Group gap="xs">
-            <ThemeIcon size={34} radius="lg" variant="light" color="sage">
+            <ThemeIcon size={34} radius="lg" variant="light" color="ocean">
               <IconSettings size={16} />
             </ThemeIcon>
             <Box>
@@ -1018,7 +1020,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           <Group gap="xs">
             <Button
               variant="light"
-              color="sage"
+              color="ocean"
               radius="lg"
               size="xs"
               onClick={() => setShowInputDetails((v) => !v)}
@@ -1027,7 +1029,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             </Button>
             <Button
               variant="subtle"
-              color="sage"
+              color="ocean"
               radius="lg"
               size="xs"
               disabled={!inputPayload}
@@ -1048,62 +1050,62 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         ) : (
           <>
             <Group gap="xs" wrap="wrap">
-              <Badge variant="light" color="sage">
+              <Badge variant="light" color="ocean">
                 Imóvel: {money(inputPayload.property_value)}
               </Badge>
-              <Badge variant="light" color="sage">
+              <Badge variant="light" color="ocean">
                 Entrada: {money(inputPayload.down_payment)}
               </Badge>
-              <Badge variant="light" color="sage">
+              <Badge variant="light" color="ocean">
                 Prazo: {inputPayload.loan_term_years} anos
               </Badge>
-              <Badge variant="light" color="sage">
+              <Badge variant="light" color="ocean">
                 Sistema: {inputPayload.loan_type}
               </Badge>
               {inputSummary?.interestLabel !== '—' && (
-                <Badge variant="light" color="sage">Juros: {inputSummary?.interestLabel}</Badge>
+                <Badge variant="light" color="ocean">Juros: {inputSummary?.interestLabel}</Badge>
               )}
               {inputPayload.rent_inflation_rate != null && (
-                <Badge variant="light" color="sage">Inflação aluguel: {percentSafe(inputPayload.rent_inflation_rate, 2)} a.a.</Badge>
+                <Badge variant="light" color="ocean">Inflação aluguel: {percentSafe(inputPayload.rent_inflation_rate, 2)} a.a.</Badge>
               )}
               {inputPayload.inflation_rate != null && (
-                <Badge variant="light" color="sage">Inflação geral: {percentSafe(inputPayload.inflation_rate, 2)} a.a.</Badge>
+                <Badge variant="light" color="ocean">Inflação geral: {percentSafe(inputPayload.inflation_rate, 2)} a.a.</Badge>
               )}
               {inputPayload.property_appreciation_rate != null && (
-                <Badge variant="light" color="sage">Valorização imóvel: {percentSafe(inputPayload.property_appreciation_rate, 2)} a.a.</Badge>
+                <Badge variant="light" color="ocean">Valorização imóvel: {percentSafe(inputPayload.property_appreciation_rate, 2)} a.a.</Badge>
               )}
-              <Badge variant="light" color="sage">
+              <Badge variant="light" color="ocean">
                 Amortizações: {inputSummary?.amortizationsCount ?? 0}
               </Badge>
-              <Badge variant="light" color="sage">
+              <Badge variant="light" color="ocean">
                 Aportes: {inputSummary?.contributionsCount ?? 0}
               </Badge>
               {inputSummary?.netIncomeLabel !== '—' && (
-                <Badge variant="light" color="sage">
+                <Badge variant="light" color="ocean">
                   Renda líquida: {inputSummary?.netIncomeLabel}
                 </Badge>
               )}
             </Group>
 
             <Collapse in={showInputDetails}>
-              <Divider my="sm" color="sage.2" />
+              <Divider my="sm" color="ocean.2" />
               <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="sm">
                 <Box>
-                  <Text size="xs" c="sage.6">Aluguel</Text>
+                  <Text size="xs" c="ocean.6">Aluguel</Text>
                   <Text fw={600} c="bright">{inputSummary?.rentLabel ?? '—'}</Text>
                 </Box>
                 <Box>
-                  <Text size="xs" c="sage.6">Renda líquida mensal</Text>
+                  <Text size="xs" c="ocean.6">Renda líquida mensal</Text>
                   <Text fw={600} c="bright">{inputSummary?.netIncomeLabel ?? '—'}</Text>
                 </Box>
                 <Box>
-                  <Text size="xs" c="sage.6">Retornos investimento</Text>
+                  <Text size="xs" c="ocean.6">Retornos investimento</Text>
                   <Text fw={600} c="bright">{inputSummary?.invReturnsLabel ?? '—'}</Text>
                 </Box>
               </SimpleGrid>
 
               <Collapse in={showInputJson}>
-                <Divider my="sm" color="sage.2" />
+                <Divider my="sm" color="ocean.2" />
                 <ScrollArea h={220} type="hover" scrollbarSize={8} offsetScrollbars>
                   <Text
                     component="pre"
@@ -1157,7 +1159,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             </Text>
           </Box>
           {lastComparativeMonth != null && (
-            <Badge variant="light" color="sage" size="lg">
+            <Badge variant="light" color="ocean" size="lg">
               Horizonte: {horizonLabel(lastComparativeMonth)}
             </Badge>
           )}
@@ -1180,7 +1182,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 {comparativeMiniTable.map((r: any) => (
                   <Table.Tr key={r.month}>
                     <Table.Td fw={600}>{formatMonthLabel(r.month)}</Table.Td>
-                    <Table.Td c={r.buy_vs_rent_difference > 0 ? 'danger.6' : r.buy_vs_rent_difference < 0 ? 'success.7' : 'sage.6'}>
+                    <Table.Td c={r.buy_vs_rent_difference > 0 ? 'danger.6' : r.buy_vs_rent_difference < 0 ? 'success.7' : 'ocean.6'}>
                       {signedMoney(r.buy_vs_rent_difference)}
                     </Table.Td>
                     <Table.Td
@@ -1191,7 +1193,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             ? 'danger.6'
                             : r.buy_vs_rent_percentage < 0
                               ? 'success.7'
-                              : 'sage.6'
+                              : 'ocean.6'
                       }
                     >
                       {r.buy_vs_rent_percentage == null
@@ -1207,12 +1209,12 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             </Table>
           </ScrollArea>
         ) : (
-          <Text size="sm" c="sage.6">
+          <Text size="sm" c="ocean.6">
             Resumo comparativo indisponível.
           </Text>
         )}
 
-        <Text size="xs" c="sage.6" mt="sm">
+        <Text size="xs" c="ocean.6" mt="sm">
           Interpretação: valores positivos em “Comprar − Alugar” significam que comprar foi mais caro no mês (pior para comprar no curto prazo).
         </Text>
       </Paper>
@@ -1224,7 +1226,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           radius="xl"
           mb="md"
           style={{
-            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
             border: '1px solid var(--mantine-color-default-border)',
           }}
         >
@@ -1286,7 +1288,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 dataKey="month"
                 series={result.scenarios.map((s, i) => ({
                   name: s.name,
-                  color: ['sage.9', 'info.6', 'forest.6'][i % 3],
+                  color: [CHART_COLORS.scenarios.buy, CHART_COLORS.scenarios.rent, CHART_COLORS.scenarios.invest][i % 3],
                 }))}
                 curveType="monotone"
                 gridAxis="xy"
@@ -1305,7 +1307,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 dataKey="month"
                 series={result.scenarios.map((s, i) => ({
                   name: s.name,
-                  color: ['sage.9', 'info.6', 'forest.6'][i % 3],
+                  color: [CHART_COLORS.scenarios.buy, CHART_COLORS.scenarios.rent, CHART_COLORS.scenarios.invest][i % 3],
                 }))}
                 curveType="monotone"
                 gridAxis="xy"
@@ -1372,7 +1374,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   </Box>
                   {isInvestBuy && (
                     <Group gap="md">
-                      <Badge color={purchaseMonth ? 'success' : 'sage'} variant="light" size="lg">
+                      <Badge color={purchaseMonth ? 'success' : 'ocean'} variant="light" size="lg">
                         {purchaseMonth ? `Comprado no mês ${purchaseMonth}` : 'Ainda não comprado'}
                       </Badge>
                       <Switch
@@ -1397,7 +1399,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         { label: 'Detalhada', value: 'detailed' },
                       ]}
                     />
-                    <Text size="xs" c="sage.6">
+                    <Text size="xs" c="ocean.6">
                       Essencial = leitura rápida; Detalhada = mais colunas.
                     </Text>
                   </Group>
@@ -1439,7 +1441,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                       <>
                         <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="sm">
                           <Group gap="xs" wrap="wrap">
-                            <Badge variant="light" color="sage">
+                            <Badge variant="light" color="ocean">
                               {payoffMonth != null ? `Quitado no mês ${payoffMonth}` : 'Não quitado no horizonte'}
                             </Badge>
                             <Tooltip
@@ -1552,7 +1554,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                         position="left"
                                       >
                                         <Text 
-                                          c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                          c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
                                           fw={500}
                                           style={{ cursor: 'help', textDecoration: 'underline dotted' }}
                                         >
@@ -1604,7 +1606,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             ) : (
                               <>
                                 {/* Custos de Moradia */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-sage-3)' }}>
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-ocean-3)' }}>
                                   <Tooltip label="Valor do aluguel no mês" withArrow>
                                     <Text component="span" size="sm">Aluguel</Text>
                                   </Tooltip>
@@ -1653,7 +1655,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   </Tooltip>
                                 </Table.Th>
                                 {/* Investimentos */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-forest-3)' }}>
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-teal-3)' }}>
                                   <Tooltip label="Aportes programados (configurados na entrada)" withArrow>
                                     <Text component="span" size="sm">Aportes</Text>
                                   </Tooltip>
@@ -1728,7 +1730,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           position="left"
                                         >
                                           <Text 
-                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
                                             fw={500}
                                             style={{ cursor: 'help', textDecoration: 'underline dotted' }}
                                           >
@@ -1764,7 +1766,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           position="left"
                                         >
                                           <Text 
-                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
                                             fw={500}
                                             style={{ cursor: 'help', textDecoration: 'underline dotted' }}
                                           >
@@ -1838,7 +1840,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             ) : (
                               <>
                                 {/* Custos de Moradia */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-sage-3)' }}>
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-ocean-3)' }}>
                                   <Tooltip label="Valor do aluguel no mês" withArrow>
                                     <Text component="span" size="sm">Aluguel</Text>
                                   </Tooltip>
@@ -1887,7 +1889,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   </Tooltip>
                                 </Table.Th>
                                 {/* Meta de compra */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-forest-3)' }}>
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-teal-3)' }}>
                                   <Tooltip label="Valor necessário para comprar (imóvel + custos)" withArrow>
                                     <Text component="span" size="sm">Alvo</Text>
                                   </Tooltip>
@@ -1904,7 +1906,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   </Tooltip>
                                 </Table.Th>
                                 {/* Patrimônio */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-sage-3)' }}>
+                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-ocean-3)' }}>
                                   <Tooltip label="Valor do imóvel (com valorização)" withArrow>
                                     <Text component="span" size="sm">Imóvel</Text>
                                   </Tooltip>
@@ -1936,7 +1938,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   backgroundColor: isPurchase
                                     ? 'light-dark(var(--mantine-color-success-0), var(--mantine-color-dark-7))'
                                     : isPostPurchase
-                                      ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+                                      ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))'
                                       : isNegativeSurplus
                                         ? 'light-dark(var(--mantine-color-danger-0), var(--mantine-color-dark-7))'
                                         : undefined,
@@ -1946,7 +1948,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 <Table.Td>{m.month}</Table.Td>
                                 <Table.Td>{yearFromMonth(m.month)}</Table.Td>
                                 <Table.Td>
-                                  <Badge size="sm" variant="light" color={isPurchase ? 'success' : 'sage'}>
+                                  <Badge size="sm" variant="light" color={isPurchase ? 'success' : 'ocean'}>
                                     {m.status || '—'}
                                   </Badge>
                                 </Table.Td>
@@ -1987,7 +1989,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           position="left"
                                         >
                                           <Text 
-                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
                                             fw={500}
                                             style={{ cursor: 'help', textDecoration: 'underline dotted' }}
                                           >
@@ -2022,7 +2024,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           position="left"
                                         >
                                           <Text 
-                                            c={surplus >= 0 ? 'sage.7' : 'danger.6'} 
+                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
                                             fw={500}
                                             style={{ cursor: 'help', textDecoration: 'underline dotted' }}
                                           >
@@ -2096,7 +2098,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         <Text size="xs" c="dimmed">Mês da compra</Text>
                       </Group>
                       <Group gap={6}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-sage-1)' }} />
+                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-ocean-1)' }} />
                         <Text size="xs" c="dimmed">Pós-compra</Text>
                       </Group>
                       {monthlyNetIncome != null && (
@@ -2109,39 +2111,39 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   )}
                 </Group>
 
-                <Divider my="md" color="sage.2" />
+                <Divider my="md" color="ocean.2" />
                 <SimpleGrid cols={{ base: 1, sm: 4 }} spacing="md">
                   <Box>
-                    <Text size="xs" c="sage.5">Break-even</Text>
-                    <Text fw={600} c="sage.8">
+                    <Text size="xs" c="ocean.5">Break-even</Text>
+                    <Text fw={600} c="ocean.8">
                       {s.metrics.break_even_month != null ? `Mês ${s.metrics.break_even_month}` : '—'}
                     </Text>
                   </Box>
                   <Box>
-                    <Text size="xs" c="sage.5">ROI (bruto)</Text>
-                    <Text fw={600} c="sage.8">{percent(s.metrics.roi_percentage)}</Text>
+                    <Text size="xs" c="ocean.5">ROI (bruto)</Text>
+                    <Text fw={600} c="ocean.8">{percent(s.metrics.roi_percentage)}</Text>
                   </Box>
                   <Box>
-                    <Text size="xs" c="sage.5">ROI (incl. saques)</Text>
-                    <Text fw={600} c="sage.8">
+                    <Text size="xs" c="ocean.5">ROI (incl. saques)</Text>
+                    <Text fw={600} c="ocean.8">
                       {s.metrics.roi_including_withdrawals_percentage != null ? percent(s.metrics.roi_including_withdrawals_percentage) : '—'}
                     </Text>
                   </Box>
                   <Box>
-                    <Text size="xs" c="sage.5">Meses com burn</Text>
-                    <Text fw={600} c="sage.8">{s.metrics.months_with_burn ?? '—'}</Text>
+                    <Text size="xs" c="ocean.5">Meses com burn</Text>
+                    <Text fw={600} c="ocean.8">{s.metrics.months_with_burn ?? '—'}</Text>
                   </Box>
                 </SimpleGrid>
 
                 {(s.metrics.total_rent_withdrawn_from_investment != null || s.metrics.average_sustainable_withdrawal_ratio != null) && (
                   <Group gap="xs" mt="md" wrap="wrap">
                     {s.metrics.total_rent_withdrawn_from_investment != null && (
-                      <Badge variant="light" color="sage">
+                      <Badge variant="light" color="ocean">
                         Aluguel sacado do investimento: {money(s.metrics.total_rent_withdrawn_from_investment)}
                       </Badge>
                     )}
                     {s.metrics.average_sustainable_withdrawal_ratio != null && (
-                      <Badge variant="light" color="sage">
+                      <Badge variant="light" color="ocean">
                         Retirada sustentável média: {ratio(s.metrics.average_sustainable_withdrawal_ratio, 2)} ({ratioAsPercent(s.metrics.average_sustainable_withdrawal_ratio, 0)})
                       </Badge>
                     )}

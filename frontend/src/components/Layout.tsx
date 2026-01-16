@@ -154,18 +154,18 @@ export default function Layout({ children }: { children: ReactNode }) {
                     width: rem(36),
                     height: rem(36),
                     borderRadius: rem(10),
-                    background: 'linear-gradient(135deg, var(--mantine-color-sage-6) 0%, var(--mantine-color-sage-7) 100%)',
+                    background: 'linear-gradient(135deg, var(--mantine-color-ocean-6) 0%, var(--mantine-color-ocean-7) 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: 'white',
-                    boxShadow: '0 2px 8px rgba(114, 125, 115, 0.25)',
+                    boxShadow: '0 2px 8px rgba(44, 112, 163, 0.25)',
                   }}
                 >
                   <IconLeaf size={20} />
                 </Box>
                 <Box>
-                  <Text fw={700} size="lg" lh={1.1} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                  <Text fw={700} size="lg" lh={1.1} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                     Farol
                   </Text>
                   <Text size="xs" c="dimmed" lh={1}>
@@ -197,7 +197,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <Group gap="xs">
               <ActionIcon
                 variant="subtle"
-                color="sage"
+                color="ocean"
                 size="lg"
                 radius="lg"
                 onClick={() => setColorScheme(computedColorScheme === 'dark' ? 'light' : 'dark')}
@@ -236,7 +236,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 width: rem(32),
                 height: rem(32),
                 borderRadius: rem(8),
-                background: 'linear-gradient(135deg, var(--mantine-color-sage-6) 0%, var(--mantine-color-sage-7) 100%)',
+                background: 'linear-gradient(135deg, var(--mantine-color-ocean-6) 0%, var(--mantine-color-ocean-7) 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -245,7 +245,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               <IconLeaf size={16} />
             </Box>
-            <Text fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Farol</Text>
+            <Text fw={700} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">Farol</Text>
           </Group>
         }
         zIndex={200}
@@ -298,7 +298,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   width: rem(24),
                   height: rem(24),
                   borderRadius: rem(6),
-                  background: 'linear-gradient(135deg, var(--mantine-color-sage-6) 0%, var(--mantine-color-sage-7) 100%)',
+                  background: 'linear-gradient(135deg, var(--mantine-color-ocean-6) 0%, var(--mantine-color-ocean-7) 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

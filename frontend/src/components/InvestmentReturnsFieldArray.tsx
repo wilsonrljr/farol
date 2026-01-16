@@ -66,10 +66,10 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
       {/* Header */}
       <Group justify="space-between">
         <Group gap="xs">
-          <Text fw={600} c="sage.8">
+          <Text fw={600} c="ocean.8">
             Retornos de Investimento
           </Text>
-          <Badge size="sm" variant="light" color="sage" radius="sm">
+          <Badge size="sm" variant="light" color="ocean" radius="sm">
             {(value || []).length}
           </Badge>
         </Group>
@@ -79,7 +79,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
               <Tooltip label="Minimizar todos">
                 <ActionIcon
                   variant="subtle"
-                  color="sage"
+                  color="ocean"
                   size="md"
                   radius="lg"
                   onClick={collapseAll}
@@ -90,7 +90,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
               <Tooltip label="Expandir todos">
                 <ActionIcon
                   variant="subtle"
-                  color="sage"
+                  color="ocean"
                   size="md"
                   radius="lg"
                   onClick={expandAll}
@@ -104,7 +104,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
             leftSection={<IconPlus size={16} />}
             size="sm"
             variant="light"
-            color="sage"
+            color="ocean"
             radius="lg"
             onClick={addItem}
           >
@@ -121,15 +121,15 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
           ta="center"
           style={{
             border: '2px dashed var(--mantine-color-default-border)',
-            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
           }}
         >
           <Stack gap="sm" align="center">
-            <ThemeIcon size={48} radius="xl" variant="light" color="sage">
+            <ThemeIcon size={48} radius="xl" variant="light" color="ocean">
               <IconChartLine size={24} />
             </ThemeIcon>
             <div>
-              <Text fw={500} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+              <Text fw={500} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                 Nenhum retorno configurado
               </Text>
               <Text size="sm" c="dimmed">
@@ -139,7 +139,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
             <Button
               leftSection={<IconPlus size={16} />}
               variant="light"
-              color="sage"
+              color="ocean"
               radius="lg"
               onClick={addItem}
             >
@@ -177,18 +177,18 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
                   <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
                     <ActionIcon
                       variant="subtle"
-                      color="sage"
+                      color="ocean"
                       size="sm"
                       radius="lg"
                     >
                       {isCollapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
                     </ActionIcon>
-                    <ThemeIcon size={28} radius="lg" variant="light" color="sage">
+                    <ThemeIcon size={28} radius="lg" variant="light" color="ocean">
                       <IconChartLine size={14} />
                     </ThemeIcon>
                     <Box style={{ minWidth: 0, flex: 1 }}>
                       <Group gap="xs" wrap="nowrap">
-                        <Text fw={500} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                        <Text fw={500} size="sm" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                           Retorno {idx + 1}
                         </Text>
                         {isCollapsed && (

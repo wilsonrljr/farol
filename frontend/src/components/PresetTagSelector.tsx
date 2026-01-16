@@ -33,7 +33,7 @@ import {
 // Color mapping for Mantine color names
 const TAG_COLORS: Record<string, string> = {
   blue: 'blue',
-  sage: 'sage',
+  ocean: 'ocean',
   orange: 'orange',
   green: 'green',
   red: 'red',
@@ -182,7 +182,7 @@ export function TagSelector({
           <ActionIcon
             size={compact ? 'sm' : 'md'}
             variant="light"
-            color="sage"
+            color="ocean"
             onClick={toggle}
             radius="xl"
           >
@@ -243,7 +243,7 @@ export function TagSelector({
                 />
                 <ActionIcon
                   size="sm"
-                  color="sage"
+                  color="ocean"
                   variant="filled"
                   onClick={handleAddCustomTag}
                   disabled={!customLabel.trim()}
@@ -299,7 +299,7 @@ export function TagFilter({
         <Button
           size="xs"
           variant={selectedFilters.length > 0 ? 'filled' : 'light'}
-          color="sage"
+          color="ocean"
           leftSection={<IconFilter size={14} />}
           rightSection={
             selectedFilters.length > 0 && (

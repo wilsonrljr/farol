@@ -255,7 +255,7 @@ export default function Vehicles() {
         </SimpleGrid>
 
         <Group justify="flex-end" mt="lg">
-          <Button color="sage" radius="xl" loading={loading} onClick={onSimulate}>
+          <Button color="ocean" radius="xl" loading={loading} onClick={onSimulate}>
             Comparar
           </Button>
         </Group>
@@ -270,7 +270,7 @@ export default function Vehicles() {
               onChange={(e) => setPresetName(e.currentTarget.value)}
               style={{ flex: 1, minWidth: 260 }}
             />
-            <Button variant="light" color="sage" radius="xl" onClick={onSavePreset}>
+            <Button variant="light" color="ocean" radius="xl" onClick={onSavePreset}>
               Salvar preset
             </Button>
             <Button
@@ -301,7 +301,7 @@ export default function Vehicles() {
                       </Text>
                     </Box>
                     <Group gap="xs">
-                      <Button size="xs" radius="xl" variant="light" color="sage" onClick={() => onLoadPreset(p)}>
+                      <Button size="xs" radius="xl" variant="light" color="ocean" onClick={() => onLoadPreset(p)}>
                         Carregar
                       </Button>
                       <Button size="xs" radius="xl" variant="subtle" color="red" onClick={() => onDeletePreset(p.id)}>
@@ -339,7 +339,7 @@ export default function Vehicles() {
               dataKey="month"
               series={result.scenarios.map((s, i) => ({
                 name: s.name,
-                color: ['sage.9', 'info.6', 'forest.6', 'red.6'][i % 4],
+                color: ['ocean.6', 'teal.5', 'violet.5', 'rose.5'][i % 4],
               }))}
               curveType="monotone"
               gridAxis="xy"

@@ -101,7 +101,7 @@ export function PresetCompareSelector({
     <>
       <Button
         variant="gradient"
-        gradient={{ from: 'sage.5', to: 'sage.7', deg: 135 }}
+        gradient={{ from: 'ocean.5', to: 'ocean.7', deg: 135 }}
         size="sm"
         leftSection={<IconScale size={16} />}
         onClick={open}
@@ -120,7 +120,7 @@ export function PresetCompareSelector({
               size="lg"
               radius="md"
               variant="gradient"
-              gradient={{ from: 'sage.5', to: 'sage.7', deg: 135 }}
+              gradient={{ from: 'ocean.5', to: 'ocean.7', deg: 135 }}
             >
               <IconScale size={18} />
             </ThemeIcon>
@@ -156,13 +156,13 @@ export function PresetCompareSelector({
                 <Badge
                   size="lg"
                   variant={canCompare ? 'filled' : 'light'}
-                  color={canCompare ? 'sage' : 'gray'}
+                  color={canCompare ? 'ocean' : 'gray'}
                 >
                   {selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}
                 </Badge>
                 <Button
                   variant="subtle"
-                  color="sage"
+                  color="ocean"
                   size="xs"
                   onClick={selectAll}
                   disabled={presets.length === 0}
@@ -199,7 +199,7 @@ export function PresetCompareSelector({
           {/* Presets List */}
           {presets.length === 0 ? (
             <Box p="xl" ta="center">
-              <ThemeIcon size={60} radius="xl" variant="light" color="sage" mx="auto" mb="md">
+              <ThemeIcon size={60} radius="xl" variant="light" color="ocean" mx="auto" mb="md">
                 <IconBookmark size={30} />
               </ThemeIcon>
               <Text fw={600} size="lg" mb="xs">
@@ -224,10 +224,10 @@ export function PresetCompareSelector({
                       mb="sm"
                       style={{
                         border: isSelected
-                          ? '2px solid var(--mantine-color-sage-5)'
+                          ? '2px solid var(--mantine-color-ocean-5)'
                           : '1px solid var(--mantine-color-default-border)',
                         backgroundColor: isSelected
-                          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
+                          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))'
                           : undefined,
                         cursor: 'pointer',
                         transition: 'all 150ms ease',
@@ -239,7 +239,7 @@ export function PresetCompareSelector({
                           <Checkbox
                             checked={isSelected}
                             onChange={() => {}}
-                            color="sage"
+                            color="ocean"
                             size="md"
                             styles={{ input: { cursor: 'pointer' } }}
                           />
@@ -249,7 +249,7 @@ export function PresetCompareSelector({
                                 {preset.name}
                               </Text>
                               {index === 0 && (
-                                <Badge size="xs" variant="light" color="sage">
+                                <Badge size="xs" variant="light" color="ocean">
                                   Mais recente
                                 </Badge>
                               )}
@@ -307,7 +307,7 @@ export function PresetCompareSelector({
                 py="sm"
                 style={{
                   backgroundColor:
-                    'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+                    'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
                 }}
               >
                 <Text size="xs" c="dimmed" mb="xs" fw={500}>
@@ -318,7 +318,7 @@ export function PresetCompareSelector({
                     <Badge
                       key={preset.id}
                       variant="light"
-                      color="sage"
+                      color="ocean"
                       size="sm"
                       rightSection={
                         <IconCheck
@@ -348,7 +348,7 @@ export function PresetCompareSelector({
                 Cancelar
               </Button>
               <Button
-                color="sage"
+                color="ocean"
                 leftSection={<IconArrowRight size={16} />}
                 onClick={handleCompare}
                 disabled={!canCompare}

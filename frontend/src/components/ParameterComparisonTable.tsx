@@ -617,7 +617,7 @@ export default function ParameterComparisonTable({
             <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
               Parâmetros Diferentes
             </Text>
-            <Text size="xl" fw={700} c={parametersWithDiffs.size > 0 ? 'orange' : 'sage'}>
+            <Text size="xl" fw={700} c={parametersWithDiffs.size > 0 ? 'orange' : 'ocean'}>
               {parametersWithDiffs.size}
             </Text>
           </Paper>
@@ -626,7 +626,7 @@ export default function ParameterComparisonTable({
               <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
                 Diferença Máxima de Patrimônio
               </Text>
-              <Text size="xl" fw={700} c="sage.7">
+              <Text size="xl" fw={700} c="ocean.7">
                 {moneyCompact(wealthComparison.diff)}
               </Text>
             </Paper>
@@ -693,7 +693,7 @@ export default function ParameterComparisonTable({
                 <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
                   Diferença no Patrimônio Final
                 </Text>
-                <Text fw={700} size="xl" c={wealthComparison.diff > 0 ? 'sage.7' : 'red.6'}>
+                <Text fw={700} size="xl" c={wealthComparison.diff > 0 ? 'ocean.7' : 'red.6'}>
                   {money(wealthComparison.diff)}
                 </Text>
               </Box>
@@ -784,7 +784,7 @@ export default function ParameterComparisonTable({
             }}
           >
             <Group gap="sm" mb="md">
-              <ThemeIcon size="md" radius="md" variant="light" color="sage">
+              <ThemeIcon size="md" radius="md" variant="light" color="ocean">
                 {categoryInfo.icon}
               </ThemeIcon>
               <Text fw={600}>{categoryInfo.label}</Text>
@@ -902,7 +902,7 @@ export default function ParameterComparisonTable({
                               {deltaInfo.hasDiff ? (
                                 <Badge
                                   color={
-                                    deltaInfo.delta && deltaInfo.delta > 0 ? 'sage' : 'orange'
+                                    deltaInfo.delta && deltaInfo.delta > 0 ? 'ocean' : 'orange'
                                   }
                                   variant="light"
                                   leftSection={<IconArrowsExchange size={10} />}

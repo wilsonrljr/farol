@@ -79,18 +79,16 @@ interface BatchComparisonResultsProps {
   onBack?: () => void;
 }
 
-// Color palette for different presets
+// Color palette for different presets - using new design system
 const PRESET_COLORS = [
-  { main: 'sage', light: 'sage.0', dark: 'sage.7' },
-  { main: 'info', light: 'blue.0', dark: 'blue.7' },
-  { main: 'forest', light: 'green.0', dark: 'green.7' },
-  { main: 'orange', light: 'orange.0', dark: 'orange.7' },
-  { main: 'grape', light: 'grape.0', dark: 'grape.7' },
-  { main: 'pink', light: 'pink.0', dark: 'pink.7' },
-  { main: 'cyan', light: 'cyan.0', dark: 'cyan.7' },
+  { main: 'ocean', light: 'ocean.0', dark: 'ocean.7' },
   { main: 'teal', light: 'teal.0', dark: 'teal.7' },
-  { main: 'indigo', light: 'indigo.0', dark: 'indigo.7' },
-  { main: 'yellow', light: 'yellow.0', dark: 'yellow.7' },
+  { main: 'violet', light: 'violet.0', dark: 'violet.7' },
+  { main: 'amber', light: 'amber.0', dark: 'amber.7' },
+  { main: 'rose', light: 'rose.0', dark: 'rose.7' },
+  { main: 'sky', light: 'sky.0', dark: 'sky.7' },
+  { main: 'emerald', light: 'emerald.0', dark: 'emerald.7' },
+  { main: 'slate', light: 'slate.0', dark: 'slate.7' },
 ];
 
 const SCENARIO_ICONS: Record<string, React.ReactNode> = {
@@ -119,7 +117,7 @@ function RankingTable({ ranking, globalBest }: { ranking: BatchComparisonRanking
       }}
     >
       <Group gap="sm" mb="lg">
-        <ThemeIcon size="lg" radius="md" variant="light" color="sage">
+        <ThemeIcon size="lg" radius="md" variant="light" color="ocean">
           <IconTrophy size={20} />
         </ThemeIcon>
         <Box>
@@ -156,7 +154,7 @@ function RankingTable({ ranking, globalBest }: { ranking: BatchComparisonRanking
                   key={`${item.preset_id}-${item.scenario_name}`}
                   style={{
                     backgroundColor: isGlobalBest
-                      ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))'
+                      ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))'
                       : undefined,
                   }}
                 >
@@ -185,16 +183,16 @@ function RankingTable({ ranking, globalBest }: { ranking: BatchComparisonRanking
                     </Group>
                   </Table.Td>
                   <Table.Td ta="right">
-                    <Text size="sm" fw={600} c={isGlobalBest ? 'sage.7' : undefined}>
+                    <Text size="sm" fw={600} c={isGlobalBest ? 'ocean.6' : undefined}>
                       {money(item.final_wealth)}
                     </Text>
                   </Table.Td>
                   <Table.Td ta="right">
                     <Group gap={4} justify="flex-end">
                       {item.net_worth_change > 0 ? (
-                        <IconArrowUpRight size={14} color="var(--mantine-color-sage-7)" />
+                        <IconArrowUpRight size={14} color="var(--mantine-color-emerald-6)" />
                       ) : item.net_worth_change < 0 ? (
-                        <IconArrowDownRight size={14} color="var(--mantine-color-red-6)" />
+                        <IconArrowDownRight size={14} color="var(--mantine-color-rose-6)" />
                       ) : (
                         <IconMinus size={14} color="var(--mantine-color-gray-5)" />
                       )}
@@ -202,9 +200,9 @@ function RankingTable({ ranking, globalBest }: { ranking: BatchComparisonRanking
                         size="sm"
                         c={
                           item.net_worth_change > 0
-                            ? 'sage.7'
+                            ? 'emerald.6'
                             : item.net_worth_change < 0
-                              ? 'red.6'
+                              ? 'rose.6'
                               : 'dimmed'
                         }
                       >
@@ -252,10 +250,10 @@ function PresetCard({
       radius="lg"
       style={{
         border: isGlobalBest
-          ? '2px solid var(--mantine-color-sage-5)'
+          ? '2px solid var(--mantine-color-ocean-5)'
           : '1px solid var(--mantine-color-default-border)',
         backgroundColor: isGlobalBest
-          ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))'
           : 'var(--mantine-color-body)',
         position: 'relative',
         height: '100%',
@@ -419,7 +417,7 @@ function WealthComparisonChart({
       }}
     >
       <Group gap="sm" mb="lg">
-        <ThemeIcon size="lg" radius="md" variant="light" color="sage">
+        <ThemeIcon size="lg" radius="md" variant="light" color="ocean">
           <IconChartArea size={20} />
         </ThemeIcon>
         <Box>
@@ -561,25 +559,25 @@ function SummaryMetrics({
       {/* Best scenario of each preset */}
       <Box>
         <Group gap="xs" mb="sm">
-          <ThemeIcon size="sm" radius="md" variant="light" color="sage">
+          <ThemeIcon size="sm" radius="md" variant="light" color="ocean">
             <IconCrown size={14} />
           </ThemeIcon>
-          <Text size="sm" fw={600} c="sage.7">
+          <Text size="sm" fw={600} c="ocean.6">
             Melhores Cenários (1 por preset)
           </Text>
         </Group>
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-sage-3)' }}>
+          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-ocean-3)' }}>
             <Tooltip label="O maior patrimônio entre os melhores cenários de cada preset">
               <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ cursor: 'help' }}>
                 Melhor
               </Text>
             </Tooltip>
-            <Text size="xl" fw={700} c="sage.7">
+            <Text size="xl" fw={700} c="emerald.6">
               {money(stats.best.bestWealth)}
             </Text>
           </Paper>
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-sage-3)' }}>
+          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-ocean-3)' }}>
             <Tooltip label="O menor patrimônio entre os melhores cenários de cada preset">
               <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ cursor: 'help' }}>
                 Pior
@@ -589,7 +587,7 @@ function SummaryMetrics({
               {money(stats.best.worstWealth)}
             </Text>
           </Paper>
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-sage-3)' }}>
+          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-ocean-3)' }}>
             <Tooltip label="Média do patrimônio dos melhores cenários">
               <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ cursor: 'help' }}>
                 Média
@@ -599,13 +597,13 @@ function SummaryMetrics({
               {money(stats.best.avgWealth)}
             </Text>
           </Paper>
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-sage-3)' }}>
+          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-ocean-3)' }}>
             <Tooltip label="ROI médio dos melhores cenários">
               <Text size="xs" c="dimmed" tt="uppercase" fw={500} style={{ cursor: 'help' }}>
                 ROI Médio
               </Text>
             </Tooltip>
-            <Text size="xl" fw={700} c={stats.best.avgRoi >= 0 ? 'sage.7' : 'red.6'}>
+            <Text size="xl" fw={700} c={stats.best.avgRoi >= 0 ? 'emerald.6' : 'rose.6'}>
               {percent(stats.best.avgRoi)}
             </Text>
           </Paper>
@@ -615,7 +613,7 @@ function SummaryMetrics({
       {/* All scenarios */}
       <Box>
         <Group gap="xs" mb="sm">
-          <ThemeIcon size="sm" radius="md" variant="light" color="gray">
+          <ThemeIcon size="sm" radius="md" variant="light" color="slate">
             <IconScale size={14} />
           </ThemeIcon>
           <Text size="sm" fw={600} c="dimmed">
@@ -629,7 +627,7 @@ function SummaryMetrics({
                 Melhor
               </Text>
             </Tooltip>
-            <Text size="xl" fw={700} c="sage.7">
+            <Text size="xl" fw={700} c="emerald.6">
               {money(stats.all.bestWealth)}
             </Text>
           </Paper>
@@ -639,7 +637,7 @@ function SummaryMetrics({
                 Pior
               </Text>
             </Tooltip>
-            <Text size="xl" fw={700} c="red.6">
+            <Text size="xl" fw={700} c="rose.6">
               {money(stats.all.worstWealth)}
             </Text>
           </Paper>
@@ -659,7 +657,7 @@ function SummaryMetrics({
                 ROI Médio
               </Text>
             </Tooltip>
-            <Text size="xl" fw={700} c={stats.all.avgRoi >= 0 ? 'sage.7' : 'red.6'}>
+            <Text size="xl" fw={700} c={stats.all.avgRoi >= 0 ? 'emerald.6' : 'rose.6'}>
               {percent(stats.all.avgRoi)}
             </Text>
           </Paper>
@@ -726,7 +724,7 @@ export default function BatchComparisonResults({
               size={56}
               radius="xl"
               variant="gradient"
-              gradient={{ from: 'sage.5', to: 'sage.7', deg: 135 }}
+              gradient={{ from: 'ocean.5', to: 'ocean.7', deg: 135 }}
             >
               <IconScale size={28} />
             </ThemeIcon>
@@ -742,7 +740,7 @@ export default function BatchComparisonResults({
         </Box>
         <Button
           variant="light"
-          color="sage"
+          color="ocean"
           leftSection={<IconDownload size={16} />}
           onClick={handleExportCSV}
         >
@@ -752,7 +750,7 @@ export default function BatchComparisonResults({
 
       {/* Global Best Alert */}
       <Alert
-        color="sage"
+        color="ocean"
         variant="light"
         icon={<IconCrown size={20} />}
         title="Melhor Resultado Global"
@@ -766,7 +764,7 @@ export default function BatchComparisonResults({
             {result.global_best.scenario_name}
           </Text>{' '}
           alcançou o maior patrimônio final de{' '}
-          <Text span fw={700} c="sage.7">
+          <Text span fw={700} c="ocean.6">
             {money(result.global_best.final_wealth)}
           </Text>
         </Text>
@@ -870,12 +868,12 @@ export default function BatchComparisonResults({
                           border: isGlobalBest
                             ? '2px solid var(--mantine-color-gold-5)'
                             : isLocalBest
-                              ? '2px solid var(--mantine-color-sage-5)'
+                              ? '2px solid var(--mantine-color-ocean-5)'
                               : '1px solid var(--mantine-color-default-border)',
                           backgroundColor: isGlobalBest
                             ? 'light-dark(var(--mantine-color-yellow-0), var(--mantine-color-dark-8))'
                             : isLocalBest
-                              ? 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))'
+                              ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))'
                               : 'var(--mantine-color-body)',
                         }}
                       >
@@ -891,7 +889,7 @@ export default function BatchComparisonResults({
                               </Badge>
                             )}
                             {isLocalBest && !isGlobalBest && (
-                              <Badge color="sage" variant="filled" size="xs">
+                              <Badge color="ocean" variant="filled" size="xs">
                                 Melhor
                               </Badge>
                             )}
@@ -916,9 +914,9 @@ export default function BatchComparisonResults({
                               fw={500}
                               c={
                                 (scenario.net_worth_change ?? 0) > 0
-                                  ? 'sage.7'
+                                  ? 'emerald.6'
                                   : (scenario.net_worth_change ?? 0) < 0
-                                    ? 'red.6'
+                                    ? 'rose.6'
                                     : 'dimmed'
                               }
                             >

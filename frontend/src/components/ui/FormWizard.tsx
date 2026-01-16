@@ -53,16 +53,16 @@ function StepIndicator({
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: completed 
-            ? 'var(--mantine-color-sage-6)' 
+            ? 'var(--mantine-color-ocean-6)' 
             : active 
-              ? 'var(--mantine-color-sage-7)' 
-              : 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-7))',
-          border: `2px solid ${completed || active ? 'var(--mantine-color-sage-6)' : 'var(--mantine-color-default-border)'}`,
-          color: completed || active ? 'white' : 'var(--mantine-color-sage-6)',
+              ? 'var(--mantine-color-ocean-7)' 
+              : 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-7))',
+          border: `2px solid ${completed || active ? 'var(--mantine-color-ocean-6)' : 'var(--mantine-color-default-border)'}`,
+          color: completed || active ? 'white' : 'var(--mantine-color-ocean-6)',
           transition: 'all 250ms ease',
           flexShrink: 0,
           boxShadow: active
-            ? '0 0 0 4px light-dark(var(--mantine-color-sage-1), var(--mantine-color-dark-6))'
+            ? '0 0 0 4px light-dark(var(--mantine-color-ocean-1), var(--mantine-color-dark-6))'
             : 'none',
         }}
       >
@@ -80,7 +80,7 @@ function StepIndicator({
         <Text 
           fw={active ? 600 : 500} 
           size="sm" 
-          c={active ? 'bright' : completed ? 'sage.7' : 'dimmed'}
+          c={active ? 'bright' : completed ? 'ocean.7' : 'dimmed'}
           style={{ whiteSpace: 'nowrap' }}
         >
           {step.label}
@@ -99,8 +99,8 @@ function StepIndicator({
             flex: 1,
             height: rem(2),
             backgroundColor: completed
-              ? 'var(--mantine-color-sage-4)'
-              : 'light-dark(var(--mantine-color-cream-3), var(--mantine-color-dark-5))',
+              ? 'var(--mantine-color-ocean-4)'
+              : 'light-dark(var(--mantine-color-slate-3), var(--mantine-color-dark-5))',
             borderRadius: rem(1),
             marginLeft: rem(8),
             marginRight: rem(8),
@@ -121,7 +121,7 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
       {/* Progress Bar (Mobile) */}
       <Box hiddenFrom="sm" mb="lg">
         <Group justify="space-between" mb="xs">
-          <Text size="sm" fw={500} c="sage.7">
+          <Text size="sm" fw={500} c="ocean.7">
             Passo {active + 1} de {steps.length}
           </Text>
           <Text size="sm" c="dimmed">
@@ -132,10 +132,10 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
           value={progress} 
           size="md" 
           radius="xl"
-          color="sage"
+          color="ocean"
           styles={{
             root: {
-              backgroundColor: 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-6))',
+              backgroundColor: 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-6))',
             },
           }}
         />
@@ -147,7 +147,7 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
         mb="xl"
         p="lg"
         style={{
-          backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-8))',
+          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-8))',
           borderRadius: rem(16),
           border: '1px solid var(--mantine-color-default-border)',
         }}
@@ -185,9 +185,9 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
             borderRadius: rem(8),
             backgroundColor:
               active === 0
-                ? 'light-dark(var(--mantine-color-cream-2), var(--mantine-color-dark-6))'
-                : 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
-            color: active === 0 ? 'var(--mantine-color-dimmed)' : 'var(--mantine-color-sage-7)',
+                ? 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-6))'
+                : 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
+            color: active === 0 ? 'var(--mantine-color-dimmed)' : 'var(--mantine-color-ocean-7)',
             fontWeight: 500,
             fontSize: rem(14),
             cursor: active === 0 ? 'not-allowed' : 'pointer',
@@ -208,7 +208,7 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
               gap: rem(8),
               padding: `${rem(10)} ${rem(16)}`,
               borderRadius: rem(8),
-              backgroundColor: 'var(--mantine-color-sage-6)',
+              backgroundColor: 'var(--mantine-color-ocean-6)',
               color: 'white',
               fontWeight: 500,
               fontSize: rem(14),
@@ -245,7 +245,7 @@ export function FormSection({ title, description, children, icon }: FormSectionP
     >
       <Group gap="md" mb="lg" align="flex-start">
         {icon && (
-          <ThemeIcon size={44} radius="lg" variant="light" color="sage">
+          <ThemeIcon size={44} radius="lg" variant="light" color="ocean">
             {icon}
           </ThemeIcon>
         )}

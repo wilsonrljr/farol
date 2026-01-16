@@ -195,7 +195,7 @@ export default function EmergencyFund() {
         </SimpleGrid>
 
         <Group justify="flex-end" mt="lg">
-          <Button color="sage" radius="xl" loading={loading} onClick={onSimulate}>
+          <Button color="ocean" radius="xl" loading={loading} onClick={onSimulate}>
             Calcular
           </Button>
         </Group>
@@ -210,7 +210,7 @@ export default function EmergencyFund() {
               onChange={(e) => setPresetName(e.currentTarget.value)}
               style={{ flex: 1, minWidth: 260 }}
             />
-            <Button variant="light" color="sage" radius="xl" onClick={onSavePreset}>
+            <Button variant="light" color="ocean" radius="xl" onClick={onSavePreset}>
               Salvar preset
             </Button>
             <Button
@@ -241,7 +241,7 @@ export default function EmergencyFund() {
                       </Text>
                     </Box>
                     <Group gap="xs">
-                      <Button size="xs" radius="xl" variant="light" color="sage" onClick={() => onLoadPreset(p)}>
+                      <Button size="xs" radius="xl" variant="light" color="ocean" onClick={() => onLoadPreset(p)}>
                         Carregar
                       </Button>
                       <Button size="xs" radius="xl" variant="subtle" color="red" onClick={() => onDeletePreset(p.id)}>
@@ -280,8 +280,8 @@ export default function EmergencyFund() {
               data={chartData}
               dataKey="month"
               series={[
-                { name: 'balance', color: 'sage.7', label: 'Reserva' },
-                { name: 'target', color: 'info.6', label: 'Meta' },
+                { name: 'balance', color: 'ocean.6', label: 'Reserva' },
+                { name: 'target', color: 'teal.5', label: 'Meta' },
               ]}
               curveType="monotone"
               gridAxis="xy"

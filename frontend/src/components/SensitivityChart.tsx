@@ -34,9 +34,9 @@ interface SensitivityChartProps {
 }
 
 const SCENARIO_COLORS: Record<string, string> = {
-  'Comprar': 'var(--mantine-color-blue-6)',
-  'Alugar e Investir': 'var(--mantine-color-sage-6)',
-  'Investir e Comprar': 'var(--mantine-color-orange-6)',
+  'Comprar': 'var(--mantine-color-ocean-6)',
+  'Alugar e Investir': 'var(--mantine-color-teal-5)',
+  'Investir e Comprar': 'var(--mantine-color-violet-5)',
 };
 
 const SCENARIO_ICONS: Record<string, React.ReactNode> = {
@@ -124,7 +124,7 @@ export default function SensitivityChart({
     return (
       <Paper p="lg" radius="md" withBorder>
         <Stack align="center" gap="md" py="xl">
-          <Loader color="sage" size="md" />
+          <Loader color="ocean" size="md" />
           <Text size="sm" c="dimmed">
             Calculando análise de sensibilidade...
           </Text>
@@ -253,7 +253,7 @@ export default function SensitivityChart({
         {/* Best Overall */}
         <Paper p="sm" radius="md" withBorder>
           <Group gap="xs" mb={4}>
-            <ThemeIcon size="xs" radius="sm" variant="light" color="sage">
+            <ThemeIcon size="xs" radius="sm" variant="light" color="ocean">
               <IconCrown size={10} />
             </ThemeIcon>
             <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
@@ -330,7 +330,7 @@ export default function SensitivityChart({
                 {result.data_points[0]?.best_scenario || 'N/A'}
               </Text>
             </Group>
-            <Text size="xs" c="sage" mt={2}>
+            <Text size="xs" c="ocean" mt={2}>
               Em todo o intervalo analisado
             </Text>
           </Paper>

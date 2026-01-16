@@ -146,10 +146,10 @@ export default function AmortizationsFieldArray({
       {/* Header */}
       <Group justify="space-between">
         <Group gap="xs">
-          <Text fw={600} c="sage.8">
+          <Text fw={600} c="ocean.8">
             {ui.configuredTitle}
           </Text>
-          <Badge size="sm" variant="light" color="sage" radius="sm">
+          <Badge size="sm" variant="light" color="ocean" radius="sm">
             {(value || []).length}
           </Badge>
         </Group>
@@ -159,7 +159,7 @@ export default function AmortizationsFieldArray({
               <Tooltip label="Minimizar todos">
                 <ActionIcon
                   variant="subtle"
-                  color="sage"
+                  color="ocean"
                   size="md"
                   radius="lg"
                   onClick={collapseAll}
@@ -170,7 +170,7 @@ export default function AmortizationsFieldArray({
               <Tooltip label="Expandir todos">
                 <ActionIcon
                   variant="subtle"
-                  color="sage"
+                  color="ocean"
                   size="md"
                   radius="lg"
                   onClick={expandAll}
@@ -183,7 +183,7 @@ export default function AmortizationsFieldArray({
           <Tooltip label="Pré-visualizar meses gerados">
             <ActionIcon
               variant={showPreview ? 'filled' : 'light'}
-              color="sage"
+              color="ocean"
               size="md"
               radius="lg"
               onClick={() => setShowPreview((s) => !s)}
@@ -195,7 +195,7 @@ export default function AmortizationsFieldArray({
             leftSection={<IconPlus size={16} />}
             size="sm"
             variant="light"
-            color="sage"
+            color="ocean"
             radius="lg"
             onClick={addItem}
           >
@@ -212,15 +212,15 @@ export default function AmortizationsFieldArray({
           ta="center"
           style={{
             border: '2px dashed var(--mantine-color-default-border)',
-            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
           }}
         >
           <Stack gap="sm" align="center">
-            <ThemeIcon size={48} radius="xl" variant="light" color="sage">
+            <ThemeIcon size={48} radius="xl" variant="light" color="ocean">
               <IconCoin size={24} />
             </ThemeIcon>
             <div>
-              <Text fw={500} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+              <Text fw={500} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                 {ui.emptyTitle}
               </Text>
               <Text size="sm" c="dimmed">
@@ -230,7 +230,7 @@ export default function AmortizationsFieldArray({
             <Button
               leftSection={<IconPlus size={16} />}
               variant="light"
-              color="sage"
+              color="ocean"
               radius="lg"
               onClick={addItem}
             >
@@ -271,18 +271,18 @@ export default function AmortizationsFieldArray({
                   <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
                     <ActionIcon
                       variant="subtle"
-                      color="sage"
+                      color="ocean"
                       size="sm"
                       radius="lg"
                     >
                       {isCollapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
                     </ActionIcon>
-                    <ThemeIcon size={28} radius="lg" variant="light" color="sage">
+                    <ThemeIcon size={28} radius="lg" variant="light" color="ocean">
                       <IconCalendar size={14} />
                     </ThemeIcon>
                     <Box style={{ minWidth: 0, flex: 1 }}>
                       <Group gap="xs" wrap="nowrap">
-                        <Text fw={500} size="sm" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">
+                        <Text fw={500} size="sm" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                           {ui.itemLabel} {idx + 1}
                         </Text>
                         {isCollapsed && (
@@ -394,10 +394,10 @@ export default function AmortizationsFieldArray({
               <Paper
                 p="sm"
                 radius="md"
-                style={{ backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-6))' }}
+                style={{ backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-6))' }}
               >
                 <Group gap="xs" align="flex-start">
-                  <IconInfoCircle size={16} color="var(--mantine-color-sage-6)" style={{ marginTop: 2 }} />
+                  <IconInfoCircle size={16} color="var(--mantine-color-ocean-6)" style={{ marginTop: 2 }} />
                   <Text size="xs" c="dimmed">
                     FGTS só pode ser usado se houver saldo e após carência de 24 meses desde o último saque (inclui uso na entrada).
                   </Text>
@@ -505,7 +505,7 @@ export default function AmortizationsFieldArray({
           radius="lg"
           style={{
             border: '1px solid var(--mantine-color-default-border)',
-            backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-7))',
+            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
           }}
         >
           <Text fw={600} size="sm" c="bright" mb="md">

@@ -45,7 +45,7 @@ export default function Home() {
         style={{
           position: 'relative',
           overflow: 'hidden',
-          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-cream-0) 0%, var(--mantine-color-sage-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
+          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-slate-0) 0%, var(--mantine-color-ocean-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
         }}
       >
         {/* Decorative elements */}
@@ -57,7 +57,7 @@ export default function Home() {
             width: rem(400),
             height: rem(400),
             borderRadius: '50%',
-            background: 'light-dark(radial-gradient(circle, var(--mantine-color-sage-1) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-sage-7) 35%, transparent) 0%, transparent 70%))',
+            background: 'light-dark(radial-gradient(circle, var(--mantine-color-ocean-1) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-ocean-7) 35%, transparent) 0%, transparent 70%))',
             opacity: 0.6,
             pointerEvents: 'none',
           }}
@@ -70,7 +70,7 @@ export default function Home() {
             width: rem(300),
             height: rem(300),
             borderRadius: '50%',
-            background: 'light-dark(radial-gradient(circle, var(--mantine-color-cream-2) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-dark-6) 45%, transparent) 0%, transparent 70%))',
+            background: 'light-dark(radial-gradient(circle, var(--mantine-color-slate-2) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-dark-6) 45%, transparent) 0%, transparent 70%))',
             opacity: 0.5,
             pointerEvents: 'none',
           }}
@@ -82,7 +82,7 @@ export default function Home() {
               size="lg" 
               radius="xl" 
               variant="light" 
-              color="sage"
+              color="ocean"
               mb="lg"
               leftSection={<IconLeaf size={14} />}
             >
@@ -101,7 +101,7 @@ export default function Home() {
               <Text
                 component="span"
                 inherit
-                style={{ color: 'light-dark(var(--mantine-color-sage-7), var(--mantine-color-sage-3))' }}
+                style={{ color: 'light-dark(var(--mantine-color-ocean-7), var(--mantine-color-ocean-3))' }}
               >
                 adquirir seu imóvel
               </Text>
@@ -117,10 +117,10 @@ export default function Home() {
                 size="lg"
                 radius="xl"
                 rightSection={<IconArrowRight size={18} />}
-                color="sage"
+                color="ocean"
                 styles={{
                   root: {
-                    boxShadow: '0 4px 14px rgba(114, 125, 115, 0.25)',
+                    boxShadow: '0 4px 14px rgba(44, 112, 163, 0.25)',
                   },
                 }}
               >
@@ -132,7 +132,7 @@ export default function Home() {
                 size="lg"
                 radius="xl"
                 variant="outline"
-                color="sage"
+                color="ocean"
               >
                 Como funciona
               </Button>
@@ -158,15 +158,15 @@ export default function Home() {
                 size={70}
                 thickness={6}
                 roundCaps
-                sections={[{ value: 100, color: 'sage.6' }]}
+                sections={[{ value: 100, color: 'ocean.5' }]}
                 label={
                   <Center>
-                    <IconBuildingBank size={24} color="var(--mantine-color-sage-7)" />
+                    <IconBuildingBank size={24} color="var(--mantine-color-ocean-6)" />
                   </Center>
                 }
               />
               <Box>
-                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Comprar</Text>
+                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">Comprar</Text>
                 <Text size="sm" c="dimmed">Financiamento SAC ou PRICE</Text>
               </Box>
             </Group>
@@ -175,15 +175,15 @@ export default function Home() {
                 size={70}
                 thickness={6}
                 roundCaps
-                sections={[{ value: 100, color: 'forest.5' }]}
+                sections={[{ value: 100, color: 'teal.5' }]}
                 label={
                   <Center>
-                    <IconChartLine size={24} color="var(--mantine-color-forest-6)" />
+                    <IconChartLine size={24} color="var(--mantine-color-teal-6)" />
                   </Center>
                 }
               />
               <Box>
-                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Alugar</Text>
+                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">Alugar</Text>
                 <Text size="sm" c="dimmed">Investir a diferença</Text>
               </Box>
             </Group>
@@ -192,15 +192,15 @@ export default function Home() {
                 size={70}
                 thickness={6}
                 roundCaps
-                sections={[{ value: 100, color: 'info.5' }]}
+                sections={[{ value: 100, color: 'violet.5' }]}
                 label={
                   <Center>
-                    <IconPigMoney size={24} color="var(--mantine-color-info-6)" />
+                    <IconPigMoney size={24} color="var(--mantine-color-violet-6)" />
                   </Center>
                 }
               />
               <Box>
-                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))">Investir</Text>
+                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">Investir</Text>
                 <Text size="sm" c="dimmed">Juntar e comprar à vista</Text>
               </Box>
             </Group>
@@ -211,7 +211,7 @@ export default function Home() {
       {/* Features Section */}
       <Container size="lg" py={{ base: 60, md: 100 }}>
         <Box ta="center" mb={60}>
-          <Badge variant="light" color="sage" size="lg" radius="xl" mb="sm">
+          <Badge variant="light" color="ocean" size="lg" radius="xl" mb="sm">
             Funcionalidades
           </Badge>
           <Title order={2} fw={600} mb="sm">
@@ -228,38 +228,38 @@ export default function Home() {
             title="Financiamento SAC e PRICE"
             description="Simule financiamentos com sistemas SAC ou PRICE, incluindo amortizações extras."
             link="/comparacao"
-            color="sage"
+            color="ocean"
           />
           <FeatureCard
             icon={<IconScale size={24} />}
             title="Comprar vs Alugar"
             description="Compare três estratégias: comprar financiado, alugar e investir, ou investir para comprar à vista."
             link="/comparacao"
-            color="sage"
+            color="ocean"
           />
           <FeatureCard
             icon={<IconChartLine size={24} />}
             title="Projeções Detalhadas"
             description="Visualize a evolução do seu patrimônio mês a mês, com gráficos e tabelas."
-            color="sage"
+            color="ocean"
           />
           <FeatureCard
             icon={<IconCoin size={24} />}
             title="Custos Adicionais"
             description="Inclua ITBI, escritura, condomínio, IPTU e outros custos na sua análise."
-            color="sage"
+            color="ocean"
           />
           <FeatureCard
             icon={<IconPigMoney size={24} />}
             title="Retornos Variáveis"
             description="Configure diferentes taxas de retorno para investimentos ao longo do tempo."
-            color="sage"
+            color="ocean"
           />
           <FeatureCard
             icon={<IconShieldCheck size={24} />}
             title="FGTS e Inflação"
             description="Considere o uso do FGTS e ajuste valores pela inflação para resultados realistas."
-            color="sage"
+            color="ocean"
           />
         </SimpleGrid>
       </Container>
@@ -268,7 +268,7 @@ export default function Home() {
       <Box
         py={{ base: 60, md: 100 }}
         style={{
-          backgroundColor: 'light-dark(var(--mantine-color-sage-0), var(--mantine-color-dark-8))',
+          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
           borderTop: '1px solid var(--mantine-color-default-border)',
           borderBottom: '1px solid var(--mantine-color-default-border)',
         }}
@@ -276,7 +276,7 @@ export default function Home() {
         <Container size="lg">
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing={60} style={{ alignItems: 'center' }}>
             <Box>
-              <Badge variant="light" color="sage" size="lg" radius="xl" mb="sm">
+              <Badge variant="light" color="ocean" size="lg" radius="xl" mb="sm">
                 Como Funciona
               </Badge>
               <Title order={2} fw={600} mb="md">
@@ -288,10 +288,10 @@ export default function Home() {
               </Text>
               
               {/* Timeline steps */}
-              <Timeline active={2} bulletSize={40} lineWidth={3} color="sage">
+              <Timeline active={2} bulletSize={40} lineWidth={3} color="ocean">
                 <Timeline.Item
                   bullet={
-                    <ThemeIcon size={40} radius="xl" color="sage" variant="filled">
+                    <ThemeIcon size={40} radius="xl" color="ocean" variant="filled">
                       <IconClipboardList size={18} />
                     </ThemeIcon>
                   }
@@ -299,7 +299,7 @@ export default function Home() {
                     <Text
                       fw={600}
                       size="md"
-                      c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))"
+                      c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))"
                     >
                       Informe os dados
                     </Text>
@@ -312,7 +312,7 @@ export default function Home() {
 
                 <Timeline.Item
                   bullet={
-                    <ThemeIcon size={40} radius="xl" color="sage" variant="filled">
+                    <ThemeIcon size={40} radius="xl" color="ocean" variant="filled">
                       <IconSettings size={18} />
                     </ThemeIcon>
                   }
@@ -320,7 +320,7 @@ export default function Home() {
                     <Text
                       fw={600}
                       size="md"
-                      c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))"
+                      c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))"
                     >
                       Configure cenários
                     </Text>
@@ -333,7 +333,7 @@ export default function Home() {
 
                 <Timeline.Item
                   bullet={
-                    <ThemeIcon size={40} radius="xl" color="sage" variant="filled">
+                    <ThemeIcon size={40} radius="xl" color="ocean" variant="filled">
                       <IconChartBar size={18} />
                     </ThemeIcon>
                   }
@@ -341,7 +341,7 @@ export default function Home() {
                     <Text
                       fw={600}
                       size="md"
-                      c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))"
+                      c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))"
                     >
                       Compare resultados
                     </Text>
@@ -365,11 +365,11 @@ export default function Home() {
                 }}
               >
                 <Group gap="md" mb="lg">
-                  <ThemeIcon size={52} radius="xl" color="sage" variant="light">
+                  <ThemeIcon size={52} radius="xl" color="ocean" variant="light">
                     <IconChartLine size={26} />
                   </ThemeIcon>
                   <Box>
-                    <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-sage-2))">
+                    <Text fw={600} size="lg" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))">
                       Exemplo de Análise
                     </Text>
                     <Text size="sm" c="dimmed">
@@ -383,17 +383,17 @@ export default function Home() {
                     p="md"
                     radius="lg"
                     style={{
-                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-sage-0) 0%, var(--mantine-color-sage-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-6) 100%))',
+                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-ocean-0) 0%, var(--mantine-color-ocean-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-6) 100%))',
                       border: '1px solid var(--mantine-color-default-border)',
                     }}
                   >
                     <Group gap="xs" mb={4}>
-                      <IconTrendingUp size={16} color="var(--mantine-color-sage-6)" />
-                      <Text size="xs" c="sage.7" tt="uppercase" fw={600}>
+                      <IconTrendingUp size={16} color="var(--mantine-color-ocean-6)" />
+                      <Text size="xs" c="ocean.6" tt="uppercase" fw={600}>
                         Patrimônio Final
                       </Text>
                     </Group>
-                    <Text fw={700} size="xl" c="sage.8">
+                    <Text fw={700} size="xl" c="ocean.7">
                       R$ 820k
                     </Text>
                   </Paper>
@@ -401,17 +401,17 @@ export default function Home() {
                     p="md"
                     radius="lg"
                     style={{
-                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-success-0) 0%, var(--mantine-color-success-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, color-mix(in srgb, var(--mantine-color-success-9) 35%, var(--mantine-color-dark-8)) 100%))',
+                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-emerald-0) 0%, var(--mantine-color-emerald-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, color-mix(in srgb, var(--mantine-color-emerald-9) 35%, var(--mantine-color-dark-8)) 100%))',
                       border: '1px solid var(--mantine-color-default-border)',
                     }}
                   >
                     <Group gap="xs" mb={4}>
-                      <IconPercentage size={16} color="var(--mantine-color-success-6)" />
-                      <Text size="xs" c="success.7" tt="uppercase" fw={600}>
+                      <IconPercentage size={16} color="var(--mantine-color-emerald-6)" />
+                      <Text size="xs" c="emerald.6" tt="uppercase" fw={600}>
                         ROI Total
                       </Text>
                     </Group>
-                    <Text fw={700} size="xl" c="success.8">
+                    <Text fw={700} size="xl" c="emerald.7">
                       58%
                     </Text>
                   </Paper>
@@ -421,7 +421,7 @@ export default function Home() {
                 <Box
                   style={{
                     height: rem(120),
-                    backgroundColor: 'light-dark(var(--mantine-color-cream-1), var(--mantine-color-dark-7))',
+                    backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
                     borderRadius: rem(12),
                     display: 'flex',
                     alignItems: 'flex-end',
@@ -443,8 +443,8 @@ export default function Home() {
                           width: rem(32),
                           height: `${bar.h}px`,
                           background: i === 4 
-                            ? 'linear-gradient(180deg, var(--mantine-color-sage-5) 0%, var(--mantine-color-sage-7) 100%)'
-                            : 'var(--mantine-color-sage-3)',
+                            ? 'linear-gradient(180deg, var(--mantine-color-ocean-5) 0%, var(--mantine-color-ocean-7) 100%)'
+                            : 'var(--mantine-color-ocean-3)',
                           borderRadius: rem(6),
                           transition: 'all 200ms ease',
                           marginBottom: rem(6),
@@ -464,10 +464,10 @@ export default function Home() {
       <Container size="lg" py={{ base: 60, md: 80 }}>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
           {[
-            { icon: IconCheck, title: 'Gratuito', desc: 'Sem custos ou cadastro', color: 'sage' },
-            { icon: IconShieldCheck, title: 'Sem dados pessoais', desc: 'Privacidade total', color: 'forest' },
-            { icon: IconTarget, title: 'Cálculos precisos', desc: 'Metodologia transparente', color: 'info' },
-            { icon: IconSparkles, title: 'Atualizado', desc: 'Melhores práticas do mercado', color: 'sage' },
+            { icon: IconCheck, title: 'Gratuito', desc: 'Sem custos ou cadastro', color: 'ocean' },
+            { icon: IconShieldCheck, title: 'Sem dados pessoais', desc: 'Privacidade total', color: 'teal' },
+            { icon: IconTarget, title: 'Cálculos precisos', desc: 'Metodologia transparente', color: 'violet' },
+            { icon: IconSparkles, title: 'Atualizado', desc: 'Melhores práticas do mercado', color: 'ocean' },
           ].map((benefit, i) => (
             <Paper
               key={i}
@@ -490,7 +490,7 @@ export default function Home() {
               >
                 <benefit.icon size={24} />
               </ThemeIcon>
-              <Text fw={600} size="lg" c="light-dark(var(--mantine-color-sage-8), var(--mantine-color-text))" mb={4}>{benefit.title}</Text>
+              <Text fw={600} size="lg" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))" mb={4}>{benefit.title}</Text>
               <Text size="sm" c="dimmed">{benefit.desc}</Text>
             </Paper>
           ))}
@@ -503,7 +503,7 @@ export default function Home() {
           p={{ base: 'xl', md: 50 }}
           radius="xl"
           style={{
-            background: 'linear-gradient(135deg, var(--mantine-color-sage-7) 0%, var(--mantine-color-sage-8) 100%)',
+            background: 'linear-gradient(135deg, var(--mantine-color-ocean-7) 0%, var(--mantine-color-ocean-8) 100%)',
             textAlign: 'center',
             position: 'relative',
             overflow: 'hidden',
@@ -536,13 +536,13 @@ export default function Home() {
           />
           
           <Box style={{ position: 'relative', zIndex: 1 }}>
-            <ThemeIcon size={70} radius="xl" mb="lg" mx="auto" color="cream" variant="filled">
+            <ThemeIcon size={70} radius="xl" mb="lg" mx="auto" color="slate" variant="filled">
               <IconHome size={32} />
             </ThemeIcon>
             <Title order={2} c="white" fw={600} mb="sm">
               Pronto para começar?
             </Title>
-            <Text c="sage.2" size="lg" maw={400} mx="auto" mb="xl">
+            <Text c="slate.3" size="lg" maw={400} mx="auto" mb="xl">
               Compare os cenários e descubra qual estratégia é a melhor para você.
             </Text>
             <Button
@@ -551,8 +551,8 @@ export default function Home() {
               size="lg"
               radius="xl"
               rightSection={<IconArrowRight size={18} />}
-              color="cream"
-              c="sage.8"
+              color="white"
+              c="ocean.7"
               styles={{
                 root: {
                   boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',

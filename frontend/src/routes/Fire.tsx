@@ -347,7 +347,7 @@ export default function Fire() {
               size={100}
               thickness={10}
               roundCaps
-              sections={[{ value: Math.min(previewProgress, 100), color: previewProgress >= 100 ? 'green' : 'sage' }]}
+              sections={[{ value: Math.min(previewProgress, 100), color: previewProgress >= 100 ? 'green' : 'ocean' }]}
               label={
                 <Text ta="center" fw={700} size="sm">
                   {percent(Math.min(previewProgress, 999))}
@@ -358,7 +358,7 @@ export default function Fire() {
         </Paper>
 
         <Group justify="flex-end" mt="lg">
-          <Button color="sage" radius="xl" loading={loading} onClick={onSimulate} leftSection={<IconRocket size={18} />}>
+          <Button color="ocean" radius="xl" loading={loading} onClick={onSimulate} leftSection={<IconRocket size={18} />}>
             Calcular
           </Button>
         </Group>
@@ -374,7 +374,7 @@ export default function Fire() {
               onChange={(e) => setPresetName(e.currentTarget.value)}
               style={{ flex: 1, minWidth: 260 }}
             />
-            <Button variant="light" color="sage" radius="xl" onClick={onSavePreset}>
+            <Button variant="light" color="ocean" radius="xl" onClick={onSavePreset}>
               Salvar preset
             </Button>
             <Button
@@ -405,7 +405,7 @@ export default function Fire() {
                       </Text>
                     </Box>
                     <Group gap="xs">
-                      <Button size="xs" radius="xl" variant="light" color="sage" onClick={() => onLoadPreset(p)}>
+                      <Button size="xs" radius="xl" variant="light" color="ocean" onClick={() => onLoadPreset(p)}>
                         Carregar
                       </Button>
                       <Button size="xs" radius="xl" variant="subtle" color="red" onClick={() => onDeletePreset(p.id)}>
@@ -427,7 +427,7 @@ export default function Fire() {
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" mb="lg">
             <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
               <Group gap="xs" mb="xs">
-                <IconTarget size={20} style={{ color: 'var(--mantine-color-sage-6)' }} />
+                <IconTarget size={20} style={{ color: 'var(--mantine-color-ocean-6)' }} />
                 <Text size="sm" c="dimmed">Status</Text>
               </Group>
               {result.fi_achieved ? (
@@ -469,7 +469,7 @@ export default function Fire() {
               <Text fw={700} size="xl">{money(result.final_portfolio)}</Text>
               <Progress
                 value={Math.min((result.final_portfolio / result.fire_number) * 100, 100)}
-                color="sage"
+                color="ocean"
                 size="sm"
                 mt="xs"
               />
@@ -525,8 +525,8 @@ export default function Fire() {
               data={chartData}
               dataKey="month"
               series={[
-                { name: 'portfolio', color: 'sage.7', label: 'Patrimônio' },
-                { name: 'fireNumber', color: 'orange.6', label: 'FIRE Number' },
+                { name: 'portfolio', color: 'ocean.6', label: 'Patrimônio' },
+                { name: 'fireNumber', color: 'amber.5', label: 'FIRE Number' },
               ]}
               curveType="monotone"
               gridAxis="xy"
@@ -540,7 +540,7 @@ export default function Fire() {
               tooltipAnimationDuration={150}
               referenceLines={
                 result.fi_month
-                  ? [{ x: result.fi_month, label: 'IF', color: 'green.6' }]
+                  ? [{ x: result.fi_month, label: 'IF', color: 'emerald.6' }]
                   : undefined
               }
             />
