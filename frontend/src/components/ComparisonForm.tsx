@@ -81,6 +81,7 @@ export default function ComparisonForm() {
       rent_inflation_rate: 5,
       property_appreciation_rate: 4,
       monthly_net_income: null, // Renda líquida mensal
+      monthly_net_income_adjust_inflation: false,
       fgts: {
         initial_balance: 0,
         monthly_contribution: 0,
@@ -135,6 +136,10 @@ export default function ComparisonForm() {
     cleaned.rent_inflation_rate = nullIfEmpty(cleaned.rent_inflation_rate) as any;
     cleaned.property_appreciation_rate = nullIfEmpty(cleaned.property_appreciation_rate) as any;
     cleaned.monthly_net_income = nullIfEmpty(cleaned.monthly_net_income) as any;
+
+    if (cleaned.monthly_net_income == null) {
+      cleaned.monthly_net_income_adjust_inflation = false;
+    }
 
     // Enforce mutually exclusive fields to avoid "I changed X but nothing happened".
     // Backend accepts both today, but the engine will necessarily pick one, which is confusing UX.
@@ -387,6 +392,16 @@ export default function ComparisonForm() {
                     prefix="R$ "
                     min={0}
                     size="md"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6 }} style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <Checkbox
+                    label="Ajustar renda pela inflação"
+                    description="Corrige a renda pela inflação ao longo do tempo"
+                    {...form.getInputProps("monthly_net_income_adjust_inflation", {
+                      type: "checkbox",
+                    })}
+                    disabled={!Number(form.values.monthly_net_income || 0)}
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
