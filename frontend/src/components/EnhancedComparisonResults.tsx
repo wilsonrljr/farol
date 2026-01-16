@@ -99,6 +99,31 @@ const getRegularPrincipal = (m: any) => {
   return Math.max(0, principal - extraTotal);
 };
 
+const isFiniteNumber = (v: any): v is number => typeof v === 'number' && Number.isFinite(v);
+const asNumberOrZero = (v: any) => (isFiniteNumber(v) ? v : 0);
+
+/**
+ * Canonical housing cost used for affordability (card + table must match).
+ * - For buy: use backend `housing_due` when available (already includes extra cash amortization exactly once).
+ *   Otherwise fall back to (installment_base + monthly_costs + extra_cash).
+ * - For rent scenarios: use `housing_due` when available, otherwise (rent_due + monthly_costs).
+ */
+const housingCostForAffordability = (m: any) => {
+  const housingDue = isFiniteNumber(m?.housing_due) ? m.housing_due : null;
+  if (housingDue != null) return housingDue;
+
+  const monthlyCosts = asNumberOrZero(m?.monthly_additional_costs);
+  const rentDue = asNumberOrZero(m?.rent_due);
+  const looksLikeBuy = m?.installment != null || m?.outstanding_balance != null || m?.installment_base != null;
+  if (looksLikeBuy) {
+    const { extraCash } = getAmortizationParts(m);
+    const installmentBase = getRegularInstallment(m);
+    return installmentBase + monthlyCosts + extraCash;
+  }
+
+  return rentDue + monthlyCosts;
+};
+
 /**
  * Calculates the recurring housing cost for a month.
  * For affordability analysis, we can optionally include extra amortizations.
@@ -113,7 +138,7 @@ const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
 
   // Prefer explicit housing_due when provided (rent + HOA/IPTU or installment + costs).
   // For buy scenario, backend housing_due already includes extra cash amortization.
-  const hasHousingDue = m?.housing_due != null;
+  const hasHousingDue = isFiniteNumber(m?.housing_due);
   if (hasHousingDue) {
     baseCost = m.housing_due;
   } else if (m?.installment != null) {
@@ -389,8 +414,8 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
   const firstMonth = Array.isArray(s.monthly_data) && s.monthly_data.length > 0
     ? (s.monthly_data.find((m: any) => m.month === 1) || s.monthly_data[0])
     : null;
-  // For affordability analysis, include cash amortizations (but not bonus/13_salario)
-  const housingCostMonth1 = firstMonth ? recurringHousingCost(firstMonth, true) : 0;
+  // For affordability analysis, use the canonical cost rule (must match the table).
+  const housingCostMonth1 = firstMonth ? housingCostForAffordability(firstMonth) : 0;
   // Use effective_income from backend (inflation-adjusted) or fall back to static input
   const effectiveIncomeMonth1 = firstMonth?.effective_income ?? monthlyNetIncome;
   const incomeSurplusMonth1 =
@@ -409,12 +434,11 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
     let maxHousingCost = 0;
     let maxHousingMonth = 1;
     let maxDeficit = 0;
+    let maxDeficitIncome = monthlyNetIncome;
 
     for (const m of monthlyData) {
-      // Include cash amortizations for affordability (but not bonus/13_salario)
-      const cost = recurringHousingCost(m, true);
-      // Use effective_income from backend (inflation-adjusted) or fall back to static input
-      const effectiveIncome = m?.effective_income ?? monthlyNetIncome;
+      const cost = housingCostForAffordability(m);
+      const effectiveIncome = isFiniteNumber(m?.effective_income) ? m.effective_income : monthlyNetIncome;
 
       if (cost > 0 && effectiveIncome > 0) {
         totalHousingCost += cost;
@@ -428,6 +452,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
             maxDeficit = deficit;
             maxHousingCost = cost;
             maxHousingMonth = m.month;
+            maxDeficitIncome = effectiveIncome;
           }
         }
       }
@@ -447,6 +472,8 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       totalMonths: validMonths,
       maxHousingCost,
       maxHousingMonth,
+      maxDeficit,
+      maxDeficitIncome,
     };
   })();
 
@@ -688,8 +715,9 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
             Atenção: Renda insuficiente em {affordabilityMetrics.monthsNegative} mês(es)
           </Text>
           <Text size="xs" c="dimmed">
-            Em alguns meses, o custo de moradia excede sua renda líquida de {money(monthlyNetIncome as number)}.
-            O pico é no mês {affordabilityMetrics.maxHousingMonth} com {money(affordabilityMetrics.maxHousingCost)}.
+            Em alguns meses, o custo de moradia excede sua renda líquida.
+            Maior déficit: {money(affordabilityMetrics.maxDeficit)} no mês {affordabilityMetrics.maxHousingMonth}
+            (custo {money(affordabilityMetrics.maxHousingCost)} vs renda {money(affordabilityMetrics.maxDeficitIncome)}).
           </Text>
         </Alert>
       )}
