@@ -1476,10 +1476,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                       }
                     }
 
-                    const showThroughPayoff = payoffMonth != null;
-                    const buyRows = showThroughPayoff
-                      ? rows.filter((r: any) => r.month <= payoffMonth!)
-                      : rows;
+                    const buyRows = rows;
 
                     const pb = (s as any).purchase_breakdown;
                     const cashDown = typeof pb?.cash_down_payment === 'number' ? pb.cash_down_payment : null;
@@ -1508,7 +1505,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             <Table.Tr>
                               <Table.Th>Mês</Table.Th>
                               <Table.Th>Ano</Table.Th>
-                              <Table.Th>Parcela (R$)</Table.Th>
+                              <Table.Th>
+                                <Tooltip label="Parcela base do financiamento (sem amortizações extras). As extras aparecem nas colunas ao lado." withArrow>
+                                  <Text component="span" size="sm">Parcela (base)</Text>
+                                </Tooltip>
+                              </Table.Th>
                               <Table.Th>Juros</Table.Th>
                               <Table.Th>Amortização</Table.Th>
                               <Table.Th>Extra (cash)</Table.Th>
@@ -1551,7 +1552,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               const monthlyCosts = typeof m.monthly_additional_costs === 'number' ? m.monthly_additional_costs : 0;
                               const upfront = typeof m.upfront_additional_costs === 'number' ? m.upfront_additional_costs : 0;
                               // Affordability: include cash amortizations but NOT FGTS/bonus/13_salario (external income)
-                              const housingCost = installment + monthlyCosts + extraCash;
+                              const housingCost = typeof m.housing_due === 'number'
+                                ? m.housing_due
+                                : installment + monthlyCosts + extraCash;
                               const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingCost : null;
                               const isNegativeSurplus = surplus != null && surplus < 0;
 
@@ -1618,11 +1621,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             })}
                           </Table.Tbody>
                         </Table>
-                        {!showThroughPayoff && (
-                          <Text size="xs" c="dimmed" mt="sm">
-                            Dica: se você adicionou amortizações extras, a quitação deve aparecer como saldo devedor ≈ 0.
-                          </Text>
-                        )}
+                        <Text size="xs" c="dimmed" mt="sm">
+                          Dica: se você adicionou amortizações extras, a quitação deve aparecer como saldo devedor ≈ 0.
+                        </Text>
                       </>
                     );
                   })() : (

@@ -96,6 +96,7 @@ export interface ComparisonInput {
   rent_inflation_rate?: number | null;
   property_appreciation_rate?: number | null;
   monthly_net_income?: number | null; // Monthly net income - housing costs paid from this, surplus invested
+  monthly_net_income_adjust_inflation?: boolean; // If true, income is adjusted by inflation
 
   investment_tax?: InvestmentTaxInput | null;
   fgts?: FGTSInput | null;
