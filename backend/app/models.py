@@ -569,6 +569,14 @@ class ComparisonInput(BaseModel):
         False,
         description="If true, any unused portion of monthly_external_savings (after rent/costs) is invested that month.",
     )
+    monthly_net_income: float | None = Field(
+        None,
+        ge=0.0,
+        description=(
+            "Monthly net income used for affordability/clarity in the UI. "
+            "Informational only (does not affect simulation)."
+        ),
+    )
 
     investment_tax: InvestmentTaxInput | None = Field(
         None,

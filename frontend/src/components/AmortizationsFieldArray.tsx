@@ -37,6 +37,7 @@ interface Props<T extends AmortizationInput = AmortizationInput> {
   termMonths?: number;
   inflationRate?: number | null;
   uiText?: Partial<UIText>;
+  showFundingSource?: boolean;
 }
 
 export default function AmortizationsFieldArray({
@@ -45,6 +46,7 @@ export default function AmortizationsFieldArray({
   termMonths = 360,
   inflationRate,
   uiText,
+  showFundingSource = true,
 }: Props) {
   const ui: UIText = {
     configuredTitle: 'Amortizações Configuradas',
@@ -220,7 +222,7 @@ export default function AmortizationsFieldArray({
               </ActionIcon>
             </Group>
 
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="md">
+            <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : 3 }} spacing="md">
               <NumberInput
                 label="Mês inicial"
                 description="Quando começa"
@@ -276,26 +278,28 @@ export default function AmortizationsFieldArray({
                   { value: 'percentage', label: '% do Saldo' },
                 ]}
               />
-              <Select
-                label="Fonte do recurso"
-                description="De onde vem o pagamento extra"
-                value={item.funding_source || 'cash'}
-                onChange={(val) => {
-                  const next = [...(value || [])];
-                  next[idx] = {
-                    ...next[idx],
-                    funding_source: (val as 'cash' | 'fgts') || 'cash',
-                  } as any;
-                  onChange(next as any);
-                }}
-                data={[
-                  { value: 'cash', label: '💵 Recursos Próprios' },
-                  { value: 'fgts', label: '🏦 FGTS' },
-                ]}
-              />
+              {showFundingSource && (
+                <Select
+                  label="Fonte do recurso"
+                  description="De onde vem o pagamento extra"
+                  value={item.funding_source || 'cash'}
+                  onChange={(val) => {
+                    const next = [...(value || [])];
+                    next[idx] = {
+                      ...next[idx],
+                      funding_source: (val as 'cash' | 'fgts') || 'cash',
+                    } as any;
+                    onChange(next as any);
+                  }}
+                  data={[
+                    { value: 'cash', label: '💵 Recursos Próprios' },
+                    { value: 'fgts', label: '🏦 FGTS' },
+                  ]}
+                />
+              )}
             </SimpleGrid>
 
-            {item.funding_source === 'fgts' && (
+            {showFundingSource && item.funding_source === 'fgts' && (
               <Paper
                 p="sm"
                 radius="md"

@@ -83,6 +83,7 @@ export default function ComparisonForm() {
       rent_reduces_investment: false,
       monthly_external_savings: null,
       invest_external_surplus: false,
+      monthly_net_income: null,
       fgts: {
         initial_balance: 0,
         monthly_contribution: 0,
@@ -138,6 +139,7 @@ export default function ComparisonForm() {
     cleaned.property_appreciation_rate = nullIfEmpty(cleaned.property_appreciation_rate) as any;
     cleaned.monthly_external_savings = nullIfEmpty(cleaned.monthly_external_savings) as any;
     cleaned.fixed_monthly_investment = nullIfEmpty(cleaned.fixed_monthly_investment) as any;
+    cleaned.monthly_net_income = nullIfEmpty(cleaned.monthly_net_income) as any;
 
     // Enforce mutually exclusive fields to avoid "I changed X but nothing happened".
     // Backend accepts both today, but the engine will necessarily pick one, which is confusing UX.
@@ -168,6 +170,9 @@ export default function ComparisonForm() {
     }
     if (cleaned.fixed_monthly_investment === 0) {
       cleaned.fixed_monthly_investment = null;
+    }
+    if (cleaned.monthly_net_income === 0) {
+      cleaned.monthly_net_income = null;
     }
 
     if (cleaned.annual_interest_rate === 0) cleaned.annual_interest_rate = null;
@@ -673,8 +678,7 @@ export default function ComparisonForm() {
                   </Text>
                   <Text size="xs" c="dimmed" mb="md">
                     ITBI e Escritura entram como custo de compra (no mês da compra). Condomínio e IPTU entram
-                    como custos mensais apenas quando você é proprietário (cenário de compra e pós-compra).
-                    No cenário de aluguel, Condomínio/IPTU do imóvel não são considerados.
+                    como custos mensais do imóvel. Se no aluguel esses custos não se aplicarem, deixe 0.
                   </Text>
                   <Grid gutter="lg">
                     <Grid.Col span={{ base: 12, sm: 6 }}>
@@ -704,7 +708,7 @@ export default function ComparisonForm() {
                     <Grid.Col span={{ base: 12, sm: 6 }}>
                       <NumberInput
                         label="Condomínio"
-                        description="Custo mensal quando você é proprietário (não se aplica ao cenário de aluguel)"
+                        description="Custo mensal do imóvel (se não se aplica no aluguel, deixe 0)"
                         placeholder="R$ 0"
                         min={0}
                         thousandSeparator="."
@@ -717,7 +721,7 @@ export default function ComparisonForm() {
                     <Grid.Col span={{ base: 12, sm: 6 }}>
                       <NumberInput
                         label="IPTU"
-                        description="Custo mensal quando você é proprietário (não se aplica ao cenário de aluguel)"
+                        description="Custo mensal do imóvel (se não se aplica no aluguel, deixe 0)"
                         placeholder="R$ 0"
                         min={0}
                         thousandSeparator="."
@@ -734,6 +738,27 @@ export default function ComparisonForm() {
 
                 <Tabs.Panel value="estrategia" pt="md">
                   <Stack gap="md">
+                    <Grid gutter="lg">
+                      <Grid.Col span={{ base: 12, sm: 6 }}>
+                        <LabelWithHelp
+                          label="Renda líquida mensal"
+                          help="Usada apenas para análise de capacidade de pagamento. Não altera a simulação."
+                        />
+                        <NumberInput
+                          mt={4}
+                          placeholder="R$ 0"
+                          {...form.getInputProps("monthly_net_income")}
+                          thousandSeparator="."
+                          decimalSeparator=","
+                          prefix="R$ "
+                          min={0}
+                          size="md"
+                        />
+                      </Grid.Col>
+                    </Grid>
+
+                    <Divider color="sage.2" />
+
                     <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
                       <Checkbox
                         label="Investir diferença de parcela vs aluguel"
@@ -764,12 +789,13 @@ export default function ComparisonForm() {
                       <Grid.Col span={{ base: 12, sm: 6 }}>
                         <LabelWithHelp
                           label="Renda externa para custos"
-                          help="Valor mensal externo usado para pagar aluguel e custos antes de usar investimentos."
+                          help="Usada quando 'Aluguel consome investimento' está ativo. Cobre aluguel/custos antes de retirar do investimento."
                         />
                         <NumberInput
                           mt={4}
                           placeholder="R$ 0"
                           {...form.getInputProps("monthly_external_savings")}
+                          disabled={!form.values.rent_reduces_investment}
                           thousandSeparator="."
                           decimalSeparator=","
                           prefix="R$ "
@@ -788,6 +814,7 @@ export default function ComparisonForm() {
                             {...form.getInputProps("invest_external_surplus", {
                               type: "checkbox",
                             })}
+                            disabled={!form.values.rent_reduces_investment}
                           />
                         </Box>
                       </Grid.Col>
@@ -797,8 +824,12 @@ export default function ComparisonForm() {
 
                     <Grid gutter="lg">
                       <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <NumberInput
+                        <LabelWithHelp
                           label="Aporte mensal fixo"
+                          help="Aporte contínuo ao longo do horizonte (inclusive após a compra à vista). Para aportes com duração específica, use a aba Aportes."
+                        />
+                        <NumberInput
+                          mt={4}
                           description="Valor fixo investido todo mês"
                           placeholder="R$ 0"
                           {...form.getInputProps("fixed_monthly_investment")}
@@ -947,11 +978,16 @@ export default function ComparisonForm() {
                 </Tabs.Panel>
 
                 <Tabs.Panel value="aportes" pt="md">
+                  <Text size="xs" c="dimmed" mb="sm">
+                    Aportes programados valem apenas no cenário “Investir e comprar à vista” e param no mês da compra.
+                    Para aportes contínuos no horizonte inteiro, use “Aporte mensal fixo” na aba Estratégia.
+                  </Text>
                   <AmortizationsFieldArray
                     value={form.values.contributions || []}
                     onChange={(v: any) => form.setFieldValue("contributions", v)}
                     inflationRate={form.values.inflation_rate || undefined}
                     termMonths={form.values.loan_term_years * 12}
+                    showFundingSource={false}
                     uiText={{
                       configuredTitle: "Aportes Configurados",
                       emptyTitle: "Nenhum aporte programado",

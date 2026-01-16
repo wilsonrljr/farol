@@ -100,6 +100,7 @@ export interface ComparisonInput {
   rent_reduces_investment?: boolean;
   monthly_external_savings?: number | null;
   invest_external_surplus?: boolean;
+  monthly_net_income?: number | null;
 
   investment_tax?: InvestmentTaxInput | null;
   fgts?: FGTSInput | null;

@@ -22,6 +22,7 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Valorização do Imóvel: crescimento estimado do preço do imóvel ao longo do tempo.
 - Investir Diferença Parcela x Aluguel: se ativado, quando o aluguel é menor que a parcela, a diferença é investida.
 - Aporte Mensal Fixo: valor que você adiciona todo mês aos investimentos a partir de um mês escolhido.
+- Aportes Programados: aportes pontuais ou recorrentes usados no cenário “Investir e comprar à vista”; param no mês da compra.
 - Usar Investimento para Pagar Aluguel: ativa retiradas para cobrir aluguel/custos (estratégia de viver de renda).
 - Renda Externa Mensal: valor que cobre custos antes de tocar no investimento; a sobra só é investida quando o aluguel/custos são efetivamente pagos a partir do investimento (rent_reduces_investment=true).
 - Investir Sobra da Renda Externa: reinveste automaticamente o que não foi usado da renda externa; se você paga o aluguel totalmente fora do investimento, use um aporte fixo em vez dessa combinação para evitar dupla contagem.

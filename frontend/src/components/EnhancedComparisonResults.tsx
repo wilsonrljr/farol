@@ -55,14 +55,30 @@ import {
 } from '@tabler/icons-react';
 import { downloadFile } from '../utils/download';
 
+const recurringHousingCost = (m: any) => {
+  // Prefer explicit housing_due when provided (rent + HOA/IPTU).
+  if (m?.housing_due != null) return m.housing_due;
+
+  // For buy scenario (and some post-purchase months), approximate housing as installment + recurring costs.
+  const installment = m?.installment ?? 0;
+  const additional = m?.monthly_additional_costs ?? 0;
+  if (m?.installment != null) return installment + additional;
+
+  // Post-purchase invest-buy months may have only HOA/IPTU.
+  if (m?.monthly_additional_costs != null) return additional;
+
+  return 0;
+};
+
 interface ScenarioCardNewProps {
   scenario: any;
   isBest: boolean;
   bestScenario: any;
   index: number;
+  monthlyNetIncome?: number | null;
 }
 
-function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCardNewProps) {
+function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetIncome }: ScenarioCardNewProps) {
   const s = scenario;
   const colorMap = ['sage', 'info', 'forest'] as const;
   const color = colorMap[index % colorMap.length];
@@ -80,6 +96,13 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
     ? s.monthly_data[s.monthly_data.length - 1]
     : null;
   const propertyEquity = (lastMonth?.equity ?? 0) as number;
+
+  const firstMonth = Array.isArray(s.monthly_data) && s.monthly_data.length > 0
+    ? (s.monthly_data.find((m: any) => m.month === 1) || s.monthly_data[0])
+    : null;
+  const housingCostMonth1 = firstMonth ? recurringHousingCost(firstMonth) : 0;
+  const incomeSurplusMonth1 =
+    typeof monthlyNetIncome === 'number' ? monthlyNetIncome - housingCostMonth1 : null;
 
   const Help = ({ label, help }: { label: string; help: ReactNode }) => (
     <Tooltip label={help} multiline w={320} withArrow position="top-start">
@@ -246,6 +269,26 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index }: ScenarioCard
             {money(s.metrics.average_monthly_cost)}
           </Text>
         </Box>
+        {incomeSurplusMonth1 != null && (
+          <Box>
+            <Group gap={6} align="center" wrap="nowrap" mb={2}>
+              <Text size="xs" c="sage.5">
+                Sobra mensal (mês 1)
+              </Text>
+              <Help
+                label="Sobra mensal"
+                help="Renda líquida menos custo de moradia recorrente no mês 1 (parcela/aluguel + custos mensais)."
+              />
+            </Group>
+            <Text
+              fw={600}
+              size="md"
+              c={incomeSurplusMonth1 >= 0 ? 'sage.8' : 'danger.6'}
+            >
+              {signedMoney(incomeSurplusMonth1)}
+            </Text>
+          </Box>
+        )}
       </SimpleGrid>
 
       {/* Purchase breakdown (buy scenario) */}
@@ -386,21 +429,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     return 0;
   };
 
-  const recurringHousingCost = (m: any) => {
-    // Prefer explicit housing_due when provided (rent + HOA/IPTU).
-    if (m?.housing_due != null) return m.housing_due;
-
-    // For buy scenario (and some post-purchase months), approximate housing as installment + recurring costs.
-    const installment = m?.installment ?? 0;
-    const additional = m?.monthly_additional_costs ?? 0;
-    if (m?.installment != null) return installment + additional;
-
-    // Post-purchase invest-buy months may have only HOA/IPTU.
-    if (m?.monthly_additional_costs != null) return additional;
-
-    return 0;
-  };
-
   const outflowTooltip = (m: any) => {
     const total = monthlyOutflow(m);
     const housing = recurringHousingCost(m);
@@ -487,14 +515,24 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         ? `${numSafe(inputPayload.rent_percentage, 2)}% a.a. (do valor do imóvel)`
         : '—';
 
+    const netIncomeLabel = inputPayload?.monthly_net_income != null
+      ? money(inputPayload.monthly_net_income)
+      : '—';
+
     return {
       interestLabel,
       rentLabel,
       invReturnsLabel,
+      netIncomeLabel,
       amortizationsCount: amortizations.length,
       contributionsCount: contributions.length,
     };
   })();
+
+  const monthlyNetIncome =
+    typeof inputPayload?.monthly_net_income === 'number'
+      ? inputPayload.monthly_net_income
+      : null;
 
   const wealthData = monthsSorted.map((month) => {
     const row: any = { month };
@@ -667,6 +705,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               <Badge variant="light" color="sage">
                 Aportes: {inputSummary?.contributionsCount ?? 0}
               </Badge>
+              {inputSummary?.netIncomeLabel !== '—' && (
+                <Badge variant="light" color="sage">
+                  Renda líquida: {inputSummary?.netIncomeLabel}
+                </Badge>
+              )}
             </Group>
 
             <Collapse in={showInputDetails}>
@@ -675,6 +718,10 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 <Box>
                   <Text size="xs" c="sage.6">Aluguel</Text>
                   <Text fw={600} c="bright">{inputSummary?.rentLabel ?? '—'}</Text>
+                </Box>
+                <Box>
+                  <Text size="xs" c="sage.6">Renda líquida mensal</Text>
+                  <Text fw={600} c="bright">{inputSummary?.netIncomeLabel ?? '—'}</Text>
                 </Box>
                 <Box>
                   <Text size="xs" c="sage.6">Retornos investimento</Text>
@@ -721,6 +768,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             isBest={s.name === bestScenario.name}
             bestScenario={bestScenario}
             index={idx}
+            monthlyNetIncome={monthlyNetIncome}
           />
         ))}
       </SimpleGrid>
