@@ -199,6 +199,29 @@ export default function ComparisonForm() {
     if (!cleaned.investment_returns || cleaned.investment_returns.length === 0) {
       cleaned.investment_returns = DEFAULT_INVESTMENT_RETURNS;
     }
+
+    // Contributions: avoid sending invalid empty applies_to arrays.
+    if (Array.isArray(cleaned.contributions)) {
+      cleaned.contributions = cleaned.contributions.map((c: any) => {
+        if (c && Array.isArray(c.applies_to) && c.applies_to.length === 0) {
+          // Backend rejects empty applies_to; treat as omitted (backward-compatible: applies to all).
+          const { applies_to, ...rest } = c;
+          return rest;
+        }
+
+        // If user selected all scenarios, omit applies_to to match the implicit default.
+        if (c && Array.isArray(c.applies_to)) {
+          const s = new Set(c.applies_to);
+          const all = ['buy', 'rent_invest', 'invest_buy'];
+          const isAll = all.every((x) => s.has(x)) && s.size === all.length;
+          if (isAll) {
+            const { applies_to, ...rest } = c;
+            return rest;
+          }
+        }
+        return c;
+      }) as any;
+    }
     
     return cleaned;
   };
@@ -751,8 +774,7 @@ export default function ComparisonForm() {
                       Aportes programados (opcional)
                     </Text>
                     <Text size="sm" c="dimmed">
-                      Esses aportes são aplicados nos cenários com investimento ("Alugar e investir" e "Investir e comprar à vista").
-                      Você pode definir aportes únicos, recorrentes, ou variáveis no tempo.
+                      Você pode definir aportes únicos, recorrentes, ou variáveis no tempo e escolher em quais cenários eles devem ser considerados.
                     </Text>
 
                     <Checkbox
@@ -771,6 +793,12 @@ export default function ComparisonForm() {
                       inflationRate={form.values.inflation_rate || undefined}
                       termMonths={form.values.loan_term_years * 12}
                       showFundingSource={false}
+                      showScenarioSelector
+                      scenarioOptions={[
+                        { value: 'buy', label: 'Comprar com financiamento' },
+                        { value: 'rent_invest', label: 'Alugar e investir' },
+                        { value: 'invest_buy', label: 'Investir e comprar à vista' },
+                      ]}
                       uiText={{
                         configuredTitle: "Aportes Configurados",
                         emptyTitle: "Nenhum aporte programado",

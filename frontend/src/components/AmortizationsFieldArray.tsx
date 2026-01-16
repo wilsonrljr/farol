@@ -5,6 +5,7 @@ import {
   Button,
   Collapse,
   Group,
+  MultiSelect,
   NumberInput,
   Paper,
   Select,
@@ -41,6 +42,8 @@ interface Props<T extends AmortizationInput = AmortizationInput> {
   inflationRate?: number | null;
   uiText?: Partial<UIText>;
   showFundingSource?: boolean;
+  showScenarioSelector?: boolean;
+  scenarioOptions?: { value: string; label: string }[];
 }
 
 export default function AmortizationsFieldArray({
@@ -50,6 +53,8 @@ export default function AmortizationsFieldArray({
   inflationRate,
   uiText,
   showFundingSource = true,
+  showScenarioSelector = false,
+  scenarioOptions = [],
 }: Props) {
   const ui: UIText = {
     configuredTitle: 'Amortizações Configuradas',
@@ -138,7 +143,12 @@ export default function AmortizationsFieldArray({
   }, [previewData]);
 
   const addItem = () => {
-    onChange([...(value || []), { month: 12, value: 10000, value_type: 'fixed' } as any]);
+    const baseItem: any = { month: 12, value: 10000, value_type: 'fixed' };
+    if (showScenarioSelector && scenarioOptions.length > 0) {
+      // Default to all scenarios (matches backend behavior when applies_to is omitted).
+      baseItem.applies_to = scenarioOptions.map((o) => o.value);
+    }
+    onChange([...(value || []), baseItem]);
   };
 
   return (
@@ -250,6 +260,21 @@ export default function AmortizationsFieldArray({
           ? `a cada ${item.interval_months} meses`
           : 'única';
 
+        const appliesTo: string[] | null | undefined = (item as any).applies_to;
+        const selectedScenarios: string[] =
+          showScenarioSelector && scenarioOptions.length > 0
+            ? (Array.isArray(appliesTo) ? appliesTo : scenarioOptions.map((o) => o.value))
+            : [];
+        const scenarioLabel = showScenarioSelector
+          ? (() => {
+              if (!scenarioOptions || scenarioOptions.length === 0) return null;
+              const labels = selectedScenarios
+                .map((v) => scenarioOptions.find((o) => o.value === v)?.label)
+                .filter(Boolean);
+              return labels.length > 0 ? labels.join(' · ') : null;
+            })()
+          : null;
+
         return (
           <Box
             key={idx}
@@ -285,9 +310,28 @@ export default function AmortizationsFieldArray({
                         <Text fw={500} size="sm" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                           {ui.itemLabel} {idx + 1}
                         </Text>
+                        {showScenarioSelector && scenarioOptions.length > 0 && !isCollapsed && (
+                          <Group gap={6} wrap="wrap">
+                            {selectedScenarios.map((v) => {
+                              const label = scenarioOptions.find((o) => o.value === v)?.label;
+                              if (!label) return null;
+                              return (
+                                <Badge
+                                  key={v}
+                                  size="xs"
+                                  variant="light"
+                                  color="ocean"
+                                  radius="sm"
+                                >
+                                  {label}
+                                </Badge>
+                              );
+                            })}
+                          </Group>
+                        )}
                         {isCollapsed && (
                           <Text size="xs" c="dimmed" lineClamp={1}>
-                            — Mês {item.month || 1} • {itemSummary} • {recurrenceLabel}
+                            — Mês {item.month || 1} • {itemSummary} • {recurrenceLabel}{scenarioLabel ? ` • ${scenarioLabel}` : ''}
                           </Text>
                         )}
                       </Group>
@@ -311,7 +355,7 @@ export default function AmortizationsFieldArray({
               {/* Collapsible content */}
               <Collapse in={!isCollapsed}>
                 <Stack gap="md" pt="sm">
-                  <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : 3 }} spacing="md">
+                  <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : (showScenarioSelector ? 4 : 3) }} spacing="md">
               <NumberInput
                 label="Mês inicial"
                 description="Quando começa"
@@ -367,6 +411,63 @@ export default function AmortizationsFieldArray({
                   { value: 'percentage', label: '% do Saldo' },
                 ]}
               />
+              {showScenarioSelector && scenarioOptions.length > 0 && (
+                <Stack gap={6}>
+                  <MultiSelect
+                    label="Cenários"
+                    description="Onde este item deve ser aplicado"
+                    data={scenarioOptions}
+                    value={selectedScenarios}
+                    onChange={(vals) => {
+                      // Prevent invalid empty selection; keep previous value.
+                      if (!vals || vals.length === 0) return;
+                      const next = [...(value || [])];
+                      next[idx] = { ...(next[idx] as any), applies_to: vals } as any;
+                      onChange(next as any);
+                    }}
+                    searchable={false}
+                    clearable={false}
+                    comboboxProps={{ withinPortal: true }}
+                  />
+                  <Group gap="xs" justify="space-between" wrap="wrap">
+                    <Group gap="xs" wrap="wrap">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="ocean"
+                        onClick={() => {
+                          const next = [...(value || [])];
+                          next[idx] = {
+                            ...(next[idx] as any),
+                            applies_to: scenarioOptions.map((o) => o.value),
+                          } as any;
+                          onChange(next as any);
+                        }}
+                      >
+                        Todos
+                      </Button>
+                      {scenarioOptions.map((o) => (
+                        <Button
+                          key={o.value}
+                          size="xs"
+                          variant="subtle"
+                          color="ocean"
+                          onClick={() => {
+                            const next = [...(value || [])];
+                            next[idx] = { ...(next[idx] as any), applies_to: [o.value] } as any;
+                            onChange(next as any);
+                          }}
+                        >
+                          Só {o.label}
+                        </Button>
+                      ))}
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      Dica: “Todos” equivale ao padrão
+                    </Text>
+                  </Group>
+                </Stack>
+              )}
               {showFundingSource && (
                 <Select
                   label="Fonte do recurso"

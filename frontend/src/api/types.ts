@@ -2,6 +2,8 @@
 
 export type LoanType = 'SAC' | 'PRICE';
 
+export type ComparisonScenarioType = 'buy' | 'rent_invest' | 'invest_buy';
+
 export interface AmortizationInput {
   month?: number; // single event month
   value: number; // amount or percentage
@@ -15,7 +17,9 @@ export interface AmortizationInput {
 
 // Mirrors backend ContributionInput (same recurrence fields as AmortizationInput,
 // but semantics differ: percentage is over investment balance, not loan balance).
-export interface ContributionInput extends AmortizationInput {}
+export interface ContributionInput extends AmortizationInput {
+  applies_to?: ComparisonScenarioType[] | null;
+}
 
 export interface InvestmentReturnInput {
   start_month: number;

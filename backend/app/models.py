@@ -192,6 +192,15 @@ class ContributionInput(BaseModel):
         description="If true, fixed values are inflation-adjusted from the first occurrence month",
     )
 
+    applies_to: list[Literal["buy", "rent_invest", "invest_buy"]] | None = Field(
+        None,
+        description=(
+            "Optional list of scenario types where this contribution is applied. "
+            "If omitted (null), the contribution applies to all scenarios (backward-compatible). "
+            "Allowed values: buy, rent_invest, invest_buy."
+        ),
+    )
+
     @model_validator(mode="after")
     def validate_recurrence(self) -> "ContributionInput":
         if self.value_type is None:
@@ -216,6 +225,19 @@ class ContributionInput(BaseModel):
             raise ValueError("value must be >= 0")
         if self.value_type == "percentage" and self.value > 100:
             raise ValueError("percentage value must be <= 100")
+
+        if self.applies_to is not None:
+            if len(self.applies_to) == 0:
+                raise ValueError("applies_to must have at least one scenario")
+            # De-duplicate while preserving order
+            seen: set[str] = set()
+            deduped: list[str] = []
+            for s in self.applies_to:
+                if s not in seen:
+                    seen.add(s)
+                    deduped.append(s)
+            # Pydantic type is Literal list, but keep runtime data as list[str]
+            self.applies_to = deduped  # type: ignore[assignment]
 
         return self
 

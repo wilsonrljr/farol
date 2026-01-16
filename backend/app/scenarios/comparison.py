@@ -29,6 +29,38 @@ from .invest_then_buy import InvestThenBuyScenarioSimulator
 from .rent_and_invest import RentAndInvestScenarioSimulator
 
 
+def _filter_contributions_for_scenario(
+    contributions: Sequence[ContributionLike] | None,
+    scenario_type: str,
+) -> list[ContributionLike] | None:
+    """Return only contributions applicable to a scenario.
+
+    Backward compatibility:
+    - If a contribution has no `applies_to` attribute or it is None, it applies to all.
+    - If `applies_to` is provided, it must include the current scenario_type.
+    """
+
+    if not contributions:
+        return None
+
+    filtered: list[ContributionLike] = []
+    for c in contributions:
+        applies_to = getattr(c, "applies_to", None)
+        if applies_to is None:
+            filtered.append(c)
+            continue
+
+        # Defensive: tolerate bad/empty values from non-API callers.
+        if not isinstance(applies_to, list):
+            filtered.append(c)
+            continue
+
+        if scenario_type in applies_to:
+            filtered.append(c)
+
+    return filtered or None
+
+
 def compare_scenarios(
     property_value: float,
     down_payment: float,
@@ -117,6 +149,12 @@ def _compare_scenarios_domain(
         total_savings=total_savings,
     )
 
+    buy_contribs = _filter_contributions_for_scenario(contributions, "buy")
+    rent_contribs = _filter_contributions_for_scenario(contributions, "rent_invest")
+    invest_buy_contribs = _filter_contributions_for_scenario(
+        contributions, "invest_buy"
+    )
+
     buy = BuyScenarioSimulator(
         property_value=property_value,
         down_payment=down_payment,
@@ -131,7 +169,7 @@ def _compare_scenarios_domain(
         initial_investment=buy_initial,
         investment_returns=list(investment_returns) if investment_returns else None,
         investment_tax=investment_tax,
-        contributions=contributions,
+        contributions=buy_contribs,
         monthly_net_income=monthly_net_income,
         monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
     ).simulate_domain()
@@ -151,7 +189,7 @@ def _compare_scenarios_domain(
         investment_tax=investment_tax,
         fgts=fgts,
         initial_investment=rent_initial,
-        contributions=contributions,
+        contributions=rent_contribs,
     ).simulate_domain()
 
     invest_buy = InvestThenBuyScenarioSimulator(
@@ -166,7 +204,7 @@ def _compare_scenarios_domain(
         property_appreciation_rate=property_appreciation_rate,
         loan_type=loan_type,
         monthly_interest_rate=monthly_interest_rate,
-        contributions=contributions,
+        contributions=invest_buy_contribs,
         continue_contributions_after_purchase=continue_contributions_after_purchase,
         monthly_net_income=monthly_net_income,
         monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,

@@ -35,6 +35,7 @@ class ContributionLike(Protocol):
     occurrences: int | None
     value_type: str | None
     inflation_adjust: bool | None
+    applies_to: list[str] | None
 
 
 class FGTSLike(Protocol):
