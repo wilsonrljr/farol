@@ -176,7 +176,16 @@ export default function Fire() {
         </Text>
       </Box>
 
-      <Paper p="xl" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+      <Box
+        p="xl"
+        style={{
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          borderRadius: 'var(--mantine-radius-xl)',
+        }}
+      >
         {/* FIRE Mode Selector */}
         <Box mb="lg">
           <Text fw={600} mb="xs">Modo FIRE</Text>
@@ -336,7 +345,14 @@ export default function Fire() {
         </SimpleGrid>
 
         {/* Preview Card */}
-        <Paper p="md" radius="lg" mt="lg" bg="var(--mantine-color-body)">
+        <Box
+          p="md"
+          mt="lg"
+          style={{
+            background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+            borderRadius: 'var(--mantine-radius-lg)',
+          }}
+        >
           <Group justify="space-between" align="center">
             <Box>
               <Text size="sm" c="dimmed">FIRE Number (meta)</Text>
@@ -355,7 +371,7 @@ export default function Fire() {
               }
             />
           </Group>
-        </Paper>
+        </Box>
 
         <Group justify="flex-end" mt="lg">
           <Button color="ocean" radius="xl" loading={loading} onClick={onSimulate} leftSection={<IconRocket size={18} />}>
@@ -391,11 +407,14 @@ export default function Fire() {
           {presets.length > 0 && (
             <Stack gap="xs" mt="sm">
               {presets.map((p) => (
-                <Paper
+                <Box
                   key={p.id}
                   p="sm"
-                  radius="lg"
-                  style={{ border: '1px solid var(--mantine-color-default-border)' }}
+                  style={{
+                    background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+                    borderRadius: 'var(--mantine-radius-lg)',
+                    boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+                  }}
                 >
                   <Group justify="space-between" wrap="wrap">
                     <Box>
@@ -413,19 +432,28 @@ export default function Fire() {
                       </Button>
                     </Group>
                   </Group>
-                </Paper>
+                </Box>
               ))}
             </Stack>
           )}
         </Box>
-      </Paper>
+      </Box>
 
       {/* Results */}
       {result && (
         <Box mt="xl">
           {/* Summary Cards */}
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" mb="lg">
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Group gap="xs" mb="xs">
                 <IconTarget size={20} style={{ color: 'var(--mantine-color-ocean-6)' }} />
                 <Text size="sm" c="dimmed">Status</Text>
@@ -439,9 +467,18 @@ export default function Fire() {
                   Em progresso
                 </Badge>
               )}
-            </Paper>
+            </Box>
 
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Tempo até IF</Text>
               <Text fw={700} size="xl">
                 {result.months_to_fi != null ? formatYearsMonths(result.months_to_fi) : '—'}
@@ -449,22 +486,49 @@ export default function Fire() {
               {result.fi_age != null && (
                 <Text size="xs" c="dimmed">aos {result.fi_age} anos</Text>
               )}
-            </Paper>
+            </Box>
 
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">FIRE Number</Text>
               <Text fw={700} size="xl">{money(result.fire_number)}</Text>
-            </Paper>
+            </Box>
 
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Renda passiva (se aposentar hoje)</Text>
               <Text fw={700} size="xl">{money(result.monthly_data[0]?.monthly_passive_income ?? 0)}/mês</Text>
-            </Paper>
+            </Box>
           </SimpleGrid>
 
           {/* Additional metrics */}
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mb="lg">
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Patrimônio final</Text>
               <Text fw={700} size="xl">{money(result.final_portfolio)}</Text>
               <Progress
@@ -473,28 +537,56 @@ export default function Fire() {
                 size="sm"
                 mt="xs"
               />
-            </Paper>
+            </Box>
 
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Total de aportes</Text>
               <Text fw={700} size="xl">{money(result.total_contributions)}</Text>
               <Text size="xs" c="dimmed">
                 {((result.total_contributions / result.final_portfolio) * 100).toFixed(1)}% do patrimônio final
               </Text>
-            </Paper>
+            </Box>
 
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Total de rendimentos</Text>
               <Text fw={700} size="xl">{money(result.total_investment_returns)}</Text>
               <Text size="xs" c="dimmed">
                 {((result.total_investment_returns / result.final_portfolio) * 100).toFixed(1)}% do patrimônio final
               </Text>
-            </Paper>
+            </Box>
           </SimpleGrid>
 
           {/* Coast FIRE specific */}
           {result.coast_fire_number != null && (
-            <Paper p="lg" radius="xl" mb="lg" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              mb="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Group gap="xs" mb="xs">
                 <IconLeaf size={20} style={{ color: 'var(--mantine-color-teal-6)' }} />
                 <Text fw={600}>Coast FIRE</Text>
@@ -514,11 +606,20 @@ export default function Fire() {
                   )}
                 </Box>
               </SimpleGrid>
-            </Paper>
+            </Box>
           )}
 
           {/* Chart */}
-          <Paper p="xl" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+          <Box
+            p="xl"
+            style={{
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+              borderRadius: 'var(--mantine-radius-xl)',
+            }}
+          >
             <Text fw={600} size="lg" mb="sm">Evolução do patrimônio vs FIRE Number</Text>
             <LineChart
               h={350}
@@ -557,7 +658,7 @@ export default function Fire() {
                 </Text>
               )}
             </Group>
-          </Paper>
+          </Box>
         </Box>
       )}
     </Container>

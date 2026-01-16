@@ -1,5 +1,5 @@
 import type { ReactNode } from '../../types/react';
-import { Paper, Box, Text, Group, rem, Stack, ThemeIcon, Progress, UnstyledButton, Transition } from '@mantine/core';
+import { Box, Text, Group, rem, Stack, ThemeIcon, Progress, UnstyledButton, Transition } from '@mantine/core';
 import { IconCheck, IconChevronRight, IconChevronLeft } from '@tabler/icons-react';
 
 interface WizardStep {
@@ -147,9 +147,11 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
         mb="xl"
         p="lg"
         style={{
-          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-8))',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
           borderRadius: rem(16),
-          border: '1px solid var(--mantine-color-default-border)',
         }}
       >
         <Group gap="xs" wrap="nowrap">
@@ -182,17 +184,16 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
             alignItems: 'center',
             gap: rem(8),
             padding: `${rem(10)} ${rem(16)}`,
-            borderRadius: rem(8),
+            borderRadius: rem(12),
             backgroundColor:
               active === 0
-                ? 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-6))'
-                : 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
-            color: active === 0 ? 'var(--mantine-color-dimmed)' : 'var(--mantine-color-ocean-7)',
+                ? 'light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.04))'
+                : 'light-dark(rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.12))',
+            color: active === 0 ? 'var(--mantine-color-dimmed)' : 'var(--mantine-color-ocean-6)',
             fontWeight: 500,
             fontSize: rem(14),
             cursor: active === 0 ? 'not-allowed' : 'pointer',
-            transition: 'all 150ms ease',
-            border: '1px solid var(--mantine-color-default-border)',
+            transition: 'all 200ms ease',
           }}
         >
           <IconChevronLeft size={18} />
@@ -206,14 +207,15 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
               display: 'flex',
               alignItems: 'center',
               gap: rem(8),
-              padding: `${rem(10)} ${rem(16)}`,
-              borderRadius: rem(8),
-              backgroundColor: 'var(--mantine-color-ocean-6)',
+              padding: `${rem(10)} ${rem(20)}`,
+              borderRadius: rem(12),
+              background: 'linear-gradient(135deg, var(--mantine-color-ocean-5) 0%, var(--mantine-color-ocean-6) 100%)',
               color: 'white',
               fontWeight: 500,
               fontSize: rem(14),
               cursor: 'pointer',
-              transition: 'all 150ms ease',
+              transition: 'all 200ms ease',
+              boxShadow: '0 4px 12px -2px var(--mantine-color-ocean-5)',
             }}
           >
             Próximo
@@ -234,18 +236,28 @@ interface FormSectionProps {
 
 export function FormSection({ title, description, children, icon }: FormSectionProps) {
   return (
-    <Paper
+    <Box
       p="xl"
-      radius="xl"
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        backgroundColor: 'var(--mantine-color-body)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: rem(20),
         marginBottom: rem(24),
       }}
     >
       <Group gap="md" mb="lg" align="flex-start">
         {icon && (
-          <ThemeIcon size={44} radius="lg" variant="light" color="ocean">
+          <ThemeIcon 
+            size={48} 
+            radius="xl" 
+            variant="light" 
+            color="ocean"
+            style={{
+              background: 'light-dark(linear-gradient(135deg, var(--mantine-color-ocean-1) 0%, var(--mantine-color-ocean-0) 100%), linear-gradient(135deg, var(--mantine-color-ocean-8) 0%, var(--mantine-color-ocean-9) 100%))',
+            }}
+          >
             {icon}
           </ThemeIcon>
         )}
@@ -261,7 +273,7 @@ export function FormSection({ title, description, children, icon }: FormSectionP
         </Box>
       </Group>
       {children}
-    </Paper>
+    </Box>
   );
 }
 

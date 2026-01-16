@@ -576,12 +576,14 @@ export default function ParameterComparisonTable({
   return (
     <Stack gap="lg">
       {/* Summary Header */}
-      <Paper
+      <Box
         p="lg"
-        radius="lg"
         style={{
-          border: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'var(--mantine-color-body)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          borderRadius: 'var(--mantine-radius-xl)',
         }}
       >
         <Group gap="sm" mb="lg">
@@ -632,7 +634,7 @@ export default function ParameterComparisonTable({
             </Paper>
           )}
         </SimpleGrid>
-      </Paper>
+      </Box>
 
       {/* Most Impactful Parameter (for 2 presets) */}
       {mostImpactful && wealthComparison && (
@@ -659,12 +661,12 @@ export default function ParameterComparisonTable({
             </Box>
           </Group>
 
-          <Paper
+          <Box
             p="md"
-            radius="md"
             style={{
-              backgroundColor: 'var(--mantine-color-body)',
-              border: '1px solid var(--mantine-color-default-border)',
+              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+              borderRadius: 'var(--mantine-radius-lg)',
+              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
             }}
           >
             <Group justify="space-between" wrap="wrap" gap="md">
@@ -698,7 +700,7 @@ export default function ParameterComparisonTable({
                 </Text>
               </Box>
             </Group>
-          </Paper>
+          </Box>
 
           <Alert
             color="grape"
@@ -774,13 +776,15 @@ export default function ParameterComparisonTable({
         if (relevantParams.length === 0) return null;
 
         return (
-          <Paper
+          <Box
             key={category}
             p="lg"
-            radius="lg"
             style={{
-              border: '1px solid var(--mantine-color-default-border)',
-              backgroundColor: 'var(--mantine-color-body)',
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+              borderRadius: 'var(--mantine-radius-xl)',
             }}
           >
             <Group gap="sm" mb="md">
@@ -962,7 +966,7 @@ export default function ParameterComparisonTable({
                 </Table.Tbody>
               </Table>
             </ScrollArea>
-          </Paper>
+          </Box>
         );
       })}
 

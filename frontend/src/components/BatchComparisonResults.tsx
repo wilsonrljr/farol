@@ -108,12 +108,14 @@ function getScenarioIcon(name: string) {
 
 function RankingTable({ ranking, globalBest }: { ranking: BatchComparisonRanking[]; globalBest: BatchComparisonResult['global_best'] }) {
   return (
-    <Paper
+    <Box
       p="lg"
-      radius="lg"
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        backgroundColor: 'var(--mantine-color-body)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: 'var(--mantine-radius-xl)',
       }}
     >
       <Group gap="sm" mb="lg">
@@ -222,7 +224,7 @@ function RankingTable({ ranking, globalBest }: { ranking: BatchComparisonRanking
           </Table.Tbody>
         </Table>
       </ScrollArea>
-    </Paper>
+    </Box>
   );
 }
 
@@ -408,12 +410,14 @@ function WealthComparisonChart({
   }));
 
   return (
-    <Paper
+    <Box
       p="lg"
-      radius="lg"
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        backgroundColor: 'var(--mantine-color-body)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: 'var(--mantine-radius-xl)',
       }}
     >
       <Group gap="sm" mb="lg">
@@ -470,7 +474,7 @@ function WealthComparisonChart({
           },
         }}
       />
-    </Paper>
+    </Box>
   );
 }
 

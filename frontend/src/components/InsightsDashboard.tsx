@@ -74,18 +74,23 @@ function InsightCard({ insight }: { insight: Insight }) {
   const color = INSIGHT_COLORS[insight.type];
   
   return (
-    <Paper
+    <Box
       p="md"
-      radius="lg"
       style={{
-        border: `1px solid var(--mantine-color-${color}-3)`,
-        backgroundColor: `light-dark(var(--mantine-color-${color}-0), var(--mantine-color-dark-7))`,
+        background: `light-dark(
+          linear-gradient(145deg, var(--mantine-color-${color}-0) 0%, rgba(255, 255, 255, 0.85) 100%),
+          linear-gradient(145deg, var(--mantine-color-${color}-9) 0%, rgba(30, 41, 59, 0.9) 100%)
+        )`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        boxShadow: `var(--glass-shadow), 0 0 0 1px var(--mantine-color-${color}-2) inset`,
+        borderRadius: rem(14),
       }}
     >
       <Group gap="md" wrap="nowrap" align="flex-start">
         <ThemeIcon
           size="lg"
-          radius="md"
+          radius="xl"
           variant="light"
           color={color}
         >
@@ -107,7 +112,7 @@ function InsightCard({ insight }: { insight: Insight }) {
           </Text>
         </Box>
       </Group>
-    </Paper>
+    </Box>
   );
 }
 
@@ -445,12 +450,14 @@ export default function InsightsDashboard({ result }: InsightsDashboardProps) {
   const secondaryInsights = insights.filter((i) => i.priority < 7);
   
   return (
-    <Paper
+    <Box
       p="lg"
-      radius="lg"
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        backgroundColor: 'var(--mantine-color-body)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: 'var(--mantine-radius-lg)',
       }}
     >
       <Group gap="sm" mb="lg">
@@ -503,6 +510,6 @@ export default function InsightsDashboard({ result }: InsightsDashboardProps) {
           </>
         )}
       </Stack>
-    </Paper>
+    </Box>
   );
 }

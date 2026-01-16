@@ -45,33 +45,33 @@ export default function Home() {
         style={{
           position: 'relative',
           overflow: 'hidden',
-          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-slate-0) 0%, var(--mantine-color-ocean-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
+          background: 'light-dark(linear-gradient(180deg, rgba(248, 250, 252, 1) 0%, rgba(240, 247, 255, 0.8) 100%), linear-gradient(180deg, rgba(15, 23, 42, 1) 0%, rgba(15, 23, 42, 0.95) 100%))',
         }}
       >
         {/* Decorative elements */}
         <Box
           style={{
             position: 'absolute',
-            top: '20%',
+            top: '10%',
             right: '-5%',
-            width: rem(400),
-            height: rem(400),
+            width: rem(500),
+            height: rem(500),
             borderRadius: '50%',
-            background: 'light-dark(radial-gradient(circle, var(--mantine-color-ocean-1) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-ocean-7) 35%, transparent) 0%, transparent 70%))',
-            opacity: 0.6,
+            background: 'light-dark(radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%), radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%))',
+            filter: 'blur(40px)',
             pointerEvents: 'none',
           }}
         />
         <Box
           style={{
             position: 'absolute',
-            bottom: '10%',
+            bottom: '5%',
             left: '-10%',
-            width: rem(300),
-            height: rem(300),
+            width: rem(400),
+            height: rem(400),
             borderRadius: '50%',
-            background: 'light-dark(radial-gradient(circle, var(--mantine-color-slate-2) 0%, transparent 70%), radial-gradient(circle, color-mix(in srgb, var(--mantine-color-dark-6) 45%, transparent) 0%, transparent 70%))',
-            opacity: 0.5,
+            background: 'light-dark(radial-gradient(circle, rgba(20, 184, 166, 0.06) 0%, transparent 70%), radial-gradient(circle, rgba(20, 184, 166, 0.08) 0%, transparent 70%))',
+            filter: 'blur(40px)',
             pointerEvents: 'none',
           }}
         />
@@ -143,13 +143,14 @@ export default function Home() {
 
       {/* Stats Section - Quick Visual Overview */}
       <Container size="lg" mt={-40} style={{ position: 'relative', zIndex: 2 }}>
-        <Paper
+        <Box
           p={{ base: 'lg', md: 'xl' }}
-          radius="xl"
-          shadow="lg"
           style={{
-            border: '1px solid var(--mantine-color-default-border)',
-            backgroundColor: 'var(--mantine-color-body)',
+            borderRadius: rem(24),
+            background: 'var(--glass-bg-elevated)',
+            backdropFilter: 'blur(var(--glass-blur-heavy))',
+            WebkitBackdropFilter: 'blur(var(--glass-blur-heavy))',
+            boxShadow: 'var(--glass-shadow-lg), var(--glass-shadow-glow)',
           }}
         >
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
@@ -205,7 +206,7 @@ export default function Home() {
               </Box>
             </Group>
           </SimpleGrid>
-        </Paper>
+        </Box>
       </Container>
 
       {/* Features Section */}
@@ -268,9 +269,7 @@ export default function Home() {
       <Box
         py={{ base: 60, md: 100 }}
         style={{
-          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
-          borderTop: '1px solid var(--mantine-color-default-border)',
-          borderBottom: '1px solid var(--mantine-color-default-border)',
+          background: 'light-dark(linear-gradient(180deg, rgba(240, 247, 255, 0.5) 0%, rgba(248, 250, 252, 0.3) 100%), linear-gradient(180deg, rgba(30, 41, 59, 0.3) 0%, rgba(15, 23, 42, 0.2) 100%))',
         }}
       >
         <Container size="lg">
@@ -355,13 +354,14 @@ export default function Home() {
             </Box>
 
             <Box>
-              <Paper
+              <Box
                 p="xl"
-                radius="xl"
                 style={{
-                  backgroundColor: 'var(--mantine-color-body)',
-                  border: '1px solid var(--mantine-color-default-border)',
-                  boxShadow: 'var(--mantine-shadow-lg)',
+                  background: 'var(--glass-bg-elevated)',
+                  backdropFilter: 'blur(var(--glass-blur-heavy))',
+                  WebkitBackdropFilter: 'blur(var(--glass-blur-heavy))',
+                  boxShadow: 'var(--glass-shadow-lg), var(--glass-shadow-glow)',
+                  borderRadius: rem(24),
                 }}
               >
                 <Group gap="md" mb="lg">
@@ -379,55 +379,52 @@ export default function Home() {
                 </Group>
 
                 <SimpleGrid cols={2} spacing="md" mb="lg">
-                  <Paper
+                  <Box
                     p="md"
-                    radius="lg"
                     style={{
-                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-ocean-0) 0%, var(--mantine-color-ocean-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, var(--mantine-color-dark-6) 100%))',
-                      border: '1px solid var(--mantine-color-default-border)',
+                      background: 'light-dark(linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(255, 255, 255, 0.5) 100%), linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 41, 59, 0.8) 100%))',
+                      borderRadius: rem(16),
                     }}
                   >
                     <Group gap="xs" mb={4}>
-                      <IconTrendingUp size={16} color="var(--mantine-color-ocean-6)" />
-                      <Text size="xs" c="ocean.6" tt="uppercase" fw={600}>
+                      <IconTrendingUp size={16} color="var(--mantine-color-ocean-5)" />
+                      <Text size="xs" c="ocean.5" tt="uppercase" fw={600}>
                         Patrimônio Final
                       </Text>
                     </Group>
-                    <Text fw={700} size="xl" c="ocean.7">
+                    <Text fw={700} size="xl" c="ocean.6">
                       R$ 820k
                     </Text>
-                  </Paper>
-                  <Paper
+                  </Box>
+                  <Box
                     p="md"
-                    radius="lg"
                     style={{
-                      background: 'light-dark(linear-gradient(135deg, var(--mantine-color-emerald-0) 0%, var(--mantine-color-emerald-1) 100%), linear-gradient(135deg, var(--mantine-color-dark-7) 0%, color-mix(in srgb, var(--mantine-color-emerald-9) 35%, var(--mantine-color-dark-8)) 100%))',
-                      border: '1px solid var(--mantine-color-default-border)',
+                      background: 'light-dark(linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(255, 255, 255, 0.5) 100%), linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(30, 41, 59, 0.8) 100%))',
+                      borderRadius: rem(16),
                     }}
                   >
                     <Group gap="xs" mb={4}>
-                      <IconPercentage size={16} color="var(--mantine-color-emerald-6)" />
-                      <Text size="xs" c="emerald.6" tt="uppercase" fw={600}>
+                      <IconPercentage size={16} color="var(--mantine-color-emerald-5)" />
+                      <Text size="xs" c="emerald.5" tt="uppercase" fw={600}>
                         ROI Total
                       </Text>
                     </Group>
-                    <Text fw={700} size="xl" c="emerald.7">
+                    <Text fw={700} size="xl" c="emerald.6">
                       58%
                     </Text>
-                  </Paper>
+                  </Box>
                 </SimpleGrid>
 
                 {/* Visual Bar Chart */}
                 <Box
                   style={{
                     height: rem(120),
-                    backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
-                    borderRadius: rem(12),
+                    background: 'light-dark(rgba(0, 0, 0, 0.03), rgba(255, 255, 255, 0.03))',
+                    borderRadius: rem(16),
                     display: 'flex',
                     alignItems: 'flex-end',
                     justifyContent: 'space-around',
                     padding: rem(16),
-                    border: '1px solid var(--mantine-color-default-border)',
                   }}
                 >
                   {[
@@ -454,7 +451,7 @@ export default function Home() {
                     </Box>
                   ))}
                 </Box>
-              </Paper>
+              </Box>
             </Box>
           </SimpleGrid>
         </Container>
@@ -469,44 +466,55 @@ export default function Home() {
             { icon: IconTarget, title: 'Cálculos precisos', desc: 'Metodologia transparente', color: 'violet' },
             { icon: IconSparkles, title: 'Atualizado', desc: 'Melhores práticas do mercado', color: 'ocean' },
           ].map((benefit, i) => (
-            <Paper
+            <Box
               key={i}
-              p="xl"
-              radius="xl"
-              style={{
-                border: '1px solid var(--mantine-color-default-border)',
-                textAlign: 'center',
-                transition: 'all 200ms ease',
-              }}
               className="card-hover"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: rem(20),
+                padding: rem(24),
+                textAlign: 'center',
+                transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
+              }}
             >
               <ThemeIcon 
-                size={52} 
+                size={56} 
                 radius="xl" 
                 variant="light" 
                 color={benefit.color} 
                 mb="md" 
                 mx="auto"
+                style={{
+                  background: `light-dark(
+                    linear-gradient(135deg, var(--mantine-color-${benefit.color}-1) 0%, var(--mantine-color-${benefit.color}-0) 100%),
+                    linear-gradient(135deg, var(--mantine-color-${benefit.color}-8) 0%, var(--mantine-color-${benefit.color}-9) 100%)
+                  )`,
+                  boxShadow: `0 4px 12px -4px var(--mantine-color-${benefit.color}-4)`,
+                }}
               >
                 <benefit.icon size={24} />
               </ThemeIcon>
-              <Text fw={600} size="lg" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))" mb={4}>{benefit.title}</Text>
+              <Text fw={600} size="lg" c="bright" mb={4}>{benefit.title}</Text>
               <Text size="sm" c="dimmed">{benefit.desc}</Text>
-            </Paper>
-          ))}
+            </Box>
+          ))})
         </SimpleGrid>
       </Container>
 
       {/* CTA Section */}
       <Container size="md" py={{ base: 60, md: 80 }}>
-        <Paper
+        <Box
           p={{ base: 'xl', md: 50 }}
-          radius="xl"
           style={{
-            background: 'linear-gradient(135deg, var(--mantine-color-ocean-7) 0%, var(--mantine-color-ocean-8) 100%)',
+            background: 'linear-gradient(135deg, var(--mantine-color-ocean-6) 0%, var(--mantine-color-ocean-7) 100%)',
+            borderRadius: rem(28),
             textAlign: 'center',
             position: 'relative',
             overflow: 'hidden',
+            boxShadow: '0 16px 48px -12px rgba(59, 130, 246, 0.35)',
           }}
         >
           {/* Decorative elements */}
@@ -562,7 +570,7 @@ export default function Home() {
               Iniciar Simulação
             </Button>
           </Box>
-        </Paper>
+        </Box>
       </Container>
     </Box>
   );

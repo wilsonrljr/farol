@@ -63,21 +63,23 @@ function NavLink({ to, label, icon, active, onClick }: NavItem & { active: boole
         alignItems: 'center',
         gap: rem(8),
         padding: `${rem(8)} ${rem(14)}`,
-        borderRadius: rem(8),
+        borderRadius: rem(12),
         fontWeight: 500,
         fontSize: rem(14),
-        color: active ? 'var(--mantine-primary-color-filled)' : 'var(--mantine-color-dimmed)',
-        backgroundColor: active ? 'var(--mantine-color-default-hover)' : 'transparent',
-        transition: 'all 150ms ease',
+        color: active ? 'var(--mantine-color-ocean-6)' : 'var(--mantine-color-dimmed)',
+        backgroundColor: active ? 'light-dark(rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.12))' : 'transparent',
+        transition: 'all 200ms ease',
       }}
       onMouseEnter={(e) => {
         if (!active) {
-          e.currentTarget.style.backgroundColor = 'var(--mantine-color-default-hover)';
+          e.currentTarget.style.backgroundColor = 'light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.04))';
+          e.currentTarget.style.color = 'var(--mantine-color-text)';
         }
       }}
       onMouseLeave={(e) => {
         if (!active) {
           e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = 'var(--mantine-color-dimmed)';
         }
       }}
     >
@@ -98,12 +100,12 @@ function MobileNavLink({ to, label, icon, active, onClick }: NavItem & { active:
         alignItems: 'center',
         gap: rem(12),
         padding: `${rem(14)} ${rem(16)}`,
-        borderRadius: rem(8),
+        borderRadius: rem(12),
         fontWeight: 500,
         fontSize: rem(16),
-        color: active ? 'var(--mantine-primary-color-filled)' : 'var(--mantine-color-text)',
-        backgroundColor: active ? 'var(--mantine-color-default-hover)' : 'transparent',
-        transition: 'all 150ms ease',
+        color: active ? 'var(--mantine-color-ocean-6)' : 'var(--mantine-color-text)',
+        backgroundColor: active ? 'light-dark(rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.12))' : 'transparent',
+        transition: 'all 200ms ease',
       }}
     >
       {icon}
@@ -139,9 +141,10 @@ export default function Layout({ children }: { children: ReactNode }) {
           position: 'sticky',
           top: 0,
           zIndex: 100,
-          borderBottom: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'color-mix(in srgb, var(--mantine-color-body) 92%, transparent)',
-          backdropFilter: 'blur(12px)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(var(--glass-blur))',
+          WebkitBackdropFilter: 'blur(var(--glass-blur))',
+          boxShadow: '0 1px 0 0 light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.04))',
         }}
       >
         <Container size="xl" py="sm">
@@ -151,24 +154,24 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Group gap="xs">
                 <Box
                   style={{
-                    width: rem(36),
-                    height: rem(36),
-                    borderRadius: rem(10),
-                    background: 'linear-gradient(135deg, var(--mantine-color-ocean-6) 0%, var(--mantine-color-ocean-7) 100%)',
+                    width: rem(38),
+                    height: rem(38),
+                    borderRadius: rem(12),
+                    background: 'linear-gradient(135deg, var(--mantine-color-ocean-5) 0%, var(--mantine-color-ocean-6) 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: 'white',
-                    boxShadow: '0 2px 8px rgba(44, 112, 163, 0.25)',
+                    boxShadow: '0 4px 12px -2px var(--mantine-color-ocean-5)',
                   }}
                 >
                   <IconLeaf size={20} />
                 </Box>
                 <Box>
-                  <Text fw={700} size="lg" lh={1.1} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
+                  <Text fw={700} size="lg" lh={1.1} c="bright">
                     Farol
                   </Text>
-                  <Text size="xs" c="dimmed" lh={1}>
+                  <Text size="xs" c="dimmed" lh={1} style={{ opacity: 0.7 }}>
                     Planejamento Financeiro
                   </Text>
                 </Box>
@@ -183,9 +186,9 @@ export default function Layout({ children }: { children: ReactNode }) {
               <Box
                 style={{
                   width: 1,
-                  height: rem(24),
-                  background: 'var(--mantine-color-default-border)',
-                  margin: `0 ${rem(8)}`,
+                  height: rem(20),
+                  background: 'light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08))',
+                  margin: `0 ${rem(4)}`,
                 }}
               />
               {secondaryNavItems.map((item) => (
@@ -286,8 +289,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         component="footer"
         py="xl"
         style={{
-          borderTop: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'var(--mantine-color-default)',
+          background: 'light-dark(rgba(248, 250, 252, 0.6), rgba(15, 23, 42, 0.4))',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
         }}
       >
         <Container size="xl">
@@ -297,12 +301,13 @@ export default function Layout({ children }: { children: ReactNode }) {
                 style={{
                   width: rem(24),
                   height: rem(24),
-                  borderRadius: rem(6),
-                  background: 'linear-gradient(135deg, var(--mantine-color-ocean-6) 0%, var(--mantine-color-ocean-7) 100%)',
+                  borderRadius: rem(8),
+                  background: 'linear-gradient(135deg, var(--mantine-color-ocean-5) 0%, var(--mantine-color-ocean-6) 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'white',
+                  boxShadow: '0 2px 8px -2px var(--mantine-color-ocean-5)',
                 }}
               >
                 <IconLeaf size={12} />

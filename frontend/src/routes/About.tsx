@@ -6,12 +6,12 @@ import {
   Group,
   Stack,
   SimpleGrid,
-  Paper,
   Anchor,
   Badge,
   ActionIcon,
   Tooltip,
   Box,
+  rem,
 } from '@mantine/core';
 import {
   IconBrandPython,
@@ -44,29 +44,37 @@ function FeatureCard({
   highlight?: boolean;
 }) {
   return (
-    <Paper
+    <Box
       p="lg"
-      radius="lg"
       style={{
-        border: highlight
-          ? '2px solid var(--mantine-color-ocean-3)'
-          : '1px solid var(--mantine-color-default-border)',
-        backgroundColor: highlight
-          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))'
-          : 'var(--mantine-color-body)',
+        background: highlight
+          ? `light-dark(
+              linear-gradient(145deg, var(--mantine-color-ocean-0) 0%, rgba(255, 255, 255, 0.85) 100%),
+              linear-gradient(145deg, var(--mantine-color-ocean-9) 0%, rgba(30, 41, 59, 0.9) 100%)
+            )`
+          : 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: highlight 
+          ? 'var(--glass-shadow-lg), 0 0 0 1px var(--mantine-color-ocean-2) inset' 
+          : 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: rem(16),
       }}
     >
       <Group gap="md" wrap="nowrap" align="flex-start">
         <ThemeIcon
-          size={44}
-          radius="lg"
+          size={48}
+          radius="xl"
           variant={highlight ? 'filled' : 'light'}
           color="ocean"
+          style={{
+            boxShadow: highlight ? '0 4px 12px -2px var(--mantine-color-ocean-5)' : 'none',
+          }}
         >
           <Icon size={22} />
         </ThemeIcon>
         <div>
-          <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))" mb={4}>
+          <Text fw={600} c="bright" mb={4}>
             {title}
           </Text>
           <Text size="sm" c="dimmed" style={{ lineHeight: 1.5 }}>
@@ -74,7 +82,7 @@ function FeatureCard({
           </Text>
         </div>
       </Group>
-    </Paper>
+    </Box>
   );
 }
 
@@ -89,20 +97,22 @@ function TechCard({
   items: string[];
 }) {
   return (
-    <Paper
+    <Box
       p="lg"
-      radius="lg"
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
-        backgroundColor: 'var(--mantine-color-body)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: rem(16),
       }}
     >
       <Group gap="md" wrap="nowrap" align="flex-start">
-        <ThemeIcon size={40} radius="lg" variant="light" color="ocean">
+        <ThemeIcon size={44} radius="xl" variant="light" color="ocean">
           <Icon size={20} />
         </ThemeIcon>
         <div>
-          <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))" mb="xs">
+          <Text fw={600} c="bright" mb="xs">
             {title}
           </Text>
           <Stack gap={4}>
@@ -114,7 +124,7 @@ function TechCard({
           </Stack>
         </div>
       </Group>
-    </Paper>
+    </Box>
   );
 }
 
@@ -125,19 +135,25 @@ export default function About() {
       <Box
         py={{ base: 40, md: 60 }}
         style={{
-          borderBottom: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
+          background: 'light-dark(linear-gradient(180deg, rgba(240, 247, 255, 0.5) 0%, rgba(248, 250, 252, 0.3) 100%), linear-gradient(180deg, rgba(30, 41, 59, 0.3) 0%, rgba(15, 23, 42, 0.2) 100%))',
         }}
       >
         <Container size="lg">
           <Stack gap="md" align="center" ta="center">
-            <ThemeIcon size={60} radius="xl" color="ocean">
+            <ThemeIcon 
+              size={64} 
+              radius="xl" 
+              color="ocean"
+              style={{
+                boxShadow: '0 4px 16px -4px var(--mantine-color-ocean-5)',
+              }}
+            >
               <IconInfoCircle size={30} />
             </ThemeIcon>
             <Title order={1} fw={700}>
               Sobre o Farol
             </Title>
-            <Text size="lg" c="ocean.6" maw={600}>
+            <Text size="lg" c="ocean.5" maw={600}>
               Uma ferramenta educativa para ajudar você a entender melhor as opções de aquisição
               imobiliária no Brasil.
             </Text>
@@ -205,22 +221,33 @@ export default function About() {
           </Box>
 
           {/* Author */}
-          <Paper
+          <Box
             p="xl"
-            radius="lg"
             mt="xl"
             style={{
-              border: '1px solid var(--mantine-color-default-border)',
-              backgroundColor: 'var(--mantine-color-body)',
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+              borderRadius: rem(20),
             }}
           >
             <Group align="flex-start" gap="lg" wrap="nowrap">
-              <ThemeIcon size={50} radius="xl" variant="light" color="ocean">
+              <ThemeIcon 
+                size={56} 
+                radius="xl" 
+                variant="light" 
+                color="ocean"
+                style={{
+                  background: 'light-dark(linear-gradient(135deg, var(--mantine-color-ocean-1) 0%, var(--mantine-color-ocean-0) 100%), linear-gradient(135deg, var(--mantine-color-ocean-8) 0%, var(--mantine-color-ocean-9) 100%))',
+                  boxShadow: '0 4px 12px -4px var(--mantine-color-ocean-4)',
+                }}
+              >
                 <IconUser size={24} />
               </ThemeIcon>
               <Stack gap="sm" style={{ flex: 1 }}>
                 <div>
-                  <Text fw={600} size="lg" c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">
+                  <Text fw={600} size="lg" c="bright">
                     Autor
                   </Text>
                   <Text size="sm" c="dimmed">
@@ -317,23 +344,28 @@ export default function About() {
                 </Group>
               </Stack>
             </Group>
-          </Paper>
+          </Box>
 
           {/* AI Notice */}
-          <Paper
+          <Box
             p="lg"
-            radius="lg"
             style={{
-              border: '1px solid var(--mantine-color-default-border)',
-              backgroundColor: 'light-dark(var(--mantine-color-ocean-1), var(--mantine-color-dark-7))',
+              background: `light-dark(
+                linear-gradient(145deg, var(--mantine-color-ocean-0) 0%, rgba(255, 255, 255, 0.85) 100%),
+                linear-gradient(145deg, var(--mantine-color-ocean-9) 0%, rgba(30, 41, 59, 0.9) 100%)
+              )`,
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), 0 0 0 1px var(--mantine-color-ocean-2) inset',
+              borderRadius: rem(16),
             }}
           >
             <Group align="flex-start" gap="md" wrap="nowrap">
-              <ThemeIcon size={40} radius="lg" variant="light" color="ocean">
+              <ThemeIcon size={44} radius="xl" variant="light" color="ocean">
                 <IconCode size={20} />
               </ThemeIcon>
               <Stack gap="xs">
-                <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
+                <Text fw={600} c="bright">
                   Uso de IA
                 </Text>
                 <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
@@ -344,23 +376,28 @@ export default function About() {
                 </Text>
               </Stack>
             </Group>
-          </Paper>
+          </Box>
 
           {/* Disclaimer */}
-          <Paper
+          <Box
             p="lg"
-            radius="lg"
             style={{
-              border: '1px solid light-dark(var(--mantine-color-warning-3), var(--mantine-color-dark-5))',
-              backgroundColor: 'light-dark(var(--mantine-color-warning-0), color-mix(in srgb, var(--mantine-color-warning-9) 18%, var(--mantine-color-dark-8)))',
+              background: `light-dark(
+                linear-gradient(145deg, var(--mantine-color-amber-0) 0%, rgba(255, 255, 255, 0.85) 100%),
+                linear-gradient(145deg, var(--mantine-color-amber-9) 0%, rgba(30, 41, 59, 0.9) 100%)
+              )`,
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), 0 0 0 1px var(--mantine-color-amber-2) inset',
+              borderRadius: rem(16),
             }}
           >
             <Group align="flex-start" gap="md" wrap="nowrap">
-              <ThemeIcon size={40} radius="lg" variant="light" color="warning">
+              <ThemeIcon size={44} radius="xl" variant="light" color="amber">
                 <IconShieldCheck size={20} />
               </ThemeIcon>
               <Stack gap="xs">
-                <Text fw={600} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
+                <Text fw={600} c="bright">
                   Disclaimer
                 </Text>
                 <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
@@ -374,7 +411,7 @@ export default function About() {
                 </Text>
               </Stack>
             </Group>
-          </Paper>
+          </Box>
 
           {/* Footer */}
           <Text size="xs" c="dimmed" ta="center" mt="xl">

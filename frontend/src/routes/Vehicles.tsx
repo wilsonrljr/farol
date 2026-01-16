@@ -191,7 +191,16 @@ export default function Vehicles() {
         <Text c="dimmed">Compare modalidades (à vista, financiamento, consórcio, assinatura) em um horizonte fixo.</Text>
       </Box>
 
-      <Paper p="xl" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+      <Box
+        p="xl"
+        style={{
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          borderRadius: 'var(--mantine-radius-xl)',
+        }}
+      >
         <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
           <NumberInput
             label="Preço do veículo"
@@ -213,15 +222,29 @@ export default function Vehicles() {
         </SimpleGrid>
 
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+          <Box
+            p="md"
+            style={{
+              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+              borderRadius: 'var(--mantine-radius-lg)',
+              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+            }}
+          >
             <Group justify="space-between" mb="xs">
               <Text fw={600}>À vista</Text>
               <Switch checked={includeCash} onChange={(e) => setIncludeCash(e.currentTarget.checked)} />
             </Group>
             <Text size="sm" c="dimmed">Compra no mês 1 e assume custos/dep.</Text>
-          </Paper>
+          </Box>
 
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+          <Box
+            p="md"
+            style={{
+              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+              borderRadius: 'var(--mantine-radius-lg)',
+              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+            }}
+          >
             <Group justify="space-between" mb="xs">
               <Text fw={600}>Financiamento</Text>
               <Switch checked={includeFin} onChange={(e) => setIncludeFin(e.currentTarget.checked)} />
@@ -231,9 +254,16 @@ export default function Vehicles() {
               <NumberInput label="Prazo" value={finTerm} onChange={(v) => setFinTerm(Number(v) || 1)} min={1} max={120} />
               <NumberInput label="Taxa anual" value={finAnnualRate} onChange={(v) => setFinAnnualRate(Number(v) || 0)} min={-100} suffix="% a.a." />
             </SimpleGrid>
-          </Paper>
+          </Box>
 
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+          <Box
+            p="md"
+            style={{
+              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+              borderRadius: 'var(--mantine-radius-lg)',
+              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+            }}
+          >
             <Group justify="space-between" mb="xs">
               <Text fw={600}>Consórcio</Text>
               <Switch checked={includeCons} onChange={(e) => setIncludeCons(e.currentTarget.checked)} />
@@ -243,15 +273,22 @@ export default function Vehicles() {
               <NumberInput label="Taxa adm." value={consFeePct} onChange={(v) => setConsFeePct(Number(v) || 0)} min={0} max={200} suffix="%" />
               <NumberInput label="Contemplação" value={consMonth} onChange={(v) => setConsMonth(Number(v) || 1)} min={1} max={consTerm} />
             </SimpleGrid>
-          </Paper>
+          </Box>
 
-          <Paper p="md" radius="lg" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+          <Box
+            p="md"
+            style={{
+              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+              borderRadius: 'var(--mantine-radius-lg)',
+              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+            }}
+          >
             <Group justify="space-between" mb="xs">
               <Text fw={600}>Assinatura</Text>
               <Switch checked={includeSub} onChange={(e) => setIncludeSub(e.currentTarget.checked)} />
             </Group>
             <NumberInput label="Mensalidade" value={subFee} onChange={(v) => setSubFee(Number(v) || 0)} min={0} prefix="R$ " thousandSeparator="." decimalSeparator="," />
-          </Paper>
+          </Box>
         </SimpleGrid>
 
         <Group justify="flex-end" mt="lg">
@@ -287,11 +324,14 @@ export default function Vehicles() {
           {presets.length > 0 && (
             <Stack gap="xs" mt="sm">
               {presets.map((p) => (
-                <Paper
+                <Box
                   key={p.id}
                   p="sm"
-                  radius="lg"
-                  style={{ border: '1px solid var(--mantine-color-default-border)' }}
+                  style={{
+                    background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+                    borderRadius: 'var(--mantine-radius-lg)',
+                    boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+                  }}
                 >
                   <Group justify="space-between" wrap="wrap">
                     <Box>
@@ -309,29 +349,48 @@ export default function Vehicles() {
                       </Button>
                     </Group>
                   </Group>
-                </Paper>
+                </Box>
               ))}
             </Stack>
           )}
         </Box>
-      </Paper>
+      </Box>
 
       {result && (
         <Box mt="xl">
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mb="lg">
             {result.scenarios.map((s) => (
-              <Paper key={s.name} p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+              <Box
+                key={s.name}
+                p="lg"
+                style={{
+                  background: 'var(--glass-bg)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                  borderRadius: 'var(--mantine-radius-xl)',
+                }}
+              >
                 <Text size="sm" c="dimmed">{s.name}</Text>
                 <Text fw={700} size="lg">Custo líquido</Text>
                 <Text fw={700} size="xl">{money(s.net_cost)}</Text>
                 <Text size="sm" c="dimmed" mt={6}>
                   Saídas: {money(s.total_outflows)} · Ativo final: {money(s.final_asset_value)}
                 </Text>
-              </Paper>
+              </Box>
             ))}
           </SimpleGrid>
 
-          <Paper p="xl" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+          <Box
+            p="xl"
+            style={{
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+              borderRadius: 'var(--mantine-radius-xl)',
+            }}
+          >
             <Text fw={600} size="lg" mb="sm">Posição líquida ao longo do tempo</Text>
             <LineChart
               h={340}
@@ -352,7 +411,7 @@ export default function Vehicles() {
             <Text size="xs" c="dimmed" mt="sm">
               Posição líquida = valor do ativo − saídas acumuladas (simplificado).
             </Text>
-          </Paper>
+          </Box>
         </Box>
       )}
     </Container>

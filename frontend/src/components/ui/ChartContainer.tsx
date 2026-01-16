@@ -1,5 +1,5 @@
 import type { ReactNode } from '../../types/react';
-import { Paper, Box, Text, Group, rem } from '@mantine/core';
+import { Box, Text, Group, rem } from '@mantine/core';
 
 interface ChartContainerProps {
   title: string;
@@ -17,11 +17,14 @@ export function ChartContainer({
   height = 300,
 }: ChartContainerProps) {
   return (
-    <Paper
+    <Box
       p="lg"
-      radius="xl"
       style={{
-        border: '1px solid var(--mantine-color-default-border)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: rem(20),
       }}
     >
       <Group justify="space-between" align="flex-start" mb="lg">
@@ -30,7 +33,7 @@ export function ChartContainer({
             {title}
           </Text>
           {subtitle && (
-            <Text size="sm" c="dimmed">
+            <Text size="sm" c="dimmed" mt={2}>
               {subtitle}
             </Text>
           )}
@@ -38,6 +41,6 @@ export function ChartContainer({
         {action}
       </Group>
       <Box style={{ height }}>{children}</Box>
-    </Paper>
+    </Box>
   );
 }

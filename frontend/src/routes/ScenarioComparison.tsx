@@ -9,7 +9,6 @@ export default function ScenarioComparison() {
       <Box
         py={{ base: 40, md: 60 }}
         style={{
-          borderBottom: '1px solid var(--mantine-color-default-border)',
           background: 'light-dark(linear-gradient(180deg, var(--mantine-color-ocean-0) 0%, var(--mantine-color-slate-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
         }}
       >
@@ -37,12 +36,14 @@ export default function ScenarioComparison() {
 
           {/* Quick info cards */}
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg" mt="xl">
-            <Paper
+            <Box
               p="md"
-              radius="xl"
               style={{
-                backgroundColor: 'var(--mantine-color-body)',
-                border: '1px solid var(--mantine-color-default-border)',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
               }}
             >
               <Group gap="sm" wrap="nowrap">
@@ -58,13 +59,15 @@ export default function ScenarioComparison() {
                   </Text>
                 </Box>
               </Group>
-            </Paper>
-            <Paper
+            </Box>
+            <Box
               p="md"
-              radius="xl"
               style={{
-                backgroundColor: 'var(--mantine-color-body)',
-                border: '1px solid var(--mantine-color-default-border)',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
               }}
             >
               <Group gap="sm" wrap="nowrap">
@@ -80,13 +83,15 @@ export default function ScenarioComparison() {
                   </Text>
                 </Box>
               </Group>
-            </Paper>
-            <Paper
+            </Box>
+            <Box
               p="md"
-              radius="xl"
               style={{
-                backgroundColor: 'var(--mantine-color-body)',
-                border: '1px solid var(--mantine-color-default-border)',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
               }}
             >
               <Group gap="sm" wrap="nowrap">
@@ -102,7 +107,7 @@ export default function ScenarioComparison() {
                   </Text>
                 </Box>
               </Group>
-            </Paper>
+            </Box>
           </SimpleGrid>
         </Container>
       </Box>

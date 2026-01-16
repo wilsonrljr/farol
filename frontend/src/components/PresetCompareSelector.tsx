@@ -146,7 +146,7 @@ export function PresetCompareSelector({
             px="md"
             py="sm"
             style={{
-              borderBottom: '1px solid var(--mantine-color-default-border)',
+              borderBottom: '1px solid light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08))',
               backgroundColor:
                 'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))',
             }}
@@ -340,7 +340,7 @@ export function PresetCompareSelector({
             px="md"
             py="md"
             style={{
-              borderTop: '1px solid var(--mantine-color-default-border)',
+              borderTop: '1px solid light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08))',
             }}
           >
             <Group justify="flex-end" gap="sm">

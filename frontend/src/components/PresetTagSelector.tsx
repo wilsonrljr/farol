@@ -226,7 +226,7 @@ export function TagSelector({
             </ScrollArea.Autosize>
             
             {/* Custom tag input */}
-            <Box pt="xs" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+            <Box pt="xs" style={{ borderTop: '1px solid light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08))' }}>
               <Text size="xs" c="dimmed" mb={4}>
                 Tag personalizada:
               </Text>

@@ -131,7 +131,16 @@ export default function EmergencyFund() {
         </Text>
       </Box>
 
-      <Paper p="xl" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+      <Box
+        p="xl"
+        style={{
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          borderRadius: 'var(--mantine-radius-xl)',
+        }}
+      >
         <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
           <NumberInput
             label="Gastos mensais"
@@ -227,11 +236,14 @@ export default function EmergencyFund() {
           {presets.length > 0 && (
             <Stack gap="xs" mt="sm">
               {presets.map((p) => (
-                <Paper
+                <Box
                   key={p.id}
                   p="sm"
-                  radius="lg"
-                  style={{ border: '1px solid var(--mantine-color-default-border)' }}
+                  style={{
+                    background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+                    borderRadius: 'var(--mantine-radius-lg)',
+                    boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+                  }}
                 >
                   <Group justify="space-between" wrap="wrap">
                     <Box>
@@ -249,31 +261,67 @@ export default function EmergencyFund() {
                       </Button>
                     </Group>
                   </Group>
-                </Paper>
+                </Box>
               ))}
             </Stack>
           )}
         </Box>
-      </Paper>
+      </Box>
 
       {result && (
         <Box mt="xl">
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mb="lg">
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Atinge a meta no mês</Text>
               <Text fw={700} size="xl">{result.achieved_at_month ?? '—'}</Text>
-            </Paper>
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            </Box>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Tempo até a meta</Text>
               <Text fw={700} size="xl">{result.months_to_goal == null ? '—' : formatMonthsYears(result.months_to_goal + 1)}</Text>
-            </Paper>
-            <Paper p="lg" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+            </Box>
+            <Box
+              p="lg"
+              style={{
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                borderRadius: 'var(--mantine-radius-xl)',
+              }}
+            >
               <Text size="sm" c="dimmed">Meta no final do horizonte</Text>
               <Text fw={700} size="xl">{money(result.target_amount_end)}</Text>
-            </Paper>
+            </Box>
           </SimpleGrid>
 
-          <Paper p="xl" radius="xl" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+          <Box
+            p="xl"
+            style={{
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+              borderRadius: 'var(--mantine-radius-xl)',
+            }}
+          >
             <Text fw={600} size="lg" mb="sm">Evolução da reserva vs meta</Text>
             <LineChart
               h={320}
@@ -296,7 +344,7 @@ export default function EmergencyFund() {
                 Saldo final: <Text component="span" fw={600} c="bright">{money(result.final_emergency_fund_balance)}</Text>
               </Text>
             </Group>
-          </Paper>
+          </Box>
         </Box>
       )}
     </Container>

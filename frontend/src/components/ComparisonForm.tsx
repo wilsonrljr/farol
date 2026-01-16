@@ -281,12 +281,14 @@ export default function ComparisonForm() {
   return (
     <Stack gap="xl">
       {/* Preset Management - First section for loading saved configurations */}
-      <Paper
+      <Box
         p="md"
-        radius="xl"
         style={{
-          border: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'var(--mantine-color-body)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          borderRadius: 'var(--mantine-radius-xl)',
         }}
       >
         <Group justify="space-between" align="center" wrap="wrap" gap="md">
@@ -330,7 +332,7 @@ export default function ComparisonForm() {
             />
           </Group>
         </Group>
-      </Paper>
+      </Box>
 
       {/* Form Section */}
       <form onSubmit={form.onSubmit(onSubmit)}>
@@ -909,13 +911,15 @@ export default function ComparisonForm() {
         </FormWizard>
 
         {/* Simulation Summary and Submit - Always visible */}
-        <Paper
+        <Box
           p="lg"
-          radius="xl"
           mt="xl"
           style={{
-            border: '1px solid var(--mantine-color-default-border)',
-            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
+            background: 'light-dark(linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%), linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%))',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+            borderRadius: 'var(--mantine-radius-xl)',
           }}
         >
           <Stack gap="md">
@@ -1036,7 +1040,7 @@ export default function ComparisonForm() {
               Simular Comprar vs Alugar
             </Button>
           </Stack>
-        </Paper>
+        </Box>
       </form>
 
       {/* Single Simulation Results */}

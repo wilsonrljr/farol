@@ -379,17 +379,19 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
   );
 
   return (
-    <Paper
+    <Box
       p="xl"
-      radius="lg"
       className={isBest ? 'card-hover' : ''}
       style={{
-        backgroundColor: isBest
-          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))'
-          : 'var(--mantine-color-body)',
-        border: isBest
-          ? '2px solid light-dark(var(--mantine-color-ocean-3), var(--mantine-color-ocean-6))'
-          : '1px solid var(--mantine-color-default-border)',
+        background: isBest
+          ? 'light-dark(linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%), linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%))'
+          : 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: isBest
+          ? '0 8px 32px -8px rgba(59, 130, 246, 0.3), var(--glass-shadow-glow)'
+          : 'var(--glass-shadow), var(--glass-shadow-glow)',
+        borderRadius: 'var(--mantine-radius-xl)',
         position: 'relative',
         overflow: 'hidden',
         height: '100%',
@@ -708,7 +710,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           </Badge>
         )}
       </Group>
-    </Paper>
+    </Box>
   );
 }
 
@@ -995,12 +997,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
       })()}
 
       {/* Input payload summary (what was actually simulated) */}
-      <Paper
+      <Box
         p="lg"
-        radius="xl"
         style={{
-          border: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          borderRadius: 'var(--mantine-radius-xl)',
         }}
       >
         <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="xs">
@@ -1124,7 +1128,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             </Collapse>
           </>
         )}
-      </Paper>
+      </Box>
 
       {/* Scenario Cards */}
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
@@ -1141,12 +1145,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
       </SimpleGrid>
 
       {/* Comparative Summary */}
-      <Paper
+      <Box
         p="xl"
-        radius="xl"
         style={{
-          border: '1px solid var(--mantine-color-default-border)',
-          backgroundColor: 'var(--mantine-color-body)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          borderRadius: 'var(--mantine-radius-xl)',
         }}
       >
         <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm" mb="md">
@@ -1217,17 +1223,19 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         <Text size="xs" c="ocean.6" mt="sm">
           Interpretação: valores positivos em “Comprar − Alugar” significam que comprar foi mais caro no mês (pior para comprar no curto prazo).
         </Text>
-      </Paper>
+      </Box>
 
       {/* Charts and Tables */}
       <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'overview')} variant="pills" radius="lg">
-        <Paper
+        <Box
           p="md"
-          radius="xl"
           mb="md"
           style={{
-            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-8))',
-            border: '1px solid var(--mantine-color-default-border)',
+            background: 'var(--glass-bg)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+            borderRadius: 'var(--mantine-radius-xl)',
           }}
         >
           <Group justify="space-between" align="center" wrap="wrap" gap="md">
@@ -1266,14 +1274,17 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               </Group>
             )}
           </Group>
-        </Paper>
+        </Box>
 
         <Tabs.Panel value="overview">
-          <Paper
+          <Box
             p="xl"
-            radius="xl"
             style={{
-              border: '1px solid var(--mantine-color-default-border)',
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+              borderRadius: 'var(--mantine-radius-xl)',
             }}
           >
             <Text fw={600} size="lg" mb="lg" c="bright">
@@ -1327,7 +1338,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 Dica: o mês 1 tende a ter um pico porque registra a alocação inicial de capital (entrada/aporte inicial).
               </Text>
             )}
-          </Paper>
+          </Box>
         </Tabs.Panel>
 
         {result.scenarios.map((s) => {
@@ -1355,11 +1366,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
 
           return (
             <Tabs.Panel key={s.name} value={s.name}>
-              <Paper
+              <Box
                 p="xl"
-                radius="xl"
                 style={{
-                  border: '1px solid var(--mantine-color-default-border)',
+                  background: 'var(--glass-bg)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+                  borderRadius: 'var(--mantine-radius-xl)',
                 }}
               >
                 {/* Scenario header */}
@@ -2149,7 +2163,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     )}
                   </Group>
                 )}
-              </Paper>
+              </Box>
             </Tabs.Panel>
           );
         })}

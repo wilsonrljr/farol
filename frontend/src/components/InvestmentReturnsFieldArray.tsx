@@ -157,13 +157,13 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
           : `Mês ${item.start_month} em diante`;
 
         return (
-          <Paper
+          <Box
             key={idx}
             p={isCollapsed ? 'sm' : 'md'}
-            radius="lg"
             style={{
-              border: '1px solid var(--mantine-color-default-border)',
-              backgroundColor: 'var(--mantine-color-body)',
+              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
+              borderRadius: 'var(--mantine-radius-lg)',
+              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
               transition: 'all 200ms ease',
             }}
           >
@@ -258,7 +258,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
                 </Stack>
               </Collapse>
             </Stack>
-          </Paper>
+          </Box>
         );
       })}
     </Stack>

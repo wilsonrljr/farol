@@ -1,17 +1,34 @@
-/* Farol Design System v2 - Global Styles */
-/* Based on scientific color psychology research */
+/* Farol Design System v3 - Liquid Glass */
+/* Inspired by iOS 26 Liquid Glass and Apple's spatial design */
 
 :root {
-  /* Custom properties */
+  /* Transitions */
   --farol-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --farol-transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-  --farol-transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --farol-transition-normal: 250ms cubic-bezier(0.2, 0, 0, 1);
+  --farol-transition-slow: 400ms cubic-bezier(0.2, 0, 0, 1);
+  --farol-transition-spring: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
   
   /* Animations */
   --farol-animate-fade-in: fadeIn 0.3s ease-out;
-  --farol-animate-slide-up: slideUp 0.3s ease-out;
-  --farol-animate-slide-down: slideDown 0.3s ease-out;
-  --farol-animate-scale-in: scaleIn 0.2s ease-out;
+  --farol-animate-slide-up: slideUp 0.4s cubic-bezier(0.2, 0, 0, 1);
+  --farol-animate-slide-down: slideDown 0.4s cubic-bezier(0.2, 0, 0, 1);
+  --farol-animate-scale-in: scaleIn 0.3s cubic-bezier(0.2, 0, 0, 1);
+  
+  /* Liquid Glass - Light Mode */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.85);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-shadow: 0 2px 20px -4px rgba(0, 0, 0, 0.08), 0 4px 32px -8px rgba(0, 0, 0, 0.06);
+  --glass-shadow-lg: 0 8px 40px -8px rgba(0, 0, 0, 0.12), 0 16px 64px -16px rgba(0, 0, 0, 0.08);
+  --glass-shadow-glow: 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  --glass-blur: 20px;
+  --glass-blur-heavy: 40px;
+  
+  /* Surface colors */
+  --surface-primary: rgba(248, 250, 252, 0.9);
+  --surface-elevated: rgba(255, 255, 255, 0.95);
+  --surface-overlay: rgba(255, 255, 255, 0.8);
   
   /* Semantic accent colors - light mode */
   --farol-accent-gold: var(--mantine-color-amber-6);
@@ -29,6 +46,20 @@
 
 /* Dark mode overrides */
 [data-mantine-color-scheme="dark"] {
+  /* Liquid Glass - Dark Mode */
+  --glass-bg: rgba(15, 23, 42, 0.72);
+  --glass-bg-elevated: rgba(30, 41, 59, 0.85);
+  --glass-bg-subtle: rgba(15, 23, 42, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 2px 20px -4px rgba(0, 0, 0, 0.3), 0 4px 32px -8px rgba(0, 0, 0, 0.25);
+  --glass-shadow-lg: 0 8px 40px -8px rgba(0, 0, 0, 0.4), 0 16px 64px -16px rgba(0, 0, 0, 0.3);
+  --glass-shadow-glow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  
+  /* Surface colors */
+  --surface-primary: rgba(15, 23, 42, 0.9);
+  --surface-elevated: rgba(30, 41, 59, 0.95);
+  --surface-overlay: rgba(30, 41, 59, 0.8);
+  
   --farol-accent-gold: var(--mantine-color-amber-5);
   --farol-accent-gold-light: var(--mantine-color-amber-9);
   --farol-accent-coral: var(--mantine-color-rose-4);
@@ -203,26 +234,45 @@ body {
   background: var(--mantine-color-dark-7);
 }
 
-/* Glassmorphism effect */
+/* Glassmorphism effect - Liquid Glass */
 .glass {
-  background: color-mix(in srgb, var(--mantine-color-body) 85%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow), var(--glass-shadow-glow);
+  border: none;
 }
 
-[data-mantine-color-scheme="dark"] .glass {
-  background: color-mix(in srgb, var(--mantine-color-body) 85%, transparent);
+.glass-elevated {
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  box-shadow: var(--glass-shadow-lg), var(--glass-shadow-glow);
+  border: none;
 }
 
-/* Card hover effects */
+.glass-subtle {
+  background: var(--glass-bg-subtle);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--glass-shadow-glow);
+  border: none;
+}
+
+/* Card hover effects - Liquid Glass style */
 .card-hover {
-  transition: transform var(--farol-transition-normal), box-shadow var(--farol-transition-normal), border-color var(--farol-transition-normal);
+  transition: transform var(--farol-transition-normal), 
+              box-shadow var(--farol-transition-normal),
+              background var(--farol-transition-normal);
 }
 
 .card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--mantine-shadow-lg);
-  border-color: var(--mantine-color-default-border);
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: var(--glass-shadow-lg);
+}
+
+.card-hover:active {
+  transform: translateY(-2px) scale(1.005);
 }
 
 .card-hover:hover .feature-card-accent {

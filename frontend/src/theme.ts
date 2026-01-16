@@ -1,13 +1,13 @@
 import { createTheme, rem, MantineColorsTuple, virtualColor } from '@mantine/core';
 
 /**
- * Design System: Farol v2
+ * Design System: Farol v3 - Liquid Glass
  * 
- * Paleta baseada em evidência científica:
- * - Azuis transmitem confiança e são universalmente preferidos (Valdez & Mehrabian, 1994)
- * - Verde-azulado (teal) reduz ansiedade e melhora tomada de decisão financeira
- * - Alto contraste WCAG AA (4.5:1) para legibilidade
- * - Harmonia análoga com accent complementar para hierarquia visual
+ * Inspirado no iOS 26 Liquid Glass e princípios de design espacial da Apple:
+ * - Superfícies translúcidas com blur
+ * - Sem bordas rígidas - sombras suaves para profundidade
+ * - Transições fluidas e orgânicas
+ * - Hierarquia visual através de opacidade e blur
  * 
  * Cores semânticas consistentes:
  * - Primary (ocean): confiança, profissionalismo, decisões financeiras
@@ -216,151 +216,266 @@ export const theme = createTheme({
     xl: rem(16),
   },
   shadows: {
-    xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-    sm: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-    md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-    xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+    xs: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+    sm: '0 2px 8px -2px rgba(0, 0, 0, 0.06), 0 4px 16px -4px rgba(0, 0, 0, 0.04)',
+    md: '0 4px 16px -4px rgba(0, 0, 0, 0.08), 0 8px 32px -8px rgba(0, 0, 0, 0.06)',
+    lg: '0 8px 24px -6px rgba(0, 0, 0, 0.1), 0 16px 48px -12px rgba(0, 0, 0, 0.08)',
+    xl: '0 16px 40px -8px rgba(0, 0, 0, 0.12), 0 24px 64px -16px rgba(0, 0, 0, 0.1)',
   },
   other: {
     // Custom tokens
     transition: {
       fast: '150ms cubic-bezier(0.4, 0, 0.2, 1)',
-      normal: '200ms cubic-bezier(0.4, 0, 0.2, 1)',
-      slow: '300ms cubic-bezier(0.4, 0, 0.2, 1)',
+      normal: '250ms cubic-bezier(0.2, 0, 0, 1)',
+      slow: '400ms cubic-bezier(0.2, 0, 0, 1)',
+      spring: '500ms cubic-bezier(0.34, 1.56, 0.64, 1)',
     },
   },
   components: {
     Button: {
       defaultProps: {
-        radius: 'md',
+        radius: 'xl',
       },
       styles: {
         root: {
           fontWeight: 500,
-          transition: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
+          border: 'none',
         },
       },
     },
     Card: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'xl',
         shadow: 'sm',
+        withBorder: false,
       },
       styles: {
         root: {
-          transition: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
+          border: 'none',
         },
       },
     },
     Paper: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'xl',
+        shadow: 'sm',
       },
       styles: {
         root: {
-          transition: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
+          border: 'none',
         },
       },
     },
     TextInput: {
       defaultProps: {
-        radius: 'md',
+        radius: 'lg',
       },
       styles: {
         input: {
-          transition: 'border-color 150ms ease, box-shadow 150ms ease',
+          transition: 'all 200ms ease',
+          border: '1.5px solid light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08))',
+          backgroundColor: 'light-dark(rgba(255, 255, 255, 0.8), rgba(30, 41, 59, 0.6))',
+          '&:focus': {
+            borderColor: 'var(--mantine-color-ocean-5)',
+            backgroundColor: 'light-dark(rgba(255, 255, 255, 1), rgba(30, 41, 59, 0.8))',
+          },
         },
       },
     },
     NumberInput: {
       defaultProps: {
-        radius: 'md',
+        radius: 'lg',
       },
       styles: {
         input: {
-          transition: 'border-color 150ms ease, box-shadow 150ms ease',
+          transition: 'all 200ms ease',
+          border: '1.5px solid light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08))',
+          backgroundColor: 'light-dark(rgba(255, 255, 255, 0.8), rgba(30, 41, 59, 0.6))',
+          '&:focus': {
+            borderColor: 'var(--mantine-color-ocean-5)',
+          },
         },
       },
     },
     Select: {
       defaultProps: {
-        radius: 'md',
+        radius: 'lg',
+      },
+      styles: {
+        input: {
+          border: '1.5px solid light-dark(rgba(0, 0, 0, 0.08), rgba(255, 255, 255, 0.08))',
+          backgroundColor: 'light-dark(rgba(255, 255, 255, 0.8), rgba(30, 41, 59, 0.6))',
+        },
       },
     },
     Tabs: {
       styles: {
         tab: {
           fontWeight: 500,
-          transition: 'all 150ms ease',
+          transition: 'all 200ms ease',
+          borderRadius: rem(12),
+        },
+        list: {
+          gap: rem(4),
         },
       },
     },
     ActionIcon: {
       defaultProps: {
-        radius: 'md',
+        radius: 'xl',
+      },
+      styles: {
+        root: {
+          border: 'none',
+        },
       },
     },
     Badge: {
       defaultProps: {
-        radius: 'sm',
+        radius: 'xl',
+      },
+      styles: {
+        root: {
+          border: 'none',
+          fontWeight: 600,
+        },
       },
     },
     Tooltip: {
       defaultProps: {
-        radius: 'md',
-        withArrow: true,
+        radius: 'lg',
+        withArrow: false,
       },
       styles: {
         tooltip: {
-          // Ensure tooltip respects color scheme
-          backgroundColor: 'light-dark(var(--mantine-color-slate-8), var(--mantine-color-dark-6))',
-          color: 'light-dark(var(--mantine-color-white), var(--mantine-color-slate-0))',
+          backgroundColor: 'light-dark(rgba(15, 23, 42, 0.9), rgba(248, 250, 252, 0.95))',
+          color: 'light-dark(var(--mantine-color-white), var(--mantine-color-dark-9))',
+          backdropFilter: 'blur(12px)',
+          border: 'none',
+          boxShadow: '0 4px 16px -4px rgba(0, 0, 0, 0.15)',
         },
       },
     },
     Modal: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'xl',
+      },
+      styles: {
+        content: {
+          border: 'none',
+          boxShadow: '0 24px 80px -16px rgba(0, 0, 0, 0.25)',
+        },
       },
     },
     Notification: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'xl',
+      },
+      styles: {
+        root: {
+          border: 'none',
+          boxShadow: 'var(--glass-shadow)',
+        },
       },
     },
     ThemeIcon: {
       defaultProps: {
-        radius: 'md',
+        radius: 'xl',
       },
     },
     Stepper: {
       styles: {
         stepIcon: {
-          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
-          borderColor: 'light-dark(var(--mantine-color-ocean-3), var(--mantine-color-dark-5))',
+          backgroundColor: 'light-dark(rgba(255, 255, 255, 0.9), rgba(30, 41, 59, 0.8))',
+          border: 'none',
+          boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
         },
       },
     },
     Timeline: {
       styles: {
         itemBullet: {
-          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
-          borderColor: 'light-dark(var(--mantine-color-ocean-4), var(--mantine-color-dark-5))',
+          backgroundColor: 'light-dark(rgba(255, 255, 255, 0.9), rgba(30, 41, 59, 0.8))',
+          border: 'none',
+          boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
         },
       },
     },
     Progress: {
       styles: {
         root: {
-          backgroundColor: 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-6))',
+          backgroundColor: 'light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08))',
+          borderRadius: rem(999),
+        },
+        section: {
+          borderRadius: rem(999),
         },
       },
     },
     Table: {
       styles: {
         th: {
-          backgroundColor: 'light-dark(var(--mantine-color-slate-1), var(--mantine-color-dark-7))',
+          backgroundColor: 'light-dark(rgba(248, 250, 252, 0.8), rgba(30, 41, 59, 0.6))',
+          border: 'none',
+        },
+        td: {
+          border: 'none',
+          borderBottom: '1px solid light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.04))',
+        },
+      },
+    },
+    SegmentedControl: {
+      styles: {
+        root: {
+          backgroundColor: 'light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.06))',
+          border: 'none',
+          borderRadius: rem(12),
+        },
+        indicator: {
+          boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.12)',
+          borderRadius: rem(10),
+        },
+      },
+    },
+    Accordion: {
+      styles: {
+        item: {
+          border: 'none',
+          backgroundColor: 'transparent',
+        },
+        control: {
+          borderRadius: rem(12),
+        },
+        content: {
+          paddingTop: rem(8),
+        },
+      },
+    },
+    Menu: {
+      styles: {
+        dropdown: {
+          border: 'none',
+          boxShadow: '0 8px 32px -8px rgba(0, 0, 0, 0.15)',
+          backdropFilter: 'blur(20px)',
+          backgroundColor: 'light-dark(rgba(255, 255, 255, 0.95), rgba(30, 41, 59, 0.95))',
+          borderRadius: rem(16),
+        },
+        item: {
+          borderRadius: rem(10),
+        },
+      },
+    },
+    Popover: {
+      styles: {
+        dropdown: {
+          border: 'none',
+          boxShadow: '0 8px 32px -8px rgba(0, 0, 0, 0.15)',
+          backdropFilter: 'blur(20px)',
+          backgroundColor: 'light-dark(rgba(255, 255, 255, 0.95), rgba(30, 41, 59, 0.95))',
+          borderRadius: rem(16),
         },
       },
     },
