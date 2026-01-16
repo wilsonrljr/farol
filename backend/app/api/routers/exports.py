@@ -148,12 +148,22 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
         "installment": {
             "label": "Parcela",
             "unit": "R$",
-            "description": "Parcela do financiamento no mês (quando aplicável).",
+            "description": "Parcela total do financiamento no mês (inclui amortizações extras quando aplicável).",
+        },
+        "installment_base": {
+            "label": "Parcela (base)",
+            "unit": "R$",
+            "description": "Parcela base do financiamento no mês, excluindo amortizações extras.",
         },
         "principal_payment": {
             "label": "Amortização",
             "unit": "R$",
-            "description": "Parte da parcela que amortiza principal (quando aplicável).",
+            "description": "Parte da parcela que amortiza principal (inclui amortizações extras).",
+        },
+        "principal_base": {
+            "label": "Amortização (base)",
+            "unit": "R$",
+            "description": "Amortização base do principal, excluindo amortizações extras.",
         },
         "extra_amortization": {
             "label": "Amortização extra",
@@ -169,6 +179,16 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
             "label": "Amortização extra (FGTS)",
             "unit": "R$",
             "description": "Pagamentos extras solicitados e efetivamente aplicados via FGTS no mês.",
+        },
+        "extra_amortization_bonus": {
+            "label": "Amortização extra (Bônus)",
+            "unit": "R$",
+            "description": "Pagamentos extras feitos com bônus no mês.",
+        },
+        "extra_amortization_13_salario": {
+            "label": "Amortização extra (13º)",
+            "unit": "R$",
+            "description": "Pagamentos extras feitos com 13º salário no mês.",
         },
         "interest_payment": {
             "label": "Juros",

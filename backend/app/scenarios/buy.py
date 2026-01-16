@@ -447,6 +447,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
             installment_value + monthly_additional + upfront_and_initial + contrib_total
         )
 
+        extra_total = (
+            extra_amortization_cash
+            + extra_amortization_fgts
+            + extra_amortization_bonus
+            + extra_amortization_13_salario
+        )
+        installment_base = max(0.0, installment_value - extra_total)
+        principal_base = max(0.0, amortization_value - extra_total)
+
         # Include investment balance if tracking (either for opportunity cost or contributions)
         investment_balance = (
             self._investment_account.balance
@@ -467,7 +476,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
             equity=equity,
             investment_balance=investment_balance,
             installment=installment_value,
+            installment_base=installment_base,
             principal_payment=amortization_value,
+            principal_base=principal_base,
             interest_payment=interest_value,
             extra_amortization=extra_amortization_value,
             extra_amortization_cash=extra_amortization_cash,

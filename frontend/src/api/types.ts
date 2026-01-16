@@ -115,7 +115,9 @@ export interface MonthlyRecord {
 
   // Loan
   installment?: number;
+  installment_base?: number;
   principal_payment?: number;
+  principal_base?: number;
   interest_payment?: number;
   extra_amortization?: number;
   extra_amortization_cash?: number;

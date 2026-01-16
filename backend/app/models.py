@@ -332,7 +332,9 @@ class MonthlyRecord(BaseModel):
 
     # Loan-related
     installment: float | None = None
+    installment_base: float | None = None
     principal_payment: float | None = None
+    principal_base: float | None = None
     interest_payment: float | None = None
     # Extra amortization (subset of principal_payment)
     extra_amortization: float | None = None

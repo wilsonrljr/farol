@@ -62,7 +62,9 @@ class MonthlyRecord:
 
     # Loan-related
     installment: float | None = None
+    installment_base: float | None = None
     principal_payment: float | None = None
+    principal_base: float | None = None
     interest_payment: float | None = None
     extra_amortization: float | None = None
     extra_amortization_cash: float | None = None

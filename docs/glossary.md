@@ -34,6 +34,9 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 - Saldo Investido: total aplicado após aportes, retiradas e retorno do mês.
 - Valor do Imóvel: preço projetado naquele mês.
 - Juros / Amortização: componentes da parcela (quando financiado).
+- Parcela Base: parcela do financiamento sem considerar amortizações extras do mês.
+- Amortização Base: parte do principal amortizada pela parcela base (sem extras).
+- Amortização Extra (Cash/FGTS/Bônus/13º): pagamentos adicionais que reduzem o saldo devedor além da parcela base, classificados por origem.
 - Aluguel Devido: valor do aluguel previsto para aquele mês (já com reajuste, se houver).
 - Aluguel Pago: valor efetivamente pago a partir das fontes modeladas (renda externa + retiradas do investimento, quando habilitado).
 - Shortfall do Aluguel: diferença quando o aluguel devido não conseguiu ser totalmente coberto pelas fontes modeladas (indica necessidade de caixa/crédito fora do modelo).
@@ -107,7 +110,14 @@ Este glossário prioriza os termos que você vê na interface em português. No 
 | Saldo Investido | investment_balance |
 | Valor do Imóvel | property_value |
 | Juros do Mês | interest_payment |
-| Amortização do Mês | amortization |
+| Parcela (total) | installment |
+| Parcela (base) | installment_base |
+| Amortização do Mês (total) | principal_payment |
+| Amortização do Mês (base) | principal_base |
+| Amortização Extra (cash) | extra_amortization_cash |
+| Amortização Extra (FGTS) | extra_amortization_fgts |
+| Amortização Extra (Bônus) | extra_amortization_bonus |
+| Amortização Extra (13º) | extra_amortization_13_salario |
 | Aluguel Pago | rent_paid |
 | Aluguel Devido | rent_due |
 | Shortfall do Aluguel | rent_shortfall |

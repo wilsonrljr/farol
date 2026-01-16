@@ -65,32 +65,66 @@ interface ColumnGroup {
   columns: string[];
 }
 
+const getAmortizationParts = (m: any) => {
+  const extraCashRaw = typeof m?.extra_amortization_cash === 'number' ? m.extra_amortization_cash : 0;
+  const extraFgts = typeof m?.extra_amortization_fgts === 'number' ? m.extra_amortization_fgts : 0;
+  const extraBonus = typeof m?.extra_amortization_bonus === 'number' ? m.extra_amortization_bonus : 0;
+  const extra13Salario = typeof m?.extra_amortization_13_salario === 'number' ? m.extra_amortization_13_salario : 0;
+  const extraTotalFallback = typeof m?.extra_amortization === 'number' ? m.extra_amortization : 0;
+  const extraTotalKnown = extraCashRaw + extraFgts + extraBonus + extra13Salario;
+  const extraTotal = extraTotalKnown || extraTotalFallback;
+  const extraCash = extraTotalKnown > 0 ? extraCashRaw : (extraTotalFallback > 0 ? extraTotalFallback : 0);
+  return {
+    extraCash,
+    extraFgts,
+    extraBonus,
+    extra13Salario,
+    extraTotal,
+  };
+};
+
+const getRegularInstallment = (m: any) => {
+  const explicitBase = typeof m?.installment_base === 'number' ? m.installment_base : null;
+  if (explicitBase != null) return explicitBase;
+  const installment = typeof m?.installment === 'number' ? m.installment : 0;
+  const { extraTotal } = getAmortizationParts(m);
+  return Math.max(0, installment - extraTotal);
+};
+
+const getRegularPrincipal = (m: any) => {
+  const explicitBase = typeof m?.principal_base === 'number' ? m.principal_base : null;
+  if (explicitBase != null) return explicitBase;
+  const principal = typeof m?.principal_payment === 'number' ? m.principal_payment : 0;
+  const { extraTotal } = getAmortizationParts(m);
+  return Math.max(0, principal - extraTotal);
+};
+
 /**
  * Calculates the recurring housing cost for a month.
  * For affordability analysis, we can optionally include extra amortizations.
- * Bonus and 13_salario amortizations are excluded from affordability since they
- * are funded by extraordinary income, not regular monthly income.
+ * Bonus, 13_salario and FGTS amortizations are excluded from affordability
+ * since they are funded by extraordinary or external sources.
  */
 const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
   // Base cost calculation
   let baseCost = 0;
+  const { extraCash } = getAmortizationParts(m);
+  const regularInstallment = getRegularInstallment(m);
 
   // Prefer explicit housing_due when provided (rent + HOA/IPTU).
   if (m?.housing_due != null) {
     baseCost = m.housing_due;
   } else if (m?.installment != null) {
     // For buy scenario (and some post-purchase months), approximate housing as installment + recurring costs.
-    const installment = m?.installment ?? 0;
     const additional = m?.monthly_additional_costs ?? 0;
-    baseCost = installment + additional;
+    baseCost = regularInstallment + additional;
   } else if (m?.monthly_additional_costs != null) {
     // Post-purchase invest-buy months may have only HOA/IPTU.
     baseCost = m?.monthly_additional_costs ?? 0;
   }
 
   if (includeExtraAmortization) {
-    // Include cash amortizations but NOT bonus or 13_salario (those are extraordinary)
-    const extraCash = m?.extra_amortization_cash ?? 0;
+    // Include cash amortizations but NOT bonus/13_salario/FGTS (those are external)
     baseCost += extraCash;
   }
 
@@ -176,7 +210,7 @@ const SurplusBreakdownTooltip = ({
       <Text size="xs" c="dimmed" mt={6} fs="italic">
         Nota: A sobra considera apenas custos recorrentes mensais. 
         Custos pontuais (ITBI, escritura) e aportes não são incluídos.
-        {scenarioType === 'buy' && ' Amortizações de Bônus e 13º não são consideradas (renda extraordinária).'}
+        {scenarioType === 'buy' && ' Amortizações de FGTS, Bônus e 13º não são consideradas (fontes externas/extraordinárias).'}
       </Text>
     </Stack>
   );
@@ -1485,7 +1519,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               <Table.Th>Custos (cond+IPTU)</Table.Th>
                               {monthlyNetIncome != null && (
                                 <Table.Th>
-                                  <Tooltip label="Renda líquida menos custo de moradia mensal (parcela + custos + amort. cash). Amortizações de Bônus e 13º não são consideradas." withArrow>
+                                  <Tooltip label="Renda líquida menos custo de moradia mensal (parcela base + custos + amort. cash). Amortizações de FGTS, Bônus e 13º não são consideradas." withArrow>
                                     <Text component="span" size="sm">Sobra</Text>
                                   </Tooltip>
                                 </Table.Th>
@@ -1510,18 +1544,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                           <Table.Tbody>
                             {buyRows.slice(0, 600).map((m: any) => {
                               const isPayoffRow = payoffMonth != null && m.month === payoffMonth;
-                              const installment = typeof m.installment === 'number' ? m.installment : 0;
                               const interest = typeof m.interest_payment === 'number' ? m.interest_payment : 0;
-                              const principal = typeof m.principal_payment === 'number' ? m.principal_payment : 0;
-                              const extraCash = typeof m.extra_amortization_cash === 'number'
-                                ? m.extra_amortization_cash
-                                : (typeof m.extra_amortization === 'number' ? m.extra_amortization : 0);
-                              const extraFgts = typeof m.extra_amortization_fgts === 'number' ? m.extra_amortization_fgts : 0;
-                              const extraBonus = typeof m.extra_amortization_bonus === 'number' ? m.extra_amortization_bonus : 0;
-                              const extra13Salario = typeof m.extra_amortization_13_salario === 'number' ? m.extra_amortization_13_salario : 0;
+                              const { extraCash, extraFgts, extraBonus, extra13Salario } = getAmortizationParts(m);
+                              const installment = getRegularInstallment(m);
+                              const principal = getRegularPrincipal(m);
                               const monthlyCosts = typeof m.monthly_additional_costs === 'number' ? m.monthly_additional_costs : 0;
                               const upfront = typeof m.upfront_additional_costs === 'number' ? m.upfront_additional_costs : 0;
-                              // Affordability: include cash amortizations but NOT bonus/13_salario (extraordinary income)
+                              // Affordability: include cash amortizations but NOT FGTS/bonus/13_salario (external income)
                               const housingCost = installment + monthlyCosts + extraCash;
                               const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingCost : null;
                               const isNegativeSurplus = surplus != null && surplus < 0;
