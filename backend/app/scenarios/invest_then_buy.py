@@ -685,8 +685,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         # Apply investment returns
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)
 
-        total_additional = additional_investment + contrib_total
-        total_monthly_cost = monthly_additional + total_additional
+        total_contributions = additional_investment + contrib_total
+        total_monthly_cost = monthly_additional + total_contributions
         cash_flow = -total_monthly_cost
         self._total_monthly_additional_costs += monthly_additional
 
@@ -702,7 +702,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_return_gross=investment_result.gross_return,
             investment_tax_paid=investment_result.tax_paid,
             investment_return_net=investment_result.net_return,
-            additional_investment=total_additional if total_additional > 0 else None,
+            # additional_investment is only the fixed_monthly_investment, NOT including scheduled contributions
+            additional_investment=additional_investment if additional_investment > 0 else None,
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
             extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
             extra_contribution_total=contrib_total if contrib_total > 0 else None,

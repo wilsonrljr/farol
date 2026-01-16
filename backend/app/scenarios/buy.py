@@ -11,11 +11,12 @@ the Free Software Foundation, either version 3 of the License, or
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from ..core.amortization import expand_amortization_to_months
+from ..core.amortization import expand_amortization_to_months, preprocess_amortizations
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount
 from ..core.protocols import (
     AmortizationLike,
+    ContributionLike,
     InvestmentReturnLike,
     InvestmentTaxLike,
 )
@@ -53,6 +54,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
     initial_investment: float = field(default=0.0)
     investment_returns: Sequence[InvestmentReturnLike] | None = field(default=None)
     investment_tax: InvestmentTaxLike | None = field(default=None)
+    
+    # Scheduled investment contributions (aportes) - for consistency with other scenarios
+    contributions: Sequence[ContributionLike] | None = field(default=None)
+    fixed_monthly_investment: float | None = field(default=None)
+    fixed_investment_start_month: int = field(default=1)
 
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
@@ -78,6 +84,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
     _total_upfront_costs: float = field(init=False, default=0.0)
     _total_monthly_additional_costs: float = field(init=False, default=0.0)
     _investment_account: InvestmentAccount | None = field(init=False, default=None)
+    _fixed_contrib_by_month: dict[int, float] = field(init=False, default_factory=dict)
+    _percent_contrib_by_month: dict[int, list[float]] = field(
+        init=False, default_factory=dict
+    )
+    _total_contributions: float = field(init=False, default=0.0)
 
     @property
     def scenario_name(self) -> str:
@@ -90,10 +101,17 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self.term_months = self.loan_term_years * 12
         if self.term_months <= 0:
             raise ValueError("loan_term_years must be > 0")
-        # Initialize investment tracking for opportunity cost.
-        # We use the same InvestmentAccount engine used by the other scenarios,
-        # but here we never withdraw (opportunity-cost tracker only).
-        if self.initial_investment > 0:
+        
+        # Preprocess scheduled contributions
+        self._preprocess_contributions()
+        
+        # Check if we need investment tracking (for opportunity cost or contributions)
+        has_contributions = bool(self.contributions) or bool(self.fixed_monthly_investment)
+        needs_investment_tracking = self.initial_investment > 0 or has_contributions
+        
+        # Initialize investment tracking for opportunity cost and/or contributions.
+        # We use the same InvestmentAccount engine used by the other scenarios.
+        if needs_investment_tracking:
             self._investment_account = InvestmentAccount(
                 investment_returns=list(self.investment_returns or []),
                 investment_tax=self.investment_tax,
@@ -102,6 +120,57 @@ class BuyScenarioSimulator(ScenarioSimulator):
             )
         else:
             self._investment_account = None
+
+    def _preprocess_contributions(self) -> None:
+        """Preprocess scheduled contributions (aportes)."""
+        if not self.contributions:
+            self._fixed_contrib_by_month = {}
+            self._percent_contrib_by_month = {}
+            return
+
+        fixed, percent = preprocess_amortizations(
+            self.contributions,
+            self.term_months,
+            self.inflation_rate,
+        )
+        self._fixed_contrib_by_month = fixed
+        self._percent_contrib_by_month = percent
+
+    def _apply_contributions(self, month: int) -> tuple[float, float, float]:
+        """Apply scheduled contributions and fixed monthly investment.
+        
+        Returns:
+            Tuple of (fixed_contribution, percentage_contribution, total_contribution)
+        """
+        if self._investment_account is None:
+            return 0.0, 0.0, 0.0
+            
+        contrib_fixed = 0.0
+        contrib_pct = 0.0
+
+        # Apply scheduled contributions (from contributions array)
+        if month in self._fixed_contrib_by_month:
+            val = self._fixed_contrib_by_month[month]
+            contrib_fixed += val
+            self._investment_account.deposit(val)
+
+        if month in self._percent_contrib_by_month:
+            pct_total = sum(self._percent_contrib_by_month[month])
+            if pct_total > 0 and self._investment_account.balance > 0:
+                pct_amount = self._investment_account.balance * (pct_total / 100.0)
+                contrib_pct += pct_amount
+                self._investment_account.deposit(pct_amount)
+
+        # Apply fixed monthly investment
+        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
+            contrib_fixed += self.fixed_monthly_investment
+            self._investment_account.deposit(self.fixed_monthly_investment)
+
+        contrib_total = contrib_fixed + contrib_pct
+        if contrib_total > 0:
+            self._total_contributions += contrib_total
+
+        return contrib_fixed, contrib_pct, contrib_total
 
     def simulate(self) -> ComparisonScenario:
         """Run the buy scenario simulation (API model)."""
@@ -155,7 +224,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
     def _split_amortizations(self) -> None:
         """Separate amortizations by funding source (cash, FGTS, bonus, 13_salario).
-        
+
         All non-FGTS sources are treated as cash for loan purposes, but we track
         bonus and 13_salario separately for affordability analysis.
         """
@@ -279,7 +348,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
             extra_amortization_value = (
                 inst.extra_amortization if inst is not None else 0.0
             )
-            extra_amortization_cash = (
+            extra_amortization_cash_raw = (
                 getattr(inst, "extra_amortization_cash", 0.0)
                 if inst is not None
                 else 0.0
@@ -292,11 +361,25 @@ class BuyScenarioSimulator(ScenarioSimulator):
             outstanding_balance = inst.outstanding_balance if inst is not None else 0.0
 
             # Get bonus and 13_salario values for this month (for affordability tracking)
+            # These are tracked separately for UI display but are INCLUDED in extra_amortization_cash_raw
+            # from the loan simulator (because they were added to the cash amortizations list).
+            # To avoid double-counting, we subtract them from the raw cash value.
             extra_amortization_bonus = self._bonus_by_month.get(month, 0.0)
             extra_amortization_13_salario = self._13_salario_by_month.get(month, 0.0)
+            
+            # Pure cash extra amortization (excluding bonus and 13_salario which are shown separately)
+            extra_amortization_cash = max(
+                0.0,
+                extra_amortization_cash_raw - extra_amortization_bonus - extra_amortization_13_salario
+            )
 
             cumulative_payments += installment_value + monthly_additional
             cumulative_interest += interest_value
+
+            # Apply scheduled contributions and fixed monthly investment
+            contrib_fixed, contrib_pct, contrib_total = self._apply_contributions(month)
+            if contrib_total > 0:
+                cumulative_payments += contrib_total
 
             # Apply investment returns for opportunity cost tracking
             if self._investment_account is not None:
@@ -320,6 +403,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 extra_amortization_13_salario,
                 outstanding_balance,
                 fgts_balance_current,
+                contrib_fixed,
+                contrib_pct,
+                contrib_total,
             )
             self._monthly_data.append(record)
 
@@ -342,6 +428,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
         extra_amortization_13_salario: float,
         outstanding_balance: float,
         fgts_balance_current: float | None,
+        contrib_fixed: float = 0.0,
+        contrib_pct: float = 0.0,
+        contrib_total: float = 0.0,
     ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment."""
         equity = property_value - outstanding_balance
@@ -358,14 +447,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 upfront_and_initial += self.initial_investment
                 initial_allocation += self.initial_investment
 
+        # Include contributions in total monthly cost
         total_monthly_cost = (
-            installment_value + monthly_additional + upfront_and_initial
+            installment_value + monthly_additional + upfront_and_initial + contrib_total
         )
 
-        # Include investment balance only if tracking opportunity cost
+        # Include investment balance if tracking (either for opportunity cost or contributions)
         investment_balance = (
             self._investment_account.balance
-            if (self._investment_account is not None and self.initial_investment > 0)
+            if self._investment_account is not None
             else None
         )
 
@@ -407,6 +497,10 @@ class BuyScenarioSimulator(ScenarioSimulator):
             fgts_used=(
                 self._fgts_used_at_purchase if (self.fgts and month == 1) else 0.0
             ),
+            # Contributions (for consistency with other scenarios)
+            extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
+            extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
+            extra_contribution_total=contrib_total if contrib_total > 0 else None,
         )
 
     def _build_fgts_summary(self) -> None:
@@ -493,12 +587,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
             total_consumption += d.upfront_additional_costs or 0.0
 
         # Calculate opportunity cost (what initial investment would have grown to)
+        # and include investment balance in final equity for fair comparison
         opportunity_cost: float | None = None
-        if self._investment_account is not None and self.initial_investment > 0:
-            opportunity_cost = (
-                self._investment_account.balance - self.initial_investment
-            )
+        if self._investment_account is not None:
+            if self.initial_investment > 0:
+                opportunity_cost = (
+                    self._investment_account.balance - self.initial_investment
+                )
             # Include investment balance in final equity for fair comparison
+            # This applies both for initial investment tracking AND for contributions
             final_equity += self._investment_account.balance
 
         return DomainComparisonScenario(

@@ -144,6 +144,10 @@ def _compare_scenarios_domain(
         initial_investment=buy_initial,
         investment_returns=list(investment_returns) if investment_returns else None,
         investment_tax=investment_tax,
+        # Contributions for consistency with other scenarios
+        contributions=contributions,
+        fixed_monthly_investment=fixed_monthly_investment,
+        fixed_investment_start_month=fixed_investment_start_month,
     ).simulate_domain()
 
     rent = RentAndInvestScenarioSimulator(

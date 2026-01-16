@@ -1521,6 +1521,16 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   </Tooltip>
                                 </Table.Th>
                               )}
+                              <Table.Th>
+                                <Tooltip label="Aportes programados (investimentos configurados)" withArrow>
+                                  <Text component="span" size="sm">Aportes</Text>
+                                </Tooltip>
+                              </Table.Th>
+                              <Table.Th>
+                                <Tooltip label="Saldo acumulado de investimentos (inclui aportes)" withArrow>
+                                  <Text component="span" size="sm">Saldo inv.</Text>
+                                </Tooltip>
+                              </Table.Th>
                               <Table.Th>Custos compra</Table.Th>
                               <Table.Th>Entrada (cash)</Table.Th>
                               <Table.Th>FGTS na compra</Table.Th>
@@ -1598,6 +1608,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                       </Tooltip>
                                     </Table.Td>
                                   )}
+                                  <Table.Td>{m.extra_contribution_total > 0 ? moneySafe(m.extra_contribution_total) : '—'}</Table.Td>
+                                  <Table.Td>{m.investment_balance != null ? moneySafe(m.investment_balance) : '—'}</Table.Td>
                                   <Table.Td>{m.month === 1 ? moneySafe(upfront) : '—'}</Table.Td>
                                   <Table.Td>{m.month === 1 && cashDown != null ? moneySafe(cashDown) : '—'}</Table.Td>
                                   <Table.Td>{m.month === 1 && fgtsAtPurchase != null ? moneySafe(fgtsAtPurchase) : '—'}</Table.Td>
@@ -1689,6 +1701,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 </Table.Th>
                                 {/* Investimentos */}
                                 <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-forest-3)' }}>
+                                  <Tooltip label="Aportes programados (configurados na entrada)" withArrow>
+                                    <Text component="span" size="sm">Aportes</Text>
+                                  </Tooltip>
+                                </Table.Th>
+                                <Table.Th>
                                   <Tooltip label="Retorno líquido do investimento no mês" withArrow>
                                     <Text component="span" size="sm">Retorno</Text>
                                   </Tooltip>
@@ -1808,6 +1825,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>
                                     <Table.Td>{moneySafe(m.external_cover)}</Table.Td>
                                     <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>
+                                    <Table.Td>{m.extra_contribution_total > 0 ? moneySafe(m.extra_contribution_total) : '—'}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
                                     <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
