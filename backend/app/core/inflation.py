@@ -18,7 +18,12 @@ def apply_inflation(
     base_month: int = 1,
     annual_inflation_rate: float | None = None,
 ) -> float:
-    """Apply inflation to a value based on the number of months passed.
+    """Apply inflation to a value based on complete years passed.
+
+    In real life, values like rent, income, and expenses are adjusted for
+    inflation once per year (annually), not every month. This function
+    implements that behavior by only applying inflation adjustments at
+    the start of each new year (every 12 months).
 
     Args:
         value: The base value to inflate.
@@ -27,15 +32,30 @@ def apply_inflation(
         annual_inflation_rate: Annual inflation rate in percentage.
 
     Returns:
-        The inflation-adjusted value.
+        The inflation-adjusted value (changes only at year boundaries).
+
+    Example:
+        With 5% annual inflation starting at month 1:
+        - Months 1-12: value unchanged (1000.00)
+        - Months 13-24: value * 1.05 (1050.00)
+        - Months 25-36: value * 1.05^2 (1102.50)
     """
     if annual_inflation_rate is None or annual_inflation_rate == 0:
         return value
 
     months_passed = month - base_month
-    monthly_inflation_rate = _annual_rate_to_monthly_multiplier(annual_inflation_rate)
+    if months_passed < 0:
+        return value
 
-    return value * ((1 + monthly_inflation_rate) ** months_passed)
+    # Calculate complete years passed (integer division)
+    # Inflation is applied only once per year, at the start of each new year
+    complete_years = months_passed // MONTHS_PER_YEAR
+
+    if complete_years <= 0:
+        return value
+
+    annual_multiplier = 1 + (annual_inflation_rate / PERCENTAGE_BASE)
+    return value * (annual_multiplier**complete_years)
 
 
 def apply_property_appreciation(

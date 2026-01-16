@@ -44,6 +44,11 @@ def test_stress_test_no_depletion_when_cashflow_positive() -> None:
 
 
 def test_stress_test_applies_inflation_to_expenses() -> None:
+    """Inflation is applied annually (every 12 months), not monthly.
+
+    Months 1-12: expenses stay at base value
+    Months 13+: expenses increase by inflation rate
+    """
     annual_inflation_rate = 12.0
     base_expenses = 1000.0
 
@@ -51,19 +56,23 @@ def test_stress_test_applies_inflation_to_expenses() -> None:
         StressTestInput(
             monthly_income=0.0,
             monthly_expenses=base_expenses,
-            initial_emergency_fund=10_000.0,
-            horizon_months=2,
+            initial_emergency_fund=50_000.0,
+            horizon_months=14,  # Need at least 13 months to see inflation
             annual_inflation_rate=annual_inflation_rate,
             shock_duration_months=0,
         )
     )
 
-    assert result.monthly_data[0].expenses == base_expenses
-    expected_month2 = apply_inflation(
+    # First year: expenses stay at base value
+    assert result.monthly_data[0].expenses == base_expenses  # Month 1
+    assert result.monthly_data[11].expenses == base_expenses  # Month 12 (still year 1)
+
+    # Second year: expenses increase by inflation rate
+    expected_month13 = apply_inflation(
         base_expenses,
-        month=2,
+        month=13,
         base_month=1,
         annual_inflation_rate=annual_inflation_rate,
     )
-    assert result.monthly_data[1].expenses == expected_month2
-    assert result.monthly_data[1].expenses > result.monthly_data[0].expenses
+    assert expected_month13 == base_expenses * 1.12  # 12% increase
+    assert result.monthly_data[12].expenses == expected_month13  # Month 13
