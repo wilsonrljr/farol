@@ -30,20 +30,21 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     Calculates wealth accumulation when renting instead of buying,
     investing the down payment and potentially rental savings.
+
+    When monthly_net_income is provided:
+    - Housing costs (rent + additional costs) are paid from income
+    - Any surplus is automatically invested
+    - Any shortfall is tracked as housing_shortfall
     """
 
     rent_value: float = field(default=0.0)
     investment_returns: Sequence[InvestmentReturnLike] = field(default_factory=list)
     rent_inflation_rate: float | None = field(default=None)
     property_appreciation_rate: float | None = field(default=None)
-    rent_reduces_investment: bool = field(default=False)
-    monthly_external_savings: float | None = field(default=None)
-    invest_external_surplus: bool = field(default=False)
     investment_tax: InvestmentTaxLike | None = field(default=None)
 
-    # Fixed monthly investment (aporte mensal fixo)
-    fixed_monthly_investment: float | None = field(default=None)
-    fixed_investment_start_month: int = field(default=1)
+    # Monthly net income - when provided, enables income-based simulation
+    monthly_net_income: float | None = field(default=None)
 
     # Scheduled investment contributions (aportes programados)
     contributions: Sequence[ContributionLike] | None = field(default=None)
@@ -97,7 +98,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         self._percent_contrib_by_month = percent
 
     def _apply_contributions(self, month: int) -> tuple[float, float, float]:
-        """Apply scheduled contributions and fixed monthly investment."""
+        """Apply scheduled contributions (aportes programados)."""
         contrib_fixed = 0.0
         contrib_pct = 0.0
 
@@ -113,11 +114,6 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 pct_amount = self._account.balance * (pct_total / 100.0)
                 contrib_pct += pct_amount
                 self._account.deposit(pct_amount)
-
-        # Apply fixed monthly investment
-        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
-            contrib_fixed += self.fixed_monthly_investment
-            self._account.deposit(self.fixed_monthly_investment)
 
         contrib_total = contrib_fixed + contrib_pct
         if contrib_total > 0:
@@ -158,9 +154,10 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         housing_due = current_rent + monthly_additional
 
-        # Process cashflows (external cover, optional investing surplus, optional withdrawal)
+        # Process cashflows (income covers housing, surplus invested)
         cashflow_result = self._process_monthly_cashflows(housing_due)
-        housing_paid = cashflow_result["actual_rent_paid"]
+        housing_paid = cashflow_result["actual_housing_paid"]
+        housing_shortfall = cashflow_result["housing_shortfall"]
         rent_paid = min(current_rent, housing_paid)
         self._total_rent_paid += rent_paid
 
@@ -180,7 +177,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             rent_shortfall=max(0.0, current_rent - rent_paid),
             housing_due=housing_due,
             housing_paid=housing_paid,
-            housing_shortfall=max(0.0, housing_due - housing_paid),
+            housing_shortfall=housing_shortfall,
             cashflow_result=cashflow_result,
             investment_result=investment_result,
             property_value=current_property_value,
@@ -191,60 +188,56 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     def _process_monthly_cashflows(
         self,
-        rent_due: float,
+        housing_due: float,
     ) -> dict[str, float]:
-        """Process monthly cashflows including external savings and rent withdrawal."""
+        """Process monthly cashflows based on income or withdrawal model.
+
+        When monthly_net_income is provided:
+        - Housing costs are paid from income first
+        - Surplus income is invested
+        - Shortfall is tracked (housing not fully paid)
+
+        When monthly_net_income is not provided:
+        - Housing is assumed paid externally (not from modeled sources)
+        - No withdrawals from investment needed
+        """
+        income_cover = 0.0
+        income_surplus_invested = 0.0
         rent_withdrawal = 0.0
-        external_cover = 0.0
-        external_surplus_invested = 0.0
         withdrawal_gross = 0.0
         withdrawal_tax_paid = 0.0
         withdrawal_realized_gain = 0.0
 
         remaining_before_return = self._account.balance
 
-        if self.rent_reduces_investment:
-            cost_remaining = rent_due
+        if self.monthly_net_income is not None and self.monthly_net_income > 0:
+            # Income-based model: pay housing from income, invest surplus
+            income_cover = min(housing_due, self.monthly_net_income)
+            surplus = self.monthly_net_income - income_cover
 
-            if self.monthly_external_savings and self.monthly_external_savings > 0:
-                external_cover = min(cost_remaining, self.monthly_external_savings)
-                cost_remaining -= external_cover
+            if surplus > 0:
+                self._account.deposit(surplus)
+                income_surplus_invested = surplus
 
-                surplus = self.monthly_external_savings - external_cover
-                if surplus > 0 and self.invest_external_surplus:
-                    self._account.deposit(surplus)
-                    external_surplus_invested = surplus
-
-            withdrawal = self._account.withdraw_net(cost_remaining)
-            rent_withdrawal = withdrawal.net_cash
-            withdrawal_gross = withdrawal.gross_withdrawal
-            withdrawal_tax_paid = withdrawal.tax_paid
-            withdrawal_realized_gain = withdrawal.realized_gain
             remaining_before_return = self._account.balance
+            actual_housing_paid = income_cover
         else:
-            # When rent is not modeled as reducing investment, rent is assumed to be
-            # paid externally and we intentionally do not treat monthly_external_savings
-            # as an investment contribution to avoid ambiguous semantics.
-            pass
+            # Legacy model: housing assumed paid externally
+            actual_housing_paid = housing_due
 
-        actual_rent_paid = (
-            external_cover + rent_withdrawal
-            if self.rent_reduces_investment
-            else rent_due
-        )
-        rent_shortfall = max(0.0, rent_due - actual_rent_paid)
+        housing_shortfall = max(0.0, housing_due - actual_housing_paid)
 
         return {
             "rent_withdrawal": rent_withdrawal,
-            "external_cover": external_cover,
-            "external_surplus_invested": external_surplus_invested,
+            "income_cover": income_cover,
+            "income_surplus_invested": income_surplus_invested,
             "remaining_before_return": remaining_before_return,
             "investment_withdrawal_gross": withdrawal_gross,
             "investment_withdrawal_net": rent_withdrawal,
             "investment_withdrawal_realized_gain": withdrawal_realized_gain,
             "investment_withdrawal_tax_paid": withdrawal_tax_paid,
-            "actual_rent_paid": actual_rent_paid,
-            "rent_shortfall": rent_shortfall,
+            "actual_housing_paid": actual_housing_paid,
+            "housing_shortfall": housing_shortfall,
         }
 
     def _create_monthly_record(
@@ -268,9 +261,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         contrib_total: float = 0.0,
     ) -> DomainMonthlyRecord:
         """Create a monthly record."""
-        withdrawal = (
-            cashflow_result["rent_withdrawal"] if self.rent_reduces_investment else 0.0
-        )
+        withdrawal = cashflow_result.get("rent_withdrawal", 0.0)
+        income_surplus_invested = cashflow_result.get("income_surplus_invested", 0.0)
+
         sustainable_withdrawal_ratio = (
             (investment_result.net_return / withdrawal) if withdrawal > 0 else None
         )
@@ -281,11 +274,11 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         initial_deposit = (
             (self.down_payment + self.initial_investment) if month == 1 else 0.0
         )
-        invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
+
+        # Total contribution includes: scheduled contributions + income surplus invested
+        total_invested_this_month = contrib_total + income_surplus_invested
         rent_due = current_rent
-        total_monthly_cost = (
-            housing_due + initial_deposit + invested_from_external + contrib_total
-        )
+        total_monthly_cost = housing_due + initial_deposit + total_invested_this_month
 
         return DomainMonthlyRecord(
             month=month,
@@ -319,18 +312,22 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             scenario_type="rent_invest",
             equity=0.0,
             liquid_wealth=self._account.balance,
-            rent_withdrawal_from_investment=withdrawal,
+            rent_withdrawal_from_investment=withdrawal if withdrawal > 0 else None,
             remaining_investment_before_return=cashflow_result[
                 "remaining_before_return"
             ],
-            external_cover=cashflow_result["external_cover"],
-            external_surplus_invested=cashflow_result["external_surplus_invested"],
+            external_cover=cashflow_result.get("income_cover"),
+            external_surplus_invested=(
+                income_surplus_invested if income_surplus_invested > 0 else None
+            ),
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
             extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
             extra_contribution_total=contrib_total if contrib_total > 0 else None,
-            additional_investment=contrib_total if contrib_total > 0 else None,
+            additional_investment=(
+                total_invested_this_month if total_invested_this_month > 0 else None
+            ),
             investment_withdrawal_gross=cashflow_result.get(
                 "investment_withdrawal_gross"
             )

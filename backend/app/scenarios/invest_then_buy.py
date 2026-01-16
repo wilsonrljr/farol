@@ -14,11 +14,9 @@ from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
 from ..core.costs import CostsBreakdown, calculate_additional_costs
-from ..core.fgts import FGTSManager
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount, InvestmentResult
 from ..core.protocols import (
-    AmortizationLike,
     ContributionLike,
     InvestmentReturnLike,
     InvestmentTaxLike,
@@ -26,10 +24,8 @@ from ..core.protocols import (
 from ..domain.mappers import comparison_scenario_to_api
 from ..domain.models import ComparisonScenario as DomainComparisonScenario
 from ..domain.models import MonthlyRecord as DomainMonthlyRecord
-from ..loans import LoanSimulator, PriceLoanSimulator, SACLoanSimulator
 from ..models import (
     ComparisonScenario,
-    LoanInstallment,
 )
 from .base import RentalScenarioMixin, ScenarioSimulator
 
@@ -42,36 +38,34 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     Calculates wealth accumulation while renting, tracking progress
     toward purchasing the property without financing.
+
+    When monthly_net_income is provided:
+    - Housing costs (rent + additional costs) are paid from income
+    - Any surplus is automatically invested
+    - Any shortfall is tracked as housing_shortfall
     """
 
     rent_value: float = field(default=0.0)
     investment_returns: Sequence[InvestmentReturnLike] = field(default_factory=list)
     rent_inflation_rate: float | None = field(default=None)
     property_appreciation_rate: float | None = field(default=None)
-    invest_loan_difference: bool = field(default=False)
-    fixed_monthly_investment: float | None = field(default=None)
-    fixed_investment_start_month: int = field(default=1)
     loan_type: str = field(default="SAC")
     monthly_interest_rate: float = field(default=1.0)
-    # Extra loan prepayments used only for the baseline loan comparison (invest_loan_difference).
-    loan_amortizations: Sequence[AmortizationLike] | None = field(default=None)
 
     # Scheduled investment contributions (aportes).
     contributions: Sequence[ContributionLike] | None = field(default=None)
     # If true, scheduled contributions continue after property purchase.
     continue_contributions_after_purchase: bool = field(default=True)
-    rent_reduces_investment: bool = field(default=False)
-    monthly_external_savings: float | None = field(default=None)
-    invest_external_surplus: bool = field(default=False)
     investment_tax: InvestmentTaxLike | None = field(default=None)
+
+    # Monthly net income - when provided, enables income-based simulation
+    monthly_net_income: float | None = field(default=None)
 
     # Initial investment capital (total_savings - down_payment)
     initial_investment: float = field(default=0.0)
 
     # Internal state
     _account: InvestmentAccount = field(init=False)
-    _loan_installments: list[LoanInstallment] = field(init=False, default_factory=list)
-    _upfront_baseline: float = field(init=False, default=0.0)
     _fixed_contrib_by_month: dict[int, float] = field(init=False, default_factory=dict)
     _percent_contrib_by_month: dict[int, list[float]] = field(
         init=False, default_factory=dict
@@ -100,72 +94,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             balance=initial_balance,
             principal=initial_balance,
         )
-        self._prepare_loan_baseline()
         self._preprocess_contributions()
-
-    def _prepare_loan_baseline(self) -> None:
-        """Prepare loan baseline for comparison."""
-        if not self.invest_loan_difference:
-            self._loan_installments = []
-            self._upfront_baseline = 0.0
-            return
-
-        costs = calculate_additional_costs(self.property_value, self.additional_costs)
-        self._upfront_baseline = costs["total_upfront"]
-
-        # Baseline should mirror a "buy now" financing decision as closely as possible.
-        # Important: baseline must NOT mutate the scenario's FGTS manager/balance, so we
-        # create an isolated manager instance here.
-        baseline_fgts_manager = FGTSManager.from_input(self.fgts)
-
-        fgts_used_at_purchase = 0.0
-        if baseline_fgts_manager and baseline_fgts_manager.use_at_purchase:
-            max_needed = max(0.0, self.property_value - self.down_payment)
-            # Purchase is assumed at month 1 (same semantics as BuyScenarioSimulator).
-            fgts_used_at_purchase = baseline_fgts_manager.withdraw_for_purchase(
-                max_needed,
-                month=1,
-            )
-
-        loan_value = self.property_value - self.down_payment - fgts_used_at_purchase
-        if loan_value < 0:
-            loan_value = 0.0
-
-        # Split amortizations by funding source so FGTS amortizations obey cooldown/saldo
-        # rules in the baseline as they do in the real buy scenario.
-        cash_amortizations: list[AmortizationLike] = []
-        fgts_amortizations: list[AmortizationLike] = []
-        for amort in self.loan_amortizations or []:
-            source = getattr(amort, "funding_source", None) or "cash"
-            if source == "fgts":
-                fgts_amortizations.append(amort)
-            else:
-                cash_amortizations.append(amort)
-
-        simulator: LoanSimulator
-        if self.loan_type == "SAC":
-            simulator = SACLoanSimulator(
-                loan_value=loan_value,
-                term_months=self.term_months,
-                monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=cash_amortizations or None,
-                fgts_amortizations=fgts_amortizations or None,
-                fgts_manager=baseline_fgts_manager,
-                annual_inflation_rate=self.inflation_rate,
-            )
-        else:
-            simulator = PriceLoanSimulator(
-                loan_value=loan_value,
-                term_months=self.term_months,
-                monthly_interest_rate=self.monthly_interest_rate,
-                amortizations=cash_amortizations or None,
-                fgts_amortizations=fgts_amortizations or None,
-                fgts_manager=baseline_fgts_manager,
-                annual_inflation_rate=self.inflation_rate,
-            )
-
-        result = simulator.simulate()
-        self._loan_installments = result.installments
 
     def _preprocess_contributions(self) -> None:
         """Preprocess scheduled contributions (aportes)."""
@@ -237,27 +166,24 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         current_rent = rent_result["current_rent"]
         total_rent_cost = rent_result["total_rent_cost"]
 
-        # 2) Apply rent cashflows (may invest external surplus / withdraw from investment).
+        # 2) Apply rent cashflows (income covers housing, surplus invested).
         cashflow_result = self._process_rent_cashflows(total_rent_cost)
         housing_due = total_rent_cost
-        housing_paid = cashflow_result["actual_rent_paid"]
+        housing_paid = cashflow_result["actual_housing_paid"]
+        housing_shortfall = cashflow_result["housing_shortfall"]
         rent_paid = min(current_rent, housing_paid)
         rent_shortfall = max(0.0, current_rent - rent_paid)
-        housing_shortfall = max(0.0, housing_due - housing_paid)
 
         self._total_rent_paid += rent_paid
 
-        # 3) Apply scheduled contributions and other planned investments BEFORE returns.
+        # 3) Apply scheduled contributions BEFORE returns.
         contrib_fixed, contrib_pct, contrib_total = self._apply_scheduled_contributions(
             month
         )
 
-        additional_investment = self._maybe_invest_loan_difference(
-            month, total_rent_cost, costs
-        )
-        additional_investment = self._apply_fixed_monthly_investment(
-            month, additional_investment
-        )
+        # Include income surplus as additional investment
+        income_surplus_invested = cashflow_result.get("income_surplus_invested", 0.0)
+        additional_investment = income_surplus_invested
 
         # 4) Apply investment returns at end of month.
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)
@@ -276,7 +202,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             rent_result=rent_result,
             cashflow_result=cashflow_result,
             investment_result=investment_result,
-            additional_investment=additional_investment,
+            additional_investment=additional_investment + contrib_total,
             progress_percent=progress_percent,
             shortfall=shortfall,
             is_milestone=is_milestone,
@@ -334,100 +260,57 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             "total_rent_cost": total_rent_cost,
         }
 
-    def _maybe_invest_loan_difference(
-        self,
-        month: int,
-        total_rent_cost: float,
-        _costs: CostsBreakdown,
-    ) -> float:
-        """Invest the difference between loan payment and rent."""
-        if not self.invest_loan_difference or month > len(self._loan_installments):
-            return 0.0
+    def _process_rent_cashflows(self, housing_due: float) -> dict[str, float]:
+        """Process monthly cashflows based on income model.
 
-        additional_investment = 0.0
+        When monthly_net_income is provided:
+        - Housing costs are paid from income first
+        - Surplus income is invested
+        - Shortfall is tracked (housing not fully paid)
 
-        if month == 1 and self._upfront_baseline > 0:
-            additional_investment += self._upfront_baseline
-            self._account.deposit(self._upfront_baseline)
-
-        loan_installment = self._loan_installments[month - 1]
-        _, _, loan_monthly_additional = self.get_inflated_monthly_costs(month)
-        total_loan_payment = loan_installment.installment + loan_monthly_additional
-
-        if total_loan_payment > total_rent_cost:
-            loan_difference = total_loan_payment - total_rent_cost
-            additional_investment += loan_difference
-            self._account.deposit(loan_difference)
-
-        return additional_investment
-
-    def _apply_fixed_monthly_investment(
-        self,
-        month: int,
-        additional_investment: float,
-    ) -> float:
-        """Apply fixed monthly investment if configured."""
-        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
-            additional_investment += self.fixed_monthly_investment
-            self._account.deposit(self.fixed_monthly_investment)
-        return additional_investment
-
-    def _process_rent_cashflows(self, rent_due: float) -> dict[str, float]:
-        """Process rent-related cashflows using InvestmentAccount.
-
-        Mirrors the old behavior but supports tax-on-withdrawal when configured.
+        When monthly_net_income is not provided:
+        - Housing is assumed paid externally (not from modeled sources)
         """
+        income_cover = 0.0
+        income_surplus_invested = 0.0
         rent_withdrawal = 0.0
-        external_cover = 0.0
-        external_surplus_invested = 0.0
         withdrawal_gross = 0.0
         withdrawal_tax_paid = 0.0
         withdrawal_realized_gain = 0.0
 
         remaining_before_return = self._account.balance
 
-        if self.rent_reduces_investment:
-            cost_remaining = rent_due
+        if self.monthly_net_income is not None and self.monthly_net_income > 0:
+            # Income-based model: pay housing from income, invest surplus
+            income_cover = min(housing_due, self.monthly_net_income)
+            surplus = self.monthly_net_income - income_cover
 
-            if self.monthly_external_savings and self.monthly_external_savings > 0:
-                external_cover = min(cost_remaining, self.monthly_external_savings)
-                cost_remaining -= external_cover
+            if surplus > 0:
+                self._account.deposit(surplus)
+                income_surplus_invested = surplus
 
-                surplus = self.monthly_external_savings - external_cover
-                if surplus > 0 and self.invest_external_surplus:
-                    self._account.deposit(surplus)
-                    external_surplus_invested = surplus
-
-            withdrawal = self._account.withdraw_net(cost_remaining)
-            rent_withdrawal = withdrawal.net_cash
-            withdrawal_gross = withdrawal.gross_withdrawal
-            withdrawal_tax_paid = withdrawal.tax_paid
-            withdrawal_realized_gain = withdrawal.realized_gain
             remaining_before_return = self._account.balance
+            actual_housing_paid = income_cover
         else:
-            # When rent is not modeled as reducing investment, rent is assumed to be
-            # paid externally and we intentionally do not treat monthly_external_savings
-            # as an investment contribution to avoid ambiguous semantics.
-            pass
+            # Legacy model: housing assumed paid externally
+            actual_housing_paid = housing_due
 
-        actual_rent_paid = (
-            external_cover + rent_withdrawal
-            if self.rent_reduces_investment
-            else rent_due
-        )
-        rent_shortfall = max(0.0, rent_due - actual_rent_paid)
+        housing_shortfall = max(0.0, housing_due - actual_housing_paid)
 
         return {
             "rent_withdrawal": rent_withdrawal,
-            "external_cover": external_cover,
-            "external_surplus_invested": external_surplus_invested,
+            "income_cover": income_cover,
+            "income_surplus_invested": income_surplus_invested,
             "remaining_before_return": remaining_before_return,
             "investment_withdrawal_gross": withdrawal_gross,
             "investment_withdrawal_net": rent_withdrawal,
             "investment_withdrawal_realized_gain": withdrawal_realized_gain,
             "investment_withdrawal_tax_paid": withdrawal_tax_paid,
-            "actual_rent_paid": actual_rent_paid,
-            "rent_shortfall": rent_shortfall,
+            "actual_housing_paid": actual_housing_paid,
+            "housing_shortfall": housing_shortfall,
+            # Legacy compatibility keys
+            "external_cover": income_cover,
+            "external_surplus_invested": income_surplus_invested,
         }
 
     def _update_progress(
@@ -565,14 +448,12 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         )
         invested_from_external = cashflow_result.get("external_surplus_invested", 0.0)
 
-        # Count every deposit made this month as outflow; do not net out the baseline.
-        # Deposits made because of invest_loan_difference are real cash allocations
-        # and should appear in total_monthly_cost for correct ROI/cost accounting.
+        # Count every deposit made this month as outflow.
+        # All cash allocations should appear in total_monthly_cost for correct ROI/cost accounting.
         additional_investment_effective = additional_investment
 
         # If the purchase happens now, the initial capital already covers the price and
-        # upfront costs. Avoid double-counting by zeroing extra deposits tied to the
-        # loan-difference strategy.
+        # upfront costs. Avoid double-counting by zeroing extra deposits.
         if status == "Imóvel comprado":
             additional_investment_effective = 0.0
 
@@ -591,9 +472,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         if additional_investment_effective > 0:
             self._total_additional_investments += additional_investment_effective
 
-        withdrawal = (
-            cashflow_result["rent_withdrawal"] if self.rent_reduces_investment else 0.0
-        )
+        withdrawal = cashflow_result.get("rent_withdrawal", 0.0)
         sustainable_withdrawal_ratio = (
             (investment_result.net_return / withdrawal) if withdrawal > 0 else None
         )
@@ -675,17 +554,13 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 self._apply_scheduled_contributions(month)
             )
 
-        # Apply fixed investment BEFORE returns (consistent timeline).
+        # No fixed investment logic post-purchase anymore - only scheduled contributions
         additional_investment = 0.0
-        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
-            additional_investment = self.fixed_monthly_investment
-            self._account.deposit(additional_investment)
-            self._total_additional_investments += additional_investment
 
         # Apply investment returns
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)
 
-        total_contributions = additional_investment + contrib_total
+        total_contributions = contrib_total
         total_monthly_cost = monthly_additional + total_contributions
         cash_flow = -total_monthly_cost
         self._total_monthly_additional_costs += monthly_additional
@@ -702,10 +577,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_return_gross=investment_result.gross_return,
             investment_tax_paid=investment_result.tax_paid,
             investment_return_net=investment_result.net_return,
-            # additional_investment is only the fixed_monthly_investment, NOT including scheduled contributions
-            additional_investment=(
-                additional_investment if additional_investment > 0 else None
-            ),
+            additional_investment=None,
             extra_contribution_fixed=contrib_fixed if contrib_fixed > 0 else None,
             extra_contribution_percentage=contrib_pct if contrib_pct > 0 else None,
             extra_contribution_total=contrib_total if contrib_total > 0 else None,

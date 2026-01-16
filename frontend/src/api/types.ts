@@ -95,13 +95,7 @@ export interface ComparisonInput {
   inflation_rate?: number | null;
   rent_inflation_rate?: number | null;
   property_appreciation_rate?: number | null;
-  invest_loan_difference?: boolean;
-  fixed_monthly_investment?: number | null;
-  fixed_investment_start_month?: number | null;
-  rent_reduces_investment?: boolean;
-  monthly_external_savings?: number | null;
-  invest_external_surplus?: boolean;
-  monthly_net_income?: number | null;
+  monthly_net_income?: number | null; // Monthly net income - housing costs paid from this, surplus invested
 
   investment_tax?: InvestmentTaxInput | null;
   fgts?: FGTSInput | null;

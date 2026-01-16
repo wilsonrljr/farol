@@ -553,37 +553,13 @@ class ComparisonInput(BaseModel):
         ge=0.0,
         description="Annual property appreciation rate (in percentage) - if not provided, uses inflation_rate",
     )
-    # New fields for invest then buy scenario
-    invest_loan_difference: bool = Field(
-        False,
-        description="Whether to invest the difference between loan payment and rent",
-    )
-    fixed_monthly_investment: float | None = Field(
-        None, ge=0.0, description="Fixed amount to invest monthly"
-    )
-    fixed_investment_start_month: int | None = Field(
-        1,
-        description="Month to start fixed investment (1 for immediate, or after purchase month)",
-    )
-    rent_reduces_investment: bool = Field(
-        False,
-        description="If true, rent (and related costs) is paid from investment balance before returns; otherwise assumed paid from external income.",
-    )
-    monthly_external_savings: float | None = Field(
-        None,
-        ge=0.0,
-        description="External monthly savings/income earmarked to cover rent/costs before touching investment (optional).",
-    )
-    invest_external_surplus: bool = Field(
-        False,
-        description="If true, any unused portion of monthly_external_savings (after rent/costs) is invested that month.",
-    )
     monthly_net_income: float | None = Field(
         None,
         ge=0.0,
         description=(
-            "Monthly net income used for affordability/clarity in the UI. "
-            "Informational only (does not affect simulation)."
+            "Monthly net income. When provided, rent and monthly costs are paid from income. "
+            "Any surplus is automatically invested. If income is insufficient to cover costs, "
+            "the shortfall is tracked (housing_shortfall)."
         ),
     )
 
@@ -600,11 +576,6 @@ class ComparisonInput(BaseModel):
     def validate_month_fields(self) -> "ComparisonInput":
         if self.down_payment > self.property_value:
             raise ValueError("down_payment must be <= property_value")
-        if (
-            self.fixed_investment_start_month is not None
-            and self.fixed_investment_start_month < 1
-        ):
-            raise ValueError("fixed_investment_start_month must be >= 1")
         if self.total_savings is not None:
             # total_savings represents the user's total liquid cash available at month 1.
             # It must cover the cash down payment and the upfront transaction costs.
@@ -617,25 +588,6 @@ class ComparisonInput(BaseModel):
                 raise ValueError(
                     "total_savings must be >= down_payment + upfront_costs (ITBI + deed)"
                 )
-
-        # UX rule: monthly_external_savings only makes sense when rent is modeled
-        # as being paid from modeled sources (external cover + optional withdrawal).
-        # If rent is assumed external (rent_reduces_investment=False), providing
-        # monthly_external_savings would be ambiguous (is it income? a contribution?).
-        if (self.monthly_external_savings is not None) and (
-            not self.rent_reduces_investment
-        ):
-            raise ValueError(
-                "monthly_external_savings requires rent_reduces_investment=true (otherwise the meaning is ambiguous)"
-            )
-        if self.invest_external_surplus and (self.monthly_external_savings is None):
-            raise ValueError(
-                "invest_external_surplus requires monthly_external_savings to be provided"
-            )
-        if self.invest_external_surplus and (not self.rent_reduces_investment):
-            raise ValueError(
-                "invest_external_surplus requires rent_reduces_investment=true"
-            )
 
         _validate_investment_return_coverage(list(self.investment_returns or []))
 

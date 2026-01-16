@@ -57,8 +57,6 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
     # Scheduled investment contributions (aportes) - for consistency with other scenarios
     contributions: Sequence[ContributionLike] | None = field(default=None)
-    fixed_monthly_investment: float | None = field(default=None)
-    fixed_investment_start_month: int = field(default=1)
 
     # Internal state
     _loan_result: LoanSimulationResult | None = field(init=False, default=None)
@@ -106,9 +104,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self._preprocess_contributions()
 
         # Check if we need investment tracking (for opportunity cost or contributions)
-        has_contributions = bool(self.contributions) or bool(
-            self.fixed_monthly_investment
-        )
+        has_contributions = bool(self.contributions)
         needs_investment_tracking = self.initial_investment > 0 or has_contributions
 
         # Initialize investment tracking for opportunity cost and/or contributions.
@@ -139,7 +135,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self._percent_contrib_by_month = percent
 
     def _apply_contributions(self, month: int) -> tuple[float, float, float]:
-        """Apply scheduled contributions and fixed monthly investment.
+        """Apply scheduled contributions (aportes programados).
 
         Returns:
             Tuple of (fixed_contribution, percentage_contribution, total_contribution)
@@ -162,11 +158,6 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 pct_amount = self._investment_account.balance * (pct_total / 100.0)
                 contrib_pct += pct_amount
                 self._investment_account.deposit(pct_amount)
-
-        # Apply fixed monthly investment
-        if self.fixed_monthly_investment and month >= self.fixed_investment_start_month:
-            contrib_fixed += self.fixed_monthly_investment
-            self._investment_account.deposit(self.fixed_monthly_investment)
 
         contrib_total = contrib_fixed + contrib_pct
         if contrib_total > 0:

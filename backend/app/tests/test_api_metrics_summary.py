@@ -18,36 +18,28 @@ BASE_PAYLOAD = {
         "monthly_hoa": 0.0,
         "monthly_property_tax": 0.0,
     },
-    "rent_reduces_investment": True,
-    "monthly_external_savings": 0.0,
+    "monthly_net_income": 8000.0,  # Income-based model
 }
 
 
-def test_metrics_summary_with_adjusted_roi():
+def test_metrics_summary_basic():
+    """Test that scenario metrics are returned correctly."""
     r = client.post("/api/scenario-metrics", json=BASE_PAYLOAD)
     assert r.status_code == 200, r.text
     data = r.json()
     assert "metrics" in data
+    assert "best_scenario" in data
     rent_entry = next(m for m in data["metrics"] if m["name"] == "Alugar e investir")
     assert rent_entry["roi_percentage"] is not None
-    assert rent_entry["roi_including_withdrawals_percentage"] is not None
-    assert (
-        rent_entry["roi_including_withdrawals_percentage"]
-        > rent_entry["roi_percentage"]
-    )
 
 
-def test_metrics_summary_without_adjusted_roi():
+def test_metrics_summary_no_income():
+    """Test scenario metrics when no income is provided (legacy mode)."""
     payload = dict(BASE_PAYLOAD)
-    payload.update(
-        rent_reduces_investment=False,
-        rent_value=800.0,
-        investment_returns=[{"start_month": 1, "annual_rate": 10.0}],
-        monthly_external_savings=None,
-    )
+    payload["monthly_net_income"] = None
     r = client.post("/api/scenario-metrics", json=payload)
     assert r.status_code == 200, r.text
     data = r.json()
     rent_entry = next(m for m in data["metrics"] if m["name"] == "Alugar e investir")
-    # No withdrawals, so adjusted ROI should be null
-    assert rent_entry.get("roi_including_withdrawals_percentage") is None
+    # Should still have ROI calculated
+    assert rent_entry["roi_percentage"] is not None

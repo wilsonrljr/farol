@@ -78,13 +78,7 @@ export default function ComparisonForm() {
       inflation_rate: 4,
       rent_inflation_rate: 5,
       property_appreciation_rate: 4,
-      invest_loan_difference: false,
-      fixed_monthly_investment: 0,
-      fixed_investment_start_month: 1,
-      rent_reduces_investment: false,
-      monthly_external_savings: null,
-      invest_external_surplus: false,
-      monthly_net_income: null,
+      monthly_net_income: null, // Renda líquida mensal
       fgts: {
         initial_balance: 0,
         monthly_contribution: 0,
@@ -138,8 +132,6 @@ export default function ComparisonForm() {
     cleaned.inflation_rate = nullIfEmpty(cleaned.inflation_rate) as any;
     cleaned.rent_inflation_rate = nullIfEmpty(cleaned.rent_inflation_rate) as any;
     cleaned.property_appreciation_rate = nullIfEmpty(cleaned.property_appreciation_rate) as any;
-    cleaned.monthly_external_savings = nullIfEmpty(cleaned.monthly_external_savings) as any;
-    cleaned.fixed_monthly_investment = nullIfEmpty(cleaned.fixed_monthly_investment) as any;
     cleaned.monthly_net_income = nullIfEmpty(cleaned.monthly_net_income) as any;
 
     // Enforce mutually exclusive fields to avoid "I changed X but nothing happened".
@@ -160,18 +152,7 @@ export default function ComparisonForm() {
       cleaned.rent_percentage = null;
     }
     
-    // If rent_reduces_investment is false, monthly_external_savings must be null
-    if (!cleaned.rent_reduces_investment) {
-      cleaned.monthly_external_savings = null;
-    }
-    
     // Convert 0 values to null where appropriate
-    if (cleaned.monthly_external_savings === 0) {
-      cleaned.monthly_external_savings = null;
-    }
-    if (cleaned.fixed_monthly_investment === 0) {
-      cleaned.fixed_monthly_investment = null;
-    }
     if (cleaned.monthly_net_income === 0) {
       cleaned.monthly_net_income = null;
     }
@@ -659,6 +640,23 @@ export default function ComparisonForm() {
                     size="md"
                   />
                 </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6 }}>
+                  <LabelWithHelp
+                    label="Renda líquida mensal"
+                    help="Sua renda líquida mensal. No cenário de aluguel, custos de moradia são pagos desta renda e o excedente é investido automaticamente. Se não informada, o sistema assume que os custos são pagos por fonte externa."
+                  />
+                  <NumberInput
+                    mt={4}
+                    placeholder="R$ 0"
+                    description="Custos de moradia pagos da renda, sobra investida"
+                    {...form.getInputProps("monthly_net_income")}
+                    thousandSeparator="."
+                    decimalSeparator=","
+                    prefix="R$ "
+                    min={0}
+                    size="md"
+                  />
+                </Grid.Col>
               </Grid>
 
               <Divider my="lg" color="var(--mantine-color-default-border)" />
@@ -691,12 +689,6 @@ export default function ComparisonForm() {
                   </Tabs.Tab>
                   <Tabs.Tab value="custos" leftSection={<IconCash size={16} />}>
                     Custos
-                  </Tabs.Tab>
-                  <Tabs.Tab
-                    value="estrategia"
-                    leftSection={<IconCash size={16} />}
-                  >
-                    Estratégia
                   </Tabs.Tab>
                   <Tabs.Tab
                     value="fgts"
@@ -827,127 +819,6 @@ export default function ComparisonForm() {
                       />
                     </Grid.Col>
                   </Grid>
-                </Tabs.Panel>
-
-                <Tabs.Panel value="estrategia" pt="md">
-                  <Stack gap="md">
-                    <Grid gutter="lg">
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Renda líquida mensal"
-                          help="Informa sua renda para análise de affordability. Não altera a simulação, mas habilita alertas visuais e a coluna 'Sobra' nas tabelas, mostrando se sua renda cobre os custos em cada mês."
-                        />
-                        <NumberInput
-                          mt={4}
-                          placeholder="R$ 0"
-                          description="Habilita análise de capacidade de pagamento"
-                          {...form.getInputProps("monthly_net_income")}
-                          thousandSeparator="."
-                          decimalSeparator=","
-                          prefix="R$ "
-                          min={0}
-                          size="md"
-                        />
-                      </Grid.Col>
-                    </Grid>
-
-                    <Divider color="sage.2" />
-
-                    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                      <Checkbox
-                        label="Investir diferença de parcela vs aluguel"
-                        description="Se a parcela for maior que o aluguel, investe a diferença"
-                        {...form.getInputProps("invest_loan_difference", {
-                          type: "checkbox",
-                        })}
-                      />
-                      <Tooltip
-                        label="Se marcado, aluguel e custos mensais são pagos do saldo investido"
-                        multiline
-                        w={280}
-                        withArrow
-                      >
-                        <Checkbox
-                          label="Aluguel consome investimento"
-                          description="Paga aluguel retirando dos investimentos"
-                          {...form.getInputProps("rent_reduces_investment", {
-                            type: "checkbox",
-                          })}
-                        />
-                      </Tooltip>
-                    </SimpleGrid>
-
-                    <Divider color="sage.2" />
-
-                    <Grid gutter="lg">
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Renda externa para custos"
-                          help="Usada quando 'Aluguel consome investimento' está ativo. Cobre aluguel/custos antes de retirar do investimento."
-                        />
-                        <NumberInput
-                          mt={4}
-                          placeholder="R$ 0"
-                          {...form.getInputProps("monthly_external_savings")}
-                          disabled={!form.values.rent_reduces_investment}
-                          thousandSeparator="."
-                          decimalSeparator=","
-                          prefix="R$ "
-                          min={0}
-                          size="md"
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Investir sobra externa"
-                          help="Se houver sobra da renda externa após custos, investe automaticamente."
-                        />
-                        <Box mt={12}>
-                          <Checkbox
-                            label="Sim, investir sobra"
-                            {...form.getInputProps("invest_external_surplus", {
-                              type: "checkbox",
-                            })}
-                            disabled={!form.values.rent_reduces_investment}
-                          />
-                        </Box>
-                      </Grid.Col>
-                    </Grid>
-
-                    <Divider color="sage.2" />
-
-                    <Grid gutter="lg">
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <LabelWithHelp
-                          label="Aporte mensal fixo"
-                          help="Aporte contínuo ao longo do horizonte (inclusive após a compra à vista). Para aportes com duração específica, use a aba Aportes."
-                        />
-                        <NumberInput
-                          mt={4}
-                          description="Valor fixo investido todo mês"
-                          placeholder="R$ 0"
-                          {...form.getInputProps("fixed_monthly_investment")}
-                          thousandSeparator="."
-                          decimalSeparator=","
-                          prefix="R$ "
-                          size="md"
-                        />
-                      </Grid.Col>
-                      <Grid.Col span={{ base: 12, sm: 6 }}>
-                        <NumberInput
-                          label="Início do aporte"
-                          description="Mês em que começam os aportes"
-                          placeholder="1"
-                          {...form.getInputProps(
-                            "fixed_investment_start_month",
-                          )}
-                          suffix="º mês"
-                          min={1}
-                          size="md"
-                        />
-                      </Grid.Col>
-                    </Grid>
-                  </Stack>
                 </Tabs.Panel>
 
                 <Tabs.Panel value="fgts" pt="md">

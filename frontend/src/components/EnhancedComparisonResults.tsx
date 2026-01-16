@@ -183,14 +183,12 @@ const SurplusBreakdownTooltip = ({
 
 /**
  * Generates a tooltip explaining the "Saída Total" (total outflow) for invest-buy scenario,
- * with special handling for month 1 where initial allocation and baseline costs appear.
+ * with special handling for month 1 where initial allocation appears.
  */
 const InvestBuyOutflowExplanation = ({ 
-  m, 
-  investLoanDifference 
+  m
 }: { 
   m: any; 
-  investLoanDifference?: boolean;
 }) => {
   const total = m?.total_monthly_cost ?? 0;
   const rent = m?.rent_due ?? 0;
@@ -203,9 +201,6 @@ const InvestBuyOutflowExplanation = ({
   const fgtsUsed = m?.fgts_used ?? 0;
   const isPurchaseMonth = m?.status === 'Imóvel comprado' && m?.phase === 'post_purchase';
   const isMonth1 = m?.month === 1;
-
-  // Check if additional_investment includes baseline upfront (ITBI) in month 1
-  const hasBaselineUpfront = investLoanDifference && isMonth1 && additionalInvestment > 0;
 
   return (
     <Stack gap={6}>
@@ -247,18 +242,7 @@ const InvestBuyOutflowExplanation = ({
           )}
           {additionalInvestment > 0 && (
             <Group justify="space-between" gap={16}>
-              <Tooltip 
-                label={hasBaselineUpfront 
-                  ? "Inclui o valor que seria gasto com ITBI/escritura no financiamento, agora investido." 
-                  : "Diferença entre parcela do financiamento e aluguel, investida."
-                }
-                multiline 
-                w={280}
-              >
-                <Text size="xs" c="dimmed" style={{ textDecoration: 'underline dotted' }}>
-                  Investimento adicional {hasBaselineUpfront && '(incl. ITBI baseline)'}
-                </Text>
-              </Tooltip>
+              <Text size="xs" c="dimmed">Investimento adicional</Text>
               <Text size="xs">{money(additionalInvestment)}</Text>
             </Group>
           )}
@@ -295,17 +279,7 @@ const InvestBuyOutflowExplanation = ({
         <Text size="xs" fw={700}>{money(total)}</Text>
       </Group>
       
-      {hasBaselineUpfront && (
-        <Alert color="info" variant="light" p="xs" mt={6}>
-          <Text size="xs">
-            <strong>Nota:</strong> O "Investimento adicional" no mês 1 inclui o valor que você 
-            gastaria com ITBI/escritura se comprasse com financiamento. Este valor está sendo 
-            <strong> investido</strong>, não gasto.
-          </Text>
-        </Alert>
-      )}
-      
-      {isMonth1 && !hasBaselineUpfront && initialAllocation > 0 && (
+      {isMonth1 && initialAllocation > 0 && (
         <Text size="xs" c="dimmed" fs="italic" mt={4}>
           O mês 1 inclui a alocação inicial de capital, por isso o valor é maior.
         </Text>
@@ -471,7 +445,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           </Text>
           <Help
             label="Patrimônio Final"
-            help="Total de ativos acumulados no fim do horizonte da simulação (equidade + investimentos + FGTS). Observação importante: se o aluguel estiver modelado como pago externamente (rent_reduces_investment=false), mudanças em aluguel/inflação afetam o Custo Líquido e o fluxo de caixa, mas podem não alterar o Patrimônio Final. Para ver o impacto do aluguel no patrimônio, ative 'Aluguel reduz investimento' ou informe 'sobra externa' / aportes mensais."
+            help="Total de ativos acumulados no fim do horizonte da simulação (equidade + investimentos + FGTS)."
           />
         </Group>
         <Text fw={700} style={{ fontSize: rem(32), lineHeight: 1.1 }} c="bright">
@@ -1126,14 +1100,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   <Text size="xs" c="sage.6">Retornos investimento</Text>
                   <Text fw={600} c="bright">{inputSummary?.invReturnsLabel ?? '—'}</Text>
                 </Box>
-                <Box>
-                  <Text size="xs" c="sage.6">Aluguel consome investimento</Text>
-                  <Text fw={600} c="bright">{inputPayload.rent_reduces_investment ? 'Sim' : 'Não'}</Text>
-                </Box>
-                <Box>
-                  <Text size="xs" c="sage.6">Investir sobra externa</Text>
-                  <Text fw={600} c="bright">{inputPayload.invest_external_surplus ? 'Sim' : 'Não'}</Text>
-                </Box>
               </SimpleGrid>
 
               <Collapse in={showInputJson}>
@@ -1443,19 +1409,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     <Text size="sm">
                       Estimativa de {first.estimated_months_remaining} meses restantes para compra.
                       {projected && ` Previsão: mês ${projected}.`}
-                    </Text>
-                  </Alert>
-                )}
-
-                {/* Explanation for invest_loan_difference mode */}
-                {isInvestBuy && inputPayload?.invest_loan_difference && (
-                  <Alert color="info" variant="light" radius="lg" mb="lg" icon={<IconHelpCircle size={18} />}>
-                    <Text size="sm" fw={600} mb={4}>Modo "Investir a diferença do financiamento" ativo</Text>
-                    <Text size="xs" c="dimmed">
-                      Este cenário compara com o financiamento: a diferença entre a parcela do financiamento e o aluguel 
-                      é <strong>investida</strong> mensalmente. No mês 1, os custos de compra (ITBI/escritura) que seriam 
-                      pagos no financiamento também são investidos. Esses valores aparecem na coluna "Saída total" pois 
-                      representam <strong>alocação de capital</strong> (dinheiro que sai do bolso para investir), não gastos consumidos.
                     </Text>
                   </Alert>
                 )}
@@ -1976,9 +1929,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             const surplus = monthlyNetIncome != null ? monthlyNetIncome - housingDue : null;
                             const isNegativeSurplus = surplus != null && surplus < 0 && !isPurchase && !isPostPurchase;
 
-                            // Check if invest_loan_difference is enabled (from inputPayload)
-                            const investLoanDifference = inputPayload?.invest_loan_difference ?? false;
-
                             return (
                               <Table.Tr
                                 key={m.month}
@@ -2002,7 +1952,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 </Table.Td>
                                 <Table.Td>
                                   <Tooltip 
-                                    label={<InvestBuyOutflowExplanation m={m} investLoanDifference={investLoanDifference} />} 
+                                    label={<InvestBuyOutflowExplanation m={m} />} 
                                     multiline 
                                     w={400} 
                                     withArrow 
@@ -2085,25 +2035,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                       {m.extra_contribution_total > 0 ? moneySafe(m.extra_contribution_total) : '—'}
                                     </Table.Td>
                                     <Table.Td>
-                                      {m.additional_investment > 0 ? (
-                                        <Tooltip
-                                          label={
-                                            investLoanDifference && m.month === 1
-                                              ? "Inclui o valor que seria gasto com ITBI/escritura no financiamento. Este valor está sendo investido, não gasto."
-                                              : "Diferença entre parcela do financiamento e aluguel, investida."
-                                          }
-                                          multiline
-                                          w={280}
-                                          withArrow
-                                        >
-                                          <Text 
-                                            component="span"
-                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
-                                          >
-                                            {moneySafe(m.additional_investment)}
-                                          </Text>
-                                        </Tooltip>
-                                      ) : '—'}
+                                      {m.additional_investment > 0 ? moneySafe(m.additional_investment) : '—'}
                                     </Table.Td>
                                     <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>
                                     <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>

@@ -6,7 +6,8 @@ from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
 
 
-def test_invest_loan_difference_upfront_not_double_counted():
+def test_immediate_purchase_when_sufficient_capital():
+    """Test that purchase happens immediately when capital is sufficient."""
     simulator = InvestThenBuyScenarioSimulator(
         property_value=50000.0,
         down_payment=10000.0,
@@ -24,10 +25,6 @@ def test_invest_loan_difference_upfront_not_double_counted():
         inflation_rate=None,
         rent_inflation_rate=None,
         property_appreciation_rate=None,
-        invest_loan_difference=True,
-        monthly_external_savings=None,
-        invest_external_surplus=False,
-        rent_reduces_investment=False,
         initial_investment=45000.0,
     )
 
@@ -44,6 +41,7 @@ def test_invest_loan_difference_upfront_not_double_counted():
 
 
 def test_fgts_withdrawal_limited_to_shortfall():
+    """Test that FGTS withdrawal is limited to the shortfall amount."""
     simulator = InvestThenBuyScenarioSimulator(
         property_value=200000.0,
         down_payment=150000.0,
@@ -61,10 +59,6 @@ def test_fgts_withdrawal_limited_to_shortfall():
         inflation_rate=None,
         rent_inflation_rate=None,
         property_appreciation_rate=None,
-        invest_loan_difference=False,
-        monthly_external_savings=None,
-        invest_external_surplus=False,
-        rent_reduces_investment=False,
         initial_investment=30000.0,
         fgts=FGTSInput(initial_balance=50000.0, use_at_purchase=True),
     )

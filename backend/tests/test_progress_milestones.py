@@ -16,8 +16,7 @@ class TestProgressMilestones(unittest.TestCase):
             investment_returns=[
                 InvestmentReturnInput(start_month=1, end_month=None, annual_rate=8.0)
             ],
-            invest_loan_difference=True,
-            fixed_monthly_investment=1000,
+            monthly_net_income=8000.0,  # Income-based model
         )
         invest_buy = next(s for s in result.scenarios if "à vista" in s.name)
         # Ensure at least one milestone row
