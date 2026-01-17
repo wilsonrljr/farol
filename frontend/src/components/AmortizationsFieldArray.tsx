@@ -3,9 +3,9 @@ import {
   ActionIcon,
   Box,
   Button,
+  Chip,
   Collapse,
   Group,
-  MultiSelect,
   NumberInput,
   Paper,
   Select,
@@ -18,9 +18,8 @@ import {
   Tooltip,
   Badge,
   UnstyledButton,
-  rem,
 } from '@mantine/core';
-import { IconCalendar, IconCoin, IconEye, IconInfoCircle, IconPlus, IconTrash, IconChevronDown, IconChevronRight } from '@tabler/icons-react';
+import { IconCalendar, IconCoin, IconEye, IconInfoCircle, IconPlus, IconTrash, IconChevronDown, IconChevronRight, IconCheck } from '@tabler/icons-react';
 import type { AmortizationInput } from '../api/types';
 
 interface UIText {
@@ -265,14 +264,17 @@ export default function AmortizationsFieldArray({
           showScenarioSelector && scenarioOptions.length > 0
             ? (Array.isArray(appliesTo) ? appliesTo : scenarioOptions.map((o) => o.value))
             : [];
-        const scenarioLabel = showScenarioSelector
-          ? (() => {
-              if (!scenarioOptions || scenarioOptions.length === 0) return null;
-              const labels = selectedScenarios
-                .map((v) => scenarioOptions.find((o) => o.value === v)?.label)
-                .filter(Boolean);
-              return labels.length > 0 ? labels.join(' · ') : null;
-            })()
+        
+        // Create shorter labels for display in collapsed state
+        const shortScenarioLabels: Record<string, string> = {
+          'buy': 'Financ.',
+          'rent_invest': 'Alugar',
+          'invest_buy': 'À Vista',
+        };
+        
+        const isAllScenarios = selectedScenarios.length === scenarioOptions.length;
+        const scenarioSummary = showScenarioSelector && scenarioOptions.length > 0
+          ? (isAllScenarios ? 'Todos' : selectedScenarios.map(v => shortScenarioLabels[v] || v).join(', '))
           : null;
 
         return (
@@ -310,29 +312,22 @@ export default function AmortizationsFieldArray({
                         <Text fw={500} size="sm" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
                           {ui.itemLabel} {idx + 1}
                         </Text>
-                        {showScenarioSelector && scenarioOptions.length > 0 && !isCollapsed && (
-                          <Group gap={6} wrap="wrap">
-                            {selectedScenarios.map((v) => {
-                              const label = scenarioOptions.find((o) => o.value === v)?.label;
-                              if (!label) return null;
-                              return (
-                                <Badge
-                                  key={v}
-                                  size="xs"
-                                  variant="light"
-                                  color="ocean"
-                                  radius="sm"
-                                >
-                                  {label}
-                                </Badge>
-                              );
-                            })}
-                          </Group>
-                        )}
                         {isCollapsed && (
-                          <Text size="xs" c="dimmed" lineClamp={1}>
-                            — Mês {item.month || 1} • {itemSummary} • {recurrenceLabel}{scenarioLabel ? ` • ${scenarioLabel}` : ''}
-                          </Text>
+                          <>
+                            <Text size="xs" c="dimmed" lineClamp={1}>
+                              — Mês {item.month || 1} • {itemSummary} • {recurrenceLabel}
+                            </Text>
+                            {showScenarioSelector && scenarioOptions.length > 0 && !isAllScenarios && (
+                              <Badge
+                                size="xs"
+                                variant="light"
+                                color={selectedScenarios.length === 1 ? 'teal' : 'ocean'}
+                                radius="sm"
+                              >
+                                {scenarioSummary}
+                              </Badge>
+                            )}
+                          </>
                         )}
                       </Group>
                     </Box>
@@ -355,7 +350,63 @@ export default function AmortizationsFieldArray({
               {/* Collapsible content */}
               <Collapse in={!isCollapsed}>
                 <Stack gap="md" pt="sm">
-                  <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : (showScenarioSelector ? 4 : 3) }} spacing="md">
+                  {/* Scenario selector - shown first as a dedicated section when enabled */}
+                  {showScenarioSelector && scenarioOptions.length > 0 && (
+                    <Paper
+                      p="sm"
+                      radius="md"
+                      style={{
+                        backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-6))',
+                        border: '1px solid light-dark(var(--mantine-color-ocean-1), var(--mantine-color-dark-4))',
+                      }}
+                    >
+                      <Stack gap="xs">
+                        <Group justify="space-between" align="center">
+                          <Text size="sm" fw={500} c="ocean.7">
+                            Aplicar em quais cenários?
+                          </Text>
+                          <Tooltip label="Este aporte será considerado apenas nos cenários selecionados">
+                            <ActionIcon variant="subtle" color="ocean" size="sm">
+                              <IconInfoCircle size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                        <Chip.Group
+                          multiple
+                          value={selectedScenarios}
+                          onChange={(vals) => {
+                            // Prevent empty selection
+                            if (!vals || vals.length === 0) return;
+                            const next = [...(value || [])];
+                            next[idx] = { ...(next[idx] as any), applies_to: vals } as any;
+                            onChange(next as any);
+                          }}
+                        >
+                          <Group gap="xs">
+                            {scenarioOptions.map((o) => (
+                              <Chip
+                                key={o.value}
+                                value={o.value}
+                                variant="outline"
+                                color="ocean"
+                                size="sm"
+                                radius="md"
+                              >
+                                {o.label}
+                              </Chip>
+                            ))}
+                          </Group>
+                        </Chip.Group>
+                        {selectedScenarios.length === scenarioOptions.length && (
+                          <Text size="xs" c="dimmed" fs="italic">
+                            Todos os cenários selecionados = comportamento padrão
+                          </Text>
+                        )}
+                      </Stack>
+                    </Paper>
+                  )}
+
+                  <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : 3 }} spacing="md">
               <NumberInput
                 label="Mês inicial"
                 description="Quando começa"
@@ -411,63 +462,6 @@ export default function AmortizationsFieldArray({
                   { value: 'percentage', label: '% do Saldo' },
                 ]}
               />
-              {showScenarioSelector && scenarioOptions.length > 0 && (
-                <Stack gap={6}>
-                  <MultiSelect
-                    label="Cenários"
-                    description="Onde este item deve ser aplicado"
-                    data={scenarioOptions}
-                    value={selectedScenarios}
-                    onChange={(vals) => {
-                      // Prevent invalid empty selection; keep previous value.
-                      if (!vals || vals.length === 0) return;
-                      const next = [...(value || [])];
-                      next[idx] = { ...(next[idx] as any), applies_to: vals } as any;
-                      onChange(next as any);
-                    }}
-                    searchable={false}
-                    clearable={false}
-                    comboboxProps={{ withinPortal: true }}
-                  />
-                  <Group gap="xs" justify="space-between" wrap="wrap">
-                    <Group gap="xs" wrap="wrap">
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="ocean"
-                        onClick={() => {
-                          const next = [...(value || [])];
-                          next[idx] = {
-                            ...(next[idx] as any),
-                            applies_to: scenarioOptions.map((o) => o.value),
-                          } as any;
-                          onChange(next as any);
-                        }}
-                      >
-                        Todos
-                      </Button>
-                      {scenarioOptions.map((o) => (
-                        <Button
-                          key={o.value}
-                          size="xs"
-                          variant="subtle"
-                          color="ocean"
-                          onClick={() => {
-                            const next = [...(value || [])];
-                            next[idx] = { ...(next[idx] as any), applies_to: [o.value] } as any;
-                            onChange(next as any);
-                          }}
-                        >
-                          Só {o.label}
-                        </Button>
-                      ))}
-                    </Group>
-                    <Text size="xs" c="dimmed">
-                      Dica: “Todos” equivale ao padrão
-                    </Text>
-                  </Group>
-                </Stack>
-              )}
               {showFundingSource && (
                 <Select
                   label="Fonte do recurso"

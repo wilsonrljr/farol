@@ -795,9 +795,9 @@ export default function ComparisonForm() {
                       showFundingSource={false}
                       showScenarioSelector
                       scenarioOptions={[
-                        { value: 'buy', label: 'Comprar com financiamento' },
-                        { value: 'rent_invest', label: 'Alugar e investir' },
-                        { value: 'invest_buy', label: 'Investir e comprar à vista' },
+                        { value: 'buy', label: 'Financiamento' },
+                        { value: 'rent_invest', label: 'Alugar e Investir' },
+                        { value: 'invest_buy', label: 'Comprar à Vista' },
                       ]}
                       uiText={{
                         configuredTitle: "Aportes Configurados",
