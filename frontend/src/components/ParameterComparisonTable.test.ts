@@ -48,4 +48,34 @@ describe('parameter sensitivity guards', () => {
     expect(canAnalyzeSensitivity('annual_interest_rate', monthlyRate)).toBe(true);
     expect(canAnalyzeSensitivity('investment_returns_rate', multipleReturns)).toBe(false);
   });
+
+  it('não transforma compra à vista em financiamento sem contrato explícito', () => {
+    const outright = input({
+      down_payment: 500_000,
+      total_savings: 515_000,
+      comparison_horizon_years: 10,
+      loan_term_years: null,
+      loan_type: null,
+      annual_interest_rate: null,
+      monthly_interest_rate: null,
+    });
+
+    expect(canAnalyzeSensitivity('down_payment', outright)).toBe(false);
+    expect(canAnalyzeSensitivity('property_value', outright)).toBe(false);
+    expect(canAnalyzeSensitivity('investment_returns_rate', outright)).toBe(true);
+  });
+
+  it('não oferece sensibilidades de juros ou prazo sem principal financiado', () => {
+    const legacyOutright = input({
+      down_payment: 500_000,
+      total_savings: 515_000,
+      comparison_horizon_years: 10,
+    });
+
+    expect(canAnalyzeSensitivity('annual_interest_rate', legacyOutright)).toBe(false);
+    expect(canAnalyzeSensitivity('loan_term_years', legacyOutright)).toBe(false);
+    // The explicit financing contract keeps a lower-down-payment range valid:
+    // those points can become financed without producing an invalid request.
+    expect(canAnalyzeSensitivity('down_payment', legacyOutright)).toBe(true);
+  });
 });

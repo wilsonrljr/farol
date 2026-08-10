@@ -73,17 +73,18 @@ const PARAMETER_DEFINITIONS: ParameterDefinition[] = [
   },
   {
     key: 'down_payment',
-    label: 'Entrada',
+    label: 'Entrada em dinheiro',
     category: 'property',
     format: 'money',
     icon: <IconCoin size={14} />,
   },
   {
     key: 'total_savings',
-    label: 'Patrimônio Total',
+    label: 'Dinheiro disponível hoje',
     category: 'property',
     format: 'money_or_null',
     icon: <IconPigMoney size={14} />,
+    description: 'Recursos em dinheiro fora do FGTS e da reserva de emergência',
   },
   {
     key: 'loan_term_years',
@@ -91,6 +92,14 @@ const PARAMETER_DEFINITIONS: ParameterDefinition[] = [
     category: 'financing',
     format: 'years',
     icon: <IconCalendar size={14} />,
+  },
+  {
+    key: 'comparison_horizon_years',
+    label: 'Horizonte da Comparação',
+    category: 'financing',
+    format: 'years',
+    icon: <IconCalendar size={14} />,
+    description: 'Data do corte patrimonial, independente do prazo do financiamento',
   },
   {
     key: 'annual_interest_rate',
@@ -179,17 +188,49 @@ const PARAMETER_DEFINITIONS: ParameterDefinition[] = [
     icon: <IconReceipt size={14} />,
   },
   {
-    key: 'additional_costs.monthly_hoa',
-    nestedKey: 'monthly_hoa',
-    label: 'Condomínio Mensal',
+    key: 'additional_costs.owner_monthly_costs.hoa',
+    nestedKey: 'owner_monthly_costs.hoa',
+    label: 'Condomínio — proprietário',
     category: 'costs',
     format: 'money_or_null',
     icon: <IconReceipt size={14} />,
   },
   {
-    key: 'additional_costs.monthly_property_tax',
-    nestedKey: 'monthly_property_tax',
-    label: 'IPTU Mensal',
+    key: 'additional_costs.owner_monthly_costs.property_tax',
+    nestedKey: 'owner_monthly_costs.property_tax',
+    label: 'IPTU — proprietário',
+    category: 'costs',
+    format: 'money_or_null',
+    icon: <IconReceipt size={14} />,
+  },
+  {
+    key: 'additional_costs.owner_monthly_costs.other',
+    nestedKey: 'owner_monthly_costs.other',
+    label: 'Outros custos — proprietário',
+    category: 'costs',
+    format: 'money_or_null',
+    icon: <IconReceipt size={14} />,
+  },
+  {
+    key: 'additional_costs.renter_monthly_costs.hoa',
+    nestedKey: 'renter_monthly_costs.hoa',
+    label: 'Condomínio — inquilino',
+    category: 'costs',
+    format: 'money_or_null',
+    icon: <IconReceipt size={14} />,
+  },
+  {
+    key: 'additional_costs.renter_monthly_costs.property_tax',
+    nestedKey: 'renter_monthly_costs.property_tax',
+    label: 'IPTU — inquilino',
+    category: 'costs',
+    format: 'money_or_null',
+    icon: <IconReceipt size={14} />,
+  },
+  {
+    key: 'additional_costs.renter_monthly_costs.other',
+    nestedKey: 'renter_monthly_costs.other',
+    label: 'Outros custos — inquilino',
     category: 'costs',
     format: 'money_or_null',
     icon: <IconReceipt size={14} />,
@@ -322,6 +363,9 @@ export function getDefaultRange(
 
 // Helper to get value from input (handles nested keys)
 function getParameterValue(input: ComparisonInput, param: ParameterDefinition): unknown {
+  if (param.key === 'comparison_horizon_years') {
+    return input.comparison_horizon_years ?? input.loan_term_years;
+  }
   if (param.key === 'annual_interest_rate') {
     if (input.annual_interest_rate != null) return input.annual_interest_rate;
     if (input.monthly_interest_rate != null) {
@@ -350,7 +394,10 @@ function getParameterValue(input: ComparisonInput, param: ParameterDefinition): 
   if (param.nestedKey && param.key.startsWith('additional_costs.')) {
     const costs = input.additional_costs;
     if (costs) {
-      return (costs as Record<string, unknown>)[param.nestedKey];
+      return param.nestedKey.split('.').reduce<unknown>((value, key) => {
+        if (value === null || typeof value !== 'object') return null;
+        return (value as Record<string, unknown>)[key];
+      }, costs);
     }
     return null;
   }
@@ -360,6 +407,33 @@ function getParameterValue(input: ComparisonInput, param: ParameterDefinition): 
 
 export function canAnalyzeSensitivity(paramKey: string, input: ComparisonInput | null): boolean {
   if (!input || !SENSITIVITY_ENABLED_PARAMS.has(paramKey)) return false;
+  const purchaseNeed = Math.max(0, input.property_value - input.down_payment);
+  const fgtsBalance = Math.max(0, input.fgts?.initial_balance ?? 0);
+  const fgtsAtPurchase = input.fgts?.use_at_purchase
+    ? Math.min(
+        purchaseNeed,
+        fgtsBalance,
+        input.fgts.max_withdrawal_at_purchase == null
+          ? fgtsBalance
+          : Math.max(0, input.fgts.max_withdrawal_at_purchase)
+      )
+    : 0;
+  const hasFinancedPrincipal = purchaseNeed - fgtsAtPurchase > 0;
+  if (
+    (paramKey === 'annual_interest_rate' || paramKey === 'loan_term_years') &&
+    !hasFinancedPrincipal
+  ) {
+    return false;
+  }
+  if (paramKey === 'down_payment' || paramKey === 'property_value') {
+    const explicitFinancingContract =
+      input.loan_term_years != null &&
+      input.loan_type != null &&
+      Number(input.annual_interest_rate != null) +
+        Number(input.monthly_interest_rate != null) ===
+        1;
+    if (!explicitFinancingContract) return false;
+  }
   if (paramKey === 'investment_returns_rate' && input.investment_returns.length !== 1) {
     return false;
   }
@@ -607,6 +681,7 @@ export default function ParameterComparisonTable({
   // does not attribute causality when presets differ in multiple parameters.
   const wealthComparison = useMemo(() => {
     if (
+      result.comparison_status === 'no_authoritative_result' ||
       results.length < 2 ||
       results.some(
         (item) =>
@@ -633,7 +708,7 @@ export default function ParameterComparisonTable({
     const diff = best.wealth - worst.wealth;
 
     return { best, worst, diff };
-  }, [results]);
+  }, [result.comparison_status, results]);
 
   const categoryLabels: Record<string, { label: string; icon: React.ReactNode }> = {
     property: { label: 'Imóvel', icon: <IconHome size={16} /> },
@@ -679,7 +754,7 @@ export default function ParameterComparisonTable({
         </Group>
 
         {/* Quick Stats */}
-        <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
+        <SimpleGrid cols={{ base: 1, xs: wealthComparison ? 3 : 2 }} spacing="md">
           <Paper p="md" radius="md" shadow="none" withBorder>
             <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
               Presets Comparados

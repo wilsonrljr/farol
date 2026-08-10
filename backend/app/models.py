@@ -387,6 +387,87 @@ class InvestmentTaxInput(StrictInputModel):
     )
 
 
+class FinancedPurchaseAllocationInput(StrictInputModel):
+    amortization_percentage: float = Field(
+        0.0,
+        ge=0.0,
+        le=100.0,
+        description=(
+            "Percentage of the monthly wealth-building allocation directed to "
+            "extra mortgage amortization; the remainder is invested."
+        ),
+    )
+    amortization_effect: Literal["reduce_term", "reduce_payment"] = Field(
+        "reduce_term",
+        description=(
+            "Whether extra principal shortens the contract or recalculates future payments."
+        ),
+    )
+
+
+class MonthlyPlanInput(StrictInputModel):
+    net_income: float = Field(
+        ...,
+        ge=0.0,
+        le=MAX_FINANCIAL_AMOUNT,
+        description="Recurring monthly take-home income after taxes.",
+    )
+    non_housing_expenses: float = Field(
+        ...,
+        ge=0.0,
+        le=MAX_FINANCIAL_AMOUNT,
+        description="Aggregate monthly living costs excluding housing.",
+    )
+    adjust_for_inflation: bool = Field(
+        True,
+        description=(
+            "When true, income and non-housing expenses retain their purchasing power "
+            "using inflation_rate."
+        ),
+    )
+    wealth_allocation_percentage: float = Field(
+        100.0,
+        ge=0.0,
+        le=100.0,
+        description="Percentage of disposable surplus used to build wealth.",
+    )
+    financed_purchase: FinancedPurchaseAllocationInput = Field(
+        default_factory=FinancedPurchaseAllocationInput
+    )
+
+
+class ExtraIncomeEventInput(StrictInputModel):
+    kind: Literal["thirteenth_salary", "bonus", "other"]
+    label: str | None = Field(None, max_length=80)
+    amount: float = Field(..., ge=0.0, le=MAX_FINANCIAL_AMOUNT)
+    month: int = Field(..., ge=1, le=600)
+    interval_months: int | None = Field(None, ge=1, le=600)
+    end_month: int | None = Field(None, ge=1, le=600)
+    inflation_adjust: bool = False
+
+    @model_validator(mode="after")
+    def validate_recurrence(self) -> "ExtraIncomeEventInput":
+        if self.end_month is not None and self.end_month < self.month:
+            raise ValueError("end_month must be >= month")
+        if self.end_month is not None and self.interval_months is None:
+            raise ValueError("interval_months is required when end_month is provided")
+        return self
+
+
+class FGTSAmortizationPolicyInput(StrictInputModel):
+    enabled: bool = False
+    first_month: int = Field(24, ge=1, le=600)
+    interval_months: int = Field(24, ge=1, le=600)
+    amount_mode: Literal["available_balance", "fixed"] = "available_balance"
+    amount: float | None = Field(None, ge=0.0, le=MAX_FINANCIAL_AMOUNT)
+
+    @model_validator(mode="after")
+    def validate_amount(self) -> "FGTSAmortizationPolicyInput":
+        if self.enabled and self.amount_mode == "fixed" and self.amount is None:
+            raise ValueError("amount is required when amount_mode is fixed")
+        return self
+
+
 class FGTSInput(StrictInputModel):
     initial_balance: float = Field(
         0.0,
@@ -414,6 +495,10 @@ class FGTSInput(StrictInputModel):
         ge=0.0,
         le=MAX_FINANCIAL_AMOUNT,
         description="Maximum FGTS withdrawal at purchase (R$). None means withdraw up to full balance.",
+    )
+    financed_amortization: FGTSAmortizationPolicyInput | None = Field(
+        None,
+        description="Optional recurring use of FGTS to amortize a financed purchase.",
     )
 
 
@@ -494,6 +579,7 @@ class MonthlyRecord(BaseModel):
     initial_allocation: float | None = None
     monthly_hoa: float | None = None
     monthly_property_tax: float | None = None
+    monthly_other_costs: float | None = None
     monthly_additional_costs: float | None = None
     total_monthly_cost: float | None = None
     cumulative_payments: float | None = None
@@ -526,6 +612,15 @@ class MonthlyRecord(BaseModel):
     income_surplus_available: float | None = None
     # NEW: effective_income shows the inflation-adjusted income for the month
     effective_income: float | None = None
+    effective_net_income: float | None = None
+    effective_non_housing_expenses: float | None = None
+    extra_income: float | None = None
+    disposable_surplus: float | None = None
+    wealth_allocation: float | None = None
+    investment_allocation: float | None = None
+    extra_amortization_allocation: float | None = None
+    outside_plan_amount: float | None = None
+    budget_deficit: float | None = None
     # Canonical resource ledger. Initial allocations are covered by total_savings
     # and do not appear in required_cash_outflow.
     required_cash_outflow: float | None = None
@@ -559,6 +654,22 @@ class MonthlyRecord(BaseModel):
     upfront_additional_costs: float | None = None
 
 
+class HousingMonthlyCostsInput(StrictInputModel):
+    """Recurring housing costs paid by one side of the comparison."""
+
+    hoa: float = Field(0.0, ge=0.0, le=MAX_FINANCIAL_AMOUNT)
+    property_tax: float = Field(0.0, ge=0.0, le=MAX_FINANCIAL_AMOUNT)
+    other: float = Field(
+        0.0,
+        ge=0.0,
+        le=MAX_FINANCIAL_AMOUNT,
+        description=(
+            "Other occupancy-specific recurring housing costs, such as routine "
+            "maintenance and insurance."
+        ),
+    )
+
+
 class AdditionalCostsInput(StrictInputModel):
     itbi_percentage: float = Field(
         2.0,
@@ -576,22 +687,47 @@ class AdditionalCostsInput(StrictInputModel):
             "Custos de escritura/registro (% do valor do imóvel). Dica (Brasil): frequentemente ~1% a 2% (varia por estado/cartório)."
         ),
     )
-    monthly_hoa: float | None = Field(
-        None,
-        ge=0.0,
-        le=MAX_FINANCIAL_AMOUNT,
-        description=(
-            "Condomínio mensal (R$). Dica: informe o valor atual; a simulação pode corrigir por inflação."
-        ),
+    owner_monthly_costs: HousingMonthlyCostsInput = Field(
+        default_factory=HousingMonthlyCostsInput,
+        description="Custos mensais pagos enquanto o usuário é proprietário.",
     )
-    monthly_property_tax: float | None = Field(
-        None,
-        ge=0.0,
-        le=MAX_FINANCIAL_AMOUNT,
-        description=(
-            "IPTU mensal (R$). Dica: se você só tem o valor anual, divida por 12 e informe aqui."
-        ),
+    renter_monthly_costs: HousingMonthlyCostsInput = Field(
+        default_factory=HousingMonthlyCostsInput,
+        description="Custos mensais pagos enquanto o usuário é inquilino.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_monthly_costs(cls, value: object) -> object:
+        """Accept the old flat shape while keeping it out of the public schema."""
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        has_legacy = any(key in data for key in ("monthly_hoa", "monthly_property_tax"))
+        has_new = any(
+            key in data for key in ("owner_monthly_costs", "renter_monthly_costs")
+        )
+        if has_legacy and has_new:
+            raise ValueError(
+                "Use os custos mensais novos ou os campos antigos, nunca ambos."
+            )
+        if not has_legacy:
+            return data
+        monthly = {
+            "hoa": data.pop("monthly_hoa", None) or 0.0,
+            "property_tax": data.pop("monthly_property_tax", None) or 0.0,
+        }
+        data["owner_monthly_costs"] = dict(monthly)
+        data["renter_monthly_costs"] = dict(monthly)
+        return data
+
+    @property
+    def monthly_hoa(self) -> float:
+        return self.owner_monthly_costs.hoa
+
+    @property
+    def monthly_property_tax(self) -> float:
+        return self.owner_monthly_costs.property_tax
 
 
 class LoanSimulationInput(StrictInputModel):
@@ -620,7 +756,7 @@ class LoanSimulationInput(StrictInputModel):
     additional_costs: AdditionalCostsInput = Field(
         ...,
         description=(
-            "Custos adicionais obrigatórios (ITBI/escritura/condomínio/IPTU). "
+            "Custos adicionais obrigatórios (ITBI/escritura e custos mensais de moradia). "
             "Dica: se não souber, use ITBI=2% e escritura/registro=1% como aproximação inicial."
         ),
     )
@@ -676,18 +812,50 @@ class ComparisonInput(StrictInputModel):
             "The remaining amount becomes initial_investment."
         ),
     )
-    loan_term_years: int = Field(..., gt=0, le=50, description="Loan term in years")
+    loan_term_years: int | None = Field(
+        None,
+        gt=0,
+        le=50,
+        description=(
+            "Loan term in years. Required when financing is needed; for an "
+            "outright purchase it is optional when comparison_horizon_years is provided. "
+            "It remains the backward-compatible comparison horizon when the explicit "
+            "horizon is omitted."
+        ),
+    )
+    comparison_horizon_years: int | None = Field(
+        None,
+        gt=0,
+        le=50,
+        description=(
+            "Number of years over which the three strategies are compared. "
+            "When omitted, defaults to loan_term_years for backward compatibility."
+        ),
+    )
     annual_interest_rate: float | None = Field(
-        None, ge=0.0, le=1000.0, description="Annual interest rate (in percentage)"
+        None,
+        ge=0.0,
+        le=1000.0,
+        description=(
+            "Annual interest rate (percentage). Exactly one interest-rate "
+            "representation is required only when the purchase has financed principal."
+        ),
     )
     monthly_interest_rate: float | None = Field(
         None,
         ge=0.0,
         le=MAX_MONTHLY_INTEREST_RATE,
-        description="Monthly interest rate (in percentage)",
+        description=(
+            "Monthly interest rate (percentage). Exactly one interest-rate "
+            "representation is required only when the purchase has financed principal."
+        ),
     )
-    loan_type: Literal["SAC", "PRICE"] = Field(
-        ..., description="Loan type: SAC or PRICE"
+    loan_type: Literal["SAC", "PRICE"] | None = Field(
+        None,
+        description=(
+            "Loan type: SAC or PRICE. Required only when the purchase has financed "
+            "principal."
+        ),
     )
     rent_value: float | None = Field(
         None, ge=0.0, le=MAX_FINANCIAL_AMOUNT, description="Monthly rent value"
@@ -704,28 +872,25 @@ class ComparisonInput(StrictInputModel):
         max_length=100,
         description="Investment return rates over time",
     )
-    amortizations: list[AmortizationInput] | None = Field(
-        None, max_length=500, description="Extra amortizations"
-    )
-    contributions: list[ContributionInput] | None = Field(
+    monthly_plan: MonthlyPlanInput | None = Field(
         None,
-        max_length=500,
         description=(
-            "Scheduled investment contributions (aportes) for all investment scenarios. "
-            "Applied to both 'rent and invest' and 'invest then buy' scenarios."
+            "Shared monthly budget policy. Required for affordability validation and ranking; "
+            "when omitted, the comparison is exploratory."
         ),
     )
-    continue_contributions_after_purchase: bool = Field(
-        True,
+    extra_income_events: list[ExtraIncomeEventInput] | None = Field(
+        None,
+        max_length=100,
         description=(
-            "If true, scheduled contributions continue after property purchase in the invest-then-buy scenario. "
-            "If false, contributions stop at the purchase month (legacy behavior)."
+            "Common future income events, such as a thirteenth salary or bonus. "
+            "They follow the same wealth-allocation policy in every scenario."
         ),
     )
     additional_costs: AdditionalCostsInput = Field(
         ...,
         description=(
-            "Custos adicionais obrigatórios (ITBI/escritura/condomínio/IPTU). "
+            "Custos adicionais obrigatórios (ITBI/escritura e custos mensais de moradia). "
             "Dica: se não souber, use ITBI=2% e escritura/registro=1% como aproximação inicial."
         ),
     )
@@ -747,23 +912,6 @@ class ComparisonInput(StrictInputModel):
         le=1000.0,
         description="Annual property appreciation rate (in percentage) - if not provided, uses inflation_rate",
     )
-    monthly_net_income: float | None = Field(
-        None,
-        ge=0.0,
-        le=MAX_FINANCIAL_AMOUNT,
-        description=(
-            "Monthly net income. When provided, rent and monthly costs are paid from income. "
-            "Any surplus is retained as non-yielding cash in the common resource ledger. "
-            "If resources are insufficient, the shortfall becomes an explicit liability."
-        ),
-    )
-    monthly_net_income_adjust_inflation: bool = Field(
-        False,
-        description=(
-            "If true, monthly net income is adjusted by inflation over time (uses inflation_rate)."
-        ),
-    )
-
     investment_tax: InvestmentTaxInput | None = Field(
         None,
         description="Optional effective taxation over monthly investment returns (approximation).",
@@ -777,9 +925,30 @@ class ComparisonInput(StrictInputModel):
     def validate_month_fields(self) -> "ComparisonInput":
         if self.down_payment > self.property_value:
             raise ValueError("down_payment must be <= property_value")
-        if (self.annual_interest_rate is None) == (self.monthly_interest_rate is None):
+        provided_interest_rates = sum(
+            rate is not None
+            for rate in (self.annual_interest_rate, self.monthly_interest_rate)
+        )
+        if self.initial_financed_principal > 0:
+            if self.loan_term_years is None or self.loan_type is None:
+                raise ValueError(
+                    "loan_term_years and loan_type are required when the purchase "
+                    "has financed principal"
+                )
+            if provided_interest_rates != 1:
+                raise ValueError(
+                    "Provide exactly one of annual_interest_rate or monthly_interest_rate "
+                    "when the purchase has financed principal"
+                )
+        elif provided_interest_rates > 1:
             raise ValueError(
-                "Provide exactly one of annual_interest_rate or monthly_interest_rate"
+                "Provide at most one of annual_interest_rate or monthly_interest_rate "
+                "when the purchase has no financed principal"
+            )
+        if self.comparison_horizon_years is None and self.loan_term_years is None:
+            raise ValueError(
+                "Provide comparison_horizon_years or loan_term_years to define the "
+                "comparison horizon"
             )
         if (self.rent_value is None) == (self.rent_percentage is None):
             raise ValueError("Provide exactly one of rent_value or rent_percentage")
@@ -799,12 +968,31 @@ class ComparisonInput(StrictInputModel):
         _validate_investment_return_coverage(list(self.investment_returns or []))
 
         _validate_investment_return_ranges(list(self.investment_returns or []))
-        _validate_schedule_load(
-            amortizations=self.amortizations,
-            contributions=self.contributions,
-            term_months=self.loan_term_years * 12,
-        )
+        horizon_years = self.comparison_horizon_years or self.loan_term_years
+        if (
+            horizon_years is None
+        ):  # Defensive; the conditional contract above rejects it.
+            raise ValueError("comparison horizon is required")
+        horizon_months = horizon_years * 12
+        for event in self.extra_income_events or []:
+            if event.month > horizon_months:
+                raise ValueError("extra income event starts after comparison horizon")
+            if event.end_month is not None and event.end_month > horizon_months:
+                raise ValueError("extra income event ends after comparison horizon")
         return self
+
+    @property
+    def initial_financed_principal(self) -> float:
+        """Principal left after the cash down payment and eligible month-1 FGTS."""
+        remaining = max(0.0, self.property_value - self.down_payment)
+        fgts = self.fgts
+        if fgts is None or not fgts.use_at_purchase:
+            return remaining
+
+        eligible_fgts = min(remaining, fgts.initial_balance)
+        if fgts.max_withdrawal_at_purchase is not None:
+            eligible_fgts = min(eligible_fgts, fgts.max_withdrawal_at_purchase)
+        return max(0.0, remaining - eligible_fgts)
 
     @property
     def initial_investment(self) -> float:
@@ -901,6 +1089,10 @@ class ComparisonScenario(BaseModel):
     )
     first_unfunded_month: int | None = None
     total_unfunded_amount: float | None = None
+    total_investment_from_income: float | None = None
+    total_extra_amortization_from_income: float | None = None
+    total_outside_plan: float | None = None
+    total_budget_deficit: float | None = None
     comparison_warnings: list[str] = Field(default_factory=list)
     monthly_data: list[MonthlyRecord]
     # New fields for clearer cost semantics. total_outflows = sum of all cash out (gross).
@@ -1012,6 +1204,10 @@ class EnhancedComparisonScenario(BaseModel):
     is_feasible: bool | None = None
     first_unfunded_month: int | None = None
     total_unfunded_amount: float | None = None
+    total_investment_from_income: float | None = None
+    total_extra_amortization_from_income: float | None = None
+    total_outside_plan: float | None = None
+    total_budget_deficit: float | None = None
     comparison_warnings: list[str] = Field(default_factory=list)
     total_outflows: float | None = Field(
         None,
@@ -1043,7 +1239,7 @@ class ComparisonResult(BaseModel):
     scenarios: list[ComparisonScenario]
     best_scenario_type: ScenarioType | None = None
     comparison_status: ComparisonStatus = "exploratory"
-    calculation_version: str = "2.0"
+    calculation_version: str = "3.0"
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -1062,7 +1258,7 @@ class EnhancedComparisonResult(BaseModel):
     )
     best_scenario_type: ScenarioType | None = None
     comparison_status: ComparisonStatus = "exploratory"
-    calculation_version: str = "2.0"
+    calculation_version: str = "3.0"
     warnings: list[str] = Field(default_factory=list)
 
 

@@ -11,6 +11,7 @@ import {
   ImportResult,
   MAX_PRESETS_PER_FILE,
   loadPresetsResult,
+  migratePresetStorage,
   parsePresetsFromJson,
   readFileAsText,
   savePresets,
@@ -19,32 +20,62 @@ import {
 
 interface UsePresetsOptions<T> {
   storageKey: string;
+  legacyStorageKeys?: readonly string[];
   validateInput?: PresetInputValidator<T>;
   onSave?: (preset: Preset<unknown>) => void;
   onLoad?: (preset: Preset<unknown>) => void;
   onDelete?: (preset: Preset<unknown>) => void;
 }
 
+const NO_LEGACY_STORAGE_KEYS: readonly string[] = [];
+
 export function usePresets<T>(options: UsePresetsOptions<T>) {
-  const { storageKey, validateInput, onSave, onLoad, onDelete } = options;
+  const {
+    storageKey,
+    legacyStorageKeys = NO_LEGACY_STORAGE_KEYS,
+    validateInput,
+    onSave,
+    onLoad,
+    onDelete,
+  } = options;
   const [presets, setPresets] = useState<Preset<T>[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   const presetsRef = useRef<Preset<T>[]>([]);
   const persistenceBlockedRef = useRef(false);
   const externalSnapshotRef = useRef<string | null>(null);
+  const legacyStorageKeysRef = useRef(legacyStorageKeys);
+  legacyStorageKeysRef.current = legacyStorageKeys;
+  const legacyStorageKeysSignature = JSON.stringify(legacyStorageKeys);
 
   useEffect(() => {
+    let migrationError: string | undefined;
+    let migrationBlocked = false;
+    for (const legacyStorageKey of legacyStorageKeysRef.current) {
+      if (legacyStorageKey === storageKey) continue;
+      const migration = migratePresetStorage<T>(
+        legacyStorageKey,
+        storageKey,
+        validateInput
+      );
+      if (migration.attempted) {
+        migrationError = migration.error;
+        migrationBlocked = migration.blocking;
+        break;
+      }
+    }
+
     const result = loadPresetsResult<T>(storageKey, validateInput);
+    const effectiveError = result.error ?? migrationError;
     presetsRef.current = result.presets;
     setPresets(result.presets);
-    setStorageError(result.error ?? null);
-    persistenceBlockedRef.current = Boolean(result.error);
-    externalSnapshotRef.current = !result.error && !result.migrated
+    setStorageError(effectiveError ?? null);
+    persistenceBlockedRef.current = Boolean(result.error) || migrationBlocked;
+    externalSnapshotRef.current = !effectiveError && !result.migrated
       ? JSON.stringify(result.presets)
       : null;
     setInitialized(true);
-  }, [storageKey, validateInput]);
+  }, [legacyStorageKeysSignature, storageKey, validateInput]);
 
   useEffect(() => {
     if (!initialized || persistenceBlockedRef.current) return;

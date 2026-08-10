@@ -581,7 +581,13 @@ function WealthComparisonChart({
   );
 }
 
-function SummaryMetrics({ results }: { results: BatchComparisonResultItem[] }) {
+function SummaryMetrics({
+  results,
+  allowCrossPresetComparison,
+}: {
+  results: BatchComparisonResultItem[];
+  allowCrossPresetComparison: boolean;
+}) {
   const [showExploratoryStats, setShowExploratoryStats] = useState(false);
   const stats = useMemo(() => {
     // Stats for ALL scenarios across all presets
@@ -663,7 +669,9 @@ function SummaryMetrics({ results }: { results: BatchComparisonResultItem[] }) {
           Resumo dos resultados
         </Text>
         <Text size="sm" c="dimmed">
-          Contagens gerais e estatísticas separadas por comparabilidade.
+          {allowCrossPresetComparison
+            ? 'Contagens gerais e estatísticas apenas sobre bases autorizadas para comparação.'
+            : 'Contagens locais; agregados patrimoniais entre presets foram ocultados porque as bases não são comparáveis.'}
         </Text>
       </Box>
       {/* Overview counts */}
@@ -714,7 +722,7 @@ function SummaryMetrics({ results }: { results: BatchComparisonResultItem[] }) {
       </SimpleGrid>
 
       {/* Best scenario of each comparable preset */}
-      {stats.best.bestWealth != null && stats.best.worstWealth != null && stats.best.avgWealth != null && <Box>
+      {allowCrossPresetComparison && stats.best.bestWealth != null && stats.best.worstWealth != null && stats.best.avgWealth != null && <Box>
         <Group gap="xs" mb="sm">
           <ThemeIcon size="sm" radius="md" variant="light" color="ocean">
             <IconCrown size={14} />
@@ -755,7 +763,7 @@ function SummaryMetrics({ results }: { results: BatchComparisonResultItem[] }) {
         </SimpleGrid>
       </Box>}
 
-      <Box>
+      {allowCrossPresetComparison ? <Box>
         <Button
           variant="subtle"
           color="gray"
@@ -804,7 +812,11 @@ function SummaryMetrics({ results }: { results: BatchComparisonResultItem[] }) {
             </SimpleGrid>
           </Box>
         </Collapse>
-      </Box>
+      </Box> : (
+        <Alert color="orange" icon={<IconInfoCircle size={18} />}>
+          Consulte os cartões de cada preset separadamente. Exibir maior, menor, média ou curvas cruzadas aqui sugeriria uma comparação que o contrato não autoriza.
+        </Alert>
+      )}
     </Stack>
   );
 }
@@ -821,20 +833,27 @@ export default function BatchComparisonResults({
     resultTitleRef.current?.focus({ preventScroll: true });
   }, []);
 
-  const globalBest = result.global_best;
-  const hasGlobalRanking = globalBest != null && result.ranking.length > 0;
+  const rankingCandidate = result.global_best;
+  const hasRankingPayload =
+    rankingCandidate != null && result.ranking.length > 0;
   const totalScenarios = result.results.reduce(
     (total, item) => total + item.result.scenarios.length,
     0
   );
   const aggregateStatus =
-    result.comparison_status ?? (hasGlobalRanking ? 'ranked' : 'no_authoritative_result');
+    result.comparison_status ?? (hasRankingPayload ? 'ranked' : 'no_authoritative_result');
+  const globalBest = aggregateStatus === 'no_authoritative_result'
+    ? null
+    : rankingCandidate;
+  const hasGlobalRanking = globalBest != null && result.ranking.length > 0;
   const aggregateStatusCopy = {
     ranked: { label: 'Ranking completo', color: 'teal' },
     partial: { label: 'Ranking parcial', color: 'orange' },
     no_authoritative_result: { label: 'Sem ranking comparável', color: 'orange' },
   } as const;
   const currentAggregateStatus = aggregateStatusCopy[aggregateStatus];
+  const allowCrossPresetComparison =
+    aggregateStatus !== 'no_authoritative_result';
 
   const handleExportCSV = () => {
     const headers = [
@@ -993,7 +1012,10 @@ export default function BatchComparisonResults({
       )}
 
       {/* Summary Metrics */}
-      <SummaryMetrics results={result.results} />
+      <SummaryMetrics
+        results={result.results}
+        allowCrossPresetComparison={allowCrossPresetComparison}
+      />
 
       {/* Tabs */}
       <Tabs
@@ -1024,7 +1046,7 @@ export default function BatchComparisonResults({
 
         <Tabs.Panel value="overview" pt="lg">
           <Stack gap="lg">
-            {result.results.some(
+            {allowCrossPresetComparison && result.results.some(
               (item) =>
                 item.result.comparison_status === 'comparable' &&
                 item.result.best_scenario_type != null

@@ -67,37 +67,36 @@ def test_api_rejects_occurrences_above_the_contract_limit() -> None:
     assert "occurrences" in response.text
 
 
-def test_api_rejects_an_excessive_aggregate_schedule() -> None:
-    contribution = {
+def test_api_rejects_too_many_extra_income_events() -> None:
+    event = {
+        "kind": "bonus",
         "month": 1,
-        "interval_months": 1,
-        "occurrences": 600,
-        "value": 100.0,
+        "amount": 100.0,
     }
     response = client.post(
         "/api/compare-scenarios-enhanced",
         json=_comparison_payload(
-            contributions=[contribution.copy() for _ in range(17)]
+            extra_income_events=[event.copy() for _ in range(101)]
         ),
     )
 
     assert response.status_code == 422
-    assert "expanded limit" in response.text
+    assert "too_long" in response.text
 
 
-def test_api_rejects_percentage_contributions_that_can_overflow_compounding() -> None:
+def test_api_rejects_extra_income_beyond_the_horizon() -> None:
     response = client.post(
         "/api/compare-scenarios-enhanced",
         json=_comparison_payload(
-            contributions=[
-                {"month": 1, "value": 60.0, "value_type": "percentage"},
-                {"month": 1, "value": 60.0, "value_type": "percentage"},
-            ]
+            comparison_horizon_years=1,
+            extra_income_events=[
+                {"kind": "bonus", "month": 13, "amount": 100.0},
+            ],
         ),
     )
 
     assert response.status_code == 422
-    assert "at most 100%" in response.text
+    assert "after comparison horizon" in response.text
 
 
 def test_extreme_finite_numbers_are_rejected_without_serializer_details() -> None:

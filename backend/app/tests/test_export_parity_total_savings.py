@@ -122,7 +122,16 @@ def test_exports_preserve_version_balance_sheet_and_scenario_warnings(
         "inflation_rate": 0.0,
         "rent_inflation_rate": 0.0,
         "property_appreciation_rate": 0.0,
-        "monthly_net_income": 3_000.0,
+        "monthly_plan": {
+            "net_income": 3_000.0,
+            "non_housing_expenses": 0.0,
+            "adjust_for_inflation": False,
+            "wealth_allocation_percentage": 100.0,
+            "financed_purchase": {
+                "amortization_percentage": 0.0,
+                "amortization_effect": "reduce_term",
+            },
+        },
     }
 
     api_response = client.post(api_path, json=payload)

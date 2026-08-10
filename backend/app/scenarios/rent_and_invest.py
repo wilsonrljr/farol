@@ -148,30 +148,56 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             self.property_appreciation_rate,
             self.inflation_rate,
         )
-        monthly_hoa, monthly_property_tax, monthly_additional = (
-            self.get_inflated_monthly_costs(month)
-        )
+        (
+            monthly_hoa,
+            monthly_property_tax,
+            monthly_other_costs,
+            monthly_additional,
+        ) = self.get_inflated_monthly_costs(month, "renter")
 
         housing_due = current_rent + monthly_additional
 
-        # Process cashflows (income covers housing, surplus invested)
-        cashflow_result = self._process_monthly_cashflows(housing_due, month)
-        housing_paid = cashflow_result["actual_housing_paid"]
-        housing_shortfall = cashflow_result["housing_shortfall"]
+        budget = self.allocate_budget(month=month, housing_due=housing_due)
+        if budget is None:
+            cashflow_result = self._process_monthly_cashflows(housing_due, month)
+            housing_paid = cashflow_result["actual_housing_paid"]
+            housing_shortfall = cashflow_result["housing_shortfall"]
+        else:
+            housing_paid = budget.housing_paid
+            housing_shortfall = budget.housing_shortfall
+            cashflow_result = {
+                "rent_withdrawal": 0.0,
+                "income_cover": housing_paid,
+                "income_surplus_available": budget.disposable_surplus,
+                "remaining_before_return": self._account.balance,
+                "actual_housing_paid": housing_paid,
+                "housing_shortfall": housing_shortfall,
+                "effective_income": budget.effective_net_income,
+            }
         rent_paid = min(current_rent, housing_paid)
         self._total_rent_paid += rent_paid
 
+        # Apply the shared monthly plan before returns. Optional legacy schedules
+        # remain internal-only for direct simulator callers.
+        if budget is not None and budget.investment_allocation > 0:
+            self._account.deposit(budget.investment_allocation)
+            self._total_contributions += budget.investment_allocation
+
         # Apply scheduled contributions BEFORE returns
         contrib_fixed, contrib_pct, contrib_total = self._apply_contributions(month)
+        if budget is not None:
+            contrib_fixed += budget.investment_allocation
+            contrib_total += budget.investment_allocation
 
         # Apply investment returns
         investment_result = self._account.apply_monthly_return(month)
 
-        return self._create_monthly_record(
+        record = self._create_monthly_record(
             month=month,
             current_rent=current_rent,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
+            monthly_other_costs=monthly_other_costs,
             monthly_additional=monthly_additional,
             actual_rent_paid=rent_paid,
             rent_shortfall=max(0.0, current_rent - rent_paid),
@@ -185,6 +211,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             contrib_pct=contrib_pct,
             contrib_total=contrib_total,
         )
+        return self.attach_budget(record, budget)
 
     def _process_monthly_cashflows(
         self,
@@ -267,6 +294,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         actual_rent_paid: float,
         monthly_hoa: float,
         monthly_property_tax: float,
+        monthly_other_costs: float,
         monthly_additional: float,
         rent_shortfall: float,
         housing_due: float,
@@ -317,6 +345,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             initial_allocation=initial_deposit,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
+            monthly_other_costs=monthly_other_costs,
             monthly_additional_costs=monthly_additional,
             property_value=property_value,
             total_monthly_cost=total_monthly_cost,
@@ -385,6 +414,8 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         for d in self._monthly_data:
             total_consumption += d.rent_due or 0.0
             total_consumption += d.monthly_additional_costs or 0.0
+            total_consumption += d.effective_non_housing_expenses or 0.0
+            total_consumption += d.outside_plan_amount or 0.0
 
         return DomainComparisonScenario(
             name=self.scenario_name,

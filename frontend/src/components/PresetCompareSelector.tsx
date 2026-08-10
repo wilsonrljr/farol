@@ -280,7 +280,7 @@ export function PresetCompareSelector({
                               </Group>
                               <Group gap={4}>
                                 <Text size="xs" c="dimmed">
-                                  Entrada:
+                                  Entrada em dinheiro:
                                 </Text>
                                 <Text size="xs" fw={500}>
                                   {formatMoney(input.down_payment)}
@@ -288,10 +288,10 @@ export function PresetCompareSelector({
                               </Group>
                               <Group gap={4}>
                                 <Text size="xs" c="dimmed">
-                                  Prazo:
+                                  Horizonte:
                                 </Text>
                                 <Text size="xs" fw={500}>
-                                  {input.loan_term_years} anos
+                                  {input.comparison_horizon_years ?? input.loan_term_years} anos
                                 </Text>
                               </Group>
                             </SimpleGrid>

@@ -23,6 +23,9 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
+import { normalizeInvestmentReturnPeriods } from './comparison/comparisonInput';
+
+export { normalizeInvestmentReturnPeriods } from './comparison/comparisonInput';
 
 export interface InvestmentReturnItem {
   start_month: number;
@@ -38,33 +41,6 @@ interface Props {
 
 function newUiId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-}
-
-/** Keeps the backend invariant: month 1, no gaps, and only the last range open. */
-export function normalizeInvestmentReturnPeriods(
-  value: readonly InvestmentReturnItem[]
-): InvestmentReturnItem[] {
-  const periods = value.map((item) => ({ ...item }));
-  if (periods.length === 0) return periods;
-
-  periods[0].start_month = 1;
-  for (let index = 0; index < periods.length; index += 1) {
-    const period = periods[index];
-    period.start_month = Math.max(1, Math.trunc(Number(period.start_month) || 1));
-
-    if (index === periods.length - 1) {
-      period.end_month = null;
-      continue;
-    }
-
-    const proposedEnd = period.end_month == null ? Number.NaN : Number(period.end_month);
-    period.end_month = Number.isFinite(proposedEnd)
-      ? Math.max(period.start_month, Math.trunc(proposedEnd))
-      : period.start_month + 11;
-    periods[index + 1].start_month = period.end_month + 1;
-  }
-
-  return periods;
 }
 
 function annualToMonthlyPercent(annualPercent: number) {
@@ -87,24 +63,6 @@ export default function InvestmentReturnsFieldArray({ value, onChange, errors = 
       ];
     });
   }, [value.length]);
-
-  useEffect(() => {
-    const indexesWithErrors = new Set(
-      Object.keys(errors).flatMap((path) => {
-        const match = /^investment_returns\.(\d+)/.exec(path);
-        return match ? [Number(match[1])] : [];
-      })
-    );
-    if (indexesWithErrors.size === 0) return;
-    setCollapsedItems((current) => {
-      const next = new Set(current);
-      indexesWithErrors.forEach((index) => {
-        const itemId = itemIds[index];
-        if (itemId) next.delete(itemId);
-      });
-      return next.size === current.size ? current : next;
-    });
-  }, [errors, itemIds]);
 
   const toggleItemCollapse = (id: string) => {
     setCollapsedItems((previous) => {
@@ -151,19 +109,32 @@ export default function InvestmentReturnsFieldArray({ value, onChange, errors = 
 
   const updateEndMonth = (index: number, rawValue: string | number) => {
     const periods = value.map((item) => ({ ...item }));
+    if (rawValue === '') {
+      // Keep the cleared field visible to validation instead of silently
+      // turning it into a one-month period.
+      periods[index].end_month = null;
+      onChange(periods);
+      return;
+    }
     periods[index].end_month = Math.max(
       periods[index].start_month,
-      Math.trunc(Number(rawValue) || periods[index].start_month)
+      Math.trunc(Number(rawValue))
     );
     onChange(normalizeInvestmentReturnPeriods(periods));
   };
 
   const updateAnnualRate = (index: number, rawValue: string | number) => {
-    const annualRate = rawValue === '' ? 0 : Number(rawValue);
+    const annualRate = rawValue === '' ? rawValue : Number(rawValue);
     onChange(
       value.map((item, itemIndex) =>
         itemIndex === index
-          ? { ...item, annual_rate: Number.isFinite(annualRate) ? annualRate : 0 }
+          ? {
+              ...item,
+              annual_rate:
+                annualRate === '' || Number.isFinite(annualRate)
+                  ? (annualRate as number)
+                  : item.annual_rate,
+            }
           : { ...item }
       )
     );
@@ -275,7 +246,10 @@ export default function InvestmentReturnsFieldArray({ value, onChange, errors = 
       {value.map((item, index) => {
         const itemId = itemIds[index] ?? `return-${index}`;
         const panelId = `investment-return-panel-${itemId}`;
-        const isCollapsed = collapsedItems.has(itemId);
+        const hasItemError = Object.keys(errors).some((path) =>
+          path.startsWith(`investment_returns.${index}.`)
+        );
+        const isCollapsed = collapsedItems.has(itemId) && !hasItemError;
         const canDelete = value.length > 1;
         const isLast = index === value.length - 1;
         const periodLabel = item.end_month
@@ -368,7 +342,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange, errors = 
                     <NumberInput
                       name={`investment_returns.${index}.annual_rate`}
                       label="Taxa anual"
-                      description={`Retorno anual do investimento (≈ ${monthlyEquivalent.toFixed(2)}% a.m.)`}
+                      description={`Retorno nominal antes da inflação (≈ ${monthlyEquivalent.toFixed(2)}% a.m.)`}
                       min={-99.99}
                       max={1000}
                       decimalScale={2}

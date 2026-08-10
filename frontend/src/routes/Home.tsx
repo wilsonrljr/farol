@@ -18,8 +18,8 @@ import FeaturesGrid from '../components/FeaturesGrid';
 const strategies = [
   {
     icon: IconBuildingBank,
-    title: 'Comprar financiado',
-    description: 'Entrada, custos de compra, parcelas, amortizações e valorização do imóvel.',
+    title: 'Comprar à vista ou financiado',
+    description: 'Entrada em dinheiro, custos de compra e, quando houver, parcelas e amortizações.',
   },
   {
     icon: IconChartLine,

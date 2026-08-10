@@ -48,14 +48,31 @@ def _batch_resource_baseline(input_data: ComparisonInput) -> tuple[object, ...]:
     """
 
     fgts = input_data.fgts
+    plan = input_data.monthly_plan
+    inflation_changes_resources = bool(plan is not None and plan.adjust_for_inflation)
+    inflation_changes_resources = inflation_changes_resources or any(
+        event.inflation_adjust for event in (input_data.extra_income_events or [])
+    )
     return (
-        input_data.loan_term_years,
+        input_data.comparison_horizon_years or input_data.loan_term_years,
         input_data.total_savings,
-        input_data.monthly_net_income,
-        input_data.monthly_net_income_adjust_inflation,
-        input_data.inflation_rate
-        if input_data.monthly_net_income_adjust_inflation
-        else None,
+        plan.net_income if plan is not None else None,
+        plan.non_housing_expenses if plan is not None else None,
+        plan.adjust_for_inflation if plan is not None else None,
+        plan.wealth_allocation_percentage if plan is not None else None,
+        input_data.inflation_rate if inflation_changes_resources else None,
+        tuple(
+            sorted(
+                (
+                    float(event.amount),
+                    int(event.month),
+                    int(event.interval_months or 0),
+                    int(event.end_month or 0),
+                    bool(event.inflation_adjust),
+                )
+                for event in (input_data.extra_income_events or [])
+            )
+        ),
         fgts.initial_balance if fgts is not None else 0.0,
         fgts.monthly_contribution if fgts is not None else 0.0,
         fgts.annual_yield_rate if fgts is not None else 0.0,
@@ -69,10 +86,24 @@ def build_comparison_kwargs(input_data: ComparisonInput) -> dict[str, Any]:
     function. Keeping normalization and optional flags here prevents a router
     from silently falling back to a domain default.
     """
-    monthly_rate = resolve_monthly_interest_rate(
-        annual_interest_rate=input_data.annual_interest_rate,
-        monthly_interest_rate=input_data.monthly_interest_rate,
-    )
+    # Interest and amortization method have no economic meaning when the cash
+    # down payment plus eligible month-1 FGTS covers the full property price.
+    # Keep a neutral internal value so outright-purchase requests do not need to
+    # invent a financing rate merely to satisfy the domain constructor.
+    if input_data.initial_financed_principal <= 0:
+        monthly_rate = 0.0
+    else:
+        monthly_rate = resolve_monthly_interest_rate(
+            annual_interest_rate=input_data.annual_interest_rate,
+            monthly_interest_rate=input_data.monthly_interest_rate,
+        )
+    # The domain simulator still has a single concrete constructor for financed
+    # and outright purchases. These neutral fallbacks are internal only and are
+    # never used economically when initial_financed_principal is zero.
+    loan_term_years = input_data.loan_term_years or input_data.comparison_horizon_years
+    if loan_term_years is None:  # Defensive; ComparisonInput rejects this shape.
+        raise PublicInputError("Comparison horizon is required")
+    loan_type = input_data.loan_type or "SAC"
     rent_value = resolve_rent_value(
         property_value=input_data.property_value,
         rent_value=input_data.rent_value,
@@ -81,23 +112,26 @@ def build_comparison_kwargs(input_data: ComparisonInput) -> dict[str, Any]:
     return {
         "property_value": input_data.property_value,
         "down_payment": input_data.down_payment,
-        "loan_term_years": input_data.loan_term_years,
+        "loan_term_years": loan_term_years,
+        "comparison_horizon_years": input_data.comparison_horizon_years,
         "monthly_interest_rate": monthly_rate,
-        "loan_type": input_data.loan_type,
+        "loan_type": loan_type,
         "rent_value": rent_value,
         "investment_returns": input_data.investment_returns,
-        "amortizations": cast("Any", input_data.amortizations),
-        "contributions": cast("Any", input_data.contributions),
+        "amortizations": None,
+        "contributions": None,
         "additional_costs": input_data.additional_costs,
         "inflation_rate": input_data.inflation_rate,
         "rent_inflation_rate": input_data.rent_inflation_rate,
         "property_appreciation_rate": input_data.property_appreciation_rate,
-        "monthly_net_income": input_data.monthly_net_income,
-        "monthly_net_income_adjust_inflation": input_data.monthly_net_income_adjust_inflation,
+        "monthly_net_income": None,
+        "monthly_net_income_adjust_inflation": False,
+        "monthly_plan": cast("Any", input_data.monthly_plan),
+        "extra_income_events": cast("Any", input_data.extra_income_events),
         "investment_tax": cast("Any", input_data.investment_tax),
         "fgts": input_data.fgts,
         "total_savings": input_data.total_savings,
-        "continue_contributions_after_purchase": input_data.continue_contributions_after_purchase,
+        "continue_contributions_after_purchase": True,
     }
 
 
@@ -345,10 +379,12 @@ def _get_parameter_value(input_data: ComparisonInput, parameter: str) -> float:
     elif parameter == "annual_interest_rate":
         if input_data.annual_interest_rate is not None:
             value = input_data.annual_interest_rate
-        else:
+        elif input_data.monthly_interest_rate is not None:
             value, _ = convert_interest_rate(
                 monthly_rate=input_data.monthly_interest_rate
             )
+        else:
+            value = 0.0
     elif parameter == "rent_value":
         value = resolve_rent_value(
             property_value=input_data.property_value,
@@ -565,10 +601,12 @@ def run_sensitivity_analysis(
         if comparable_data_points
         else None
     )
-    if parameter == "loan_term_years":
-        # The comparison horizon is currently tied to the financing term. Final
-        # wealth at year 1 and year 30 is not a common-time ranking, so preserve
-        # the local points but suppress cross-point winner/break-even claims.
+    if parameter == "loan_term_years" and base_input.comparison_horizon_years is None:
+        # Backward-compatible inputs still derive the comparison horizon from
+        # the financing term. Final wealth at year 1 and year 30 is not a
+        # common-time ranking, so preserve the local points but suppress
+        # cross-point winner/break-even claims. With an explicit horizon, the
+        # observation period stays fixed and the aggregate comparison is valid.
         best_overall = None
         breakeven_points = []
         comparison_status = "no_authoritative_result"

@@ -525,6 +525,25 @@ input[type='number'] {
   padding-bottom: clamp(3.5rem, 7vw, 5.5rem);
 }
 
+.comparison-step-heading {
+  margin: 0 0 var(--mantine-spacing-md);
+  scroll-margin-top: 7.5rem;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 1.25;
+  outline: none;
+}
+
+.comparison-step-heading:focus-visible {
+  border-radius: var(--mantine-radius-sm);
+  box-shadow: 0 0 0 3px var(--mantine-color-ocean-3);
+}
+
+@media (max-width: 48em) {
+  .comparison-workspace {
+    padding-top: var(--mantine-spacing-md);
+  }
+}
+
 .section-heading { max-width: 42rem; }
 
 .section-title {
@@ -965,6 +984,34 @@ input[type='number'] {
   .home-hero__actions > * { width: 100%; }
   .farol-brand__tagline { display: none; }
   .page-hero__content { text-align: left; }
+  .page-hero:has(+ .comparison-workspace) .page-hero__content {
+    padding-top: var(--mantine-spacing-md);
+    padding-bottom: var(--mantine-spacing-md);
+  }
+  .page-hero:has(+ .comparison-workspace) .page-hero__title {
+    font-size: 1.55rem;
+    line-height: 1.15;
+  }
+  .page-hero:has(+ .comparison-workspace) .page-hero__description,
+  .page-hero:has(+ .comparison-workspace) .comparison-strategies,
+  .page-hero:has(+ .comparison-workspace) .comparison-eyebrow {
+    display: none;
+  }
+  .comparison-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .comparison-actions > .mantine-Group-root { display: contents; }
+  .comparison-actions > .mantine-Button-root:first-child {
+    grid-column: 1 / -1;
+  }
+  .comparison-actions .mantine-Button-root {
+    min-width: 0;
+    padding-inline: 0.6rem;
+    font-size: 0.78rem;
+  }
+  .comparison-actions .mantine-Button-section { display: none; }
   .docs-content { margin-inline: -0.35rem; }
 }
 

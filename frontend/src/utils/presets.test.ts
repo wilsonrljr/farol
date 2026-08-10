@@ -6,6 +6,7 @@ import {
   PRESET_EXPORT_VERSION,
   createPreset,
   loadPresetsResult,
+  migratePresetStorage,
   parsePresetsFromJson,
   readFileAsText,
   savePresets,
@@ -69,6 +70,78 @@ describe('preset immutability', () => {
 });
 
 describe('preset persistence and import', () => {
+  it('migra o storage legado uma única vez e só então remove a origem', () => {
+    window.localStorage.setItem(
+      'comparison-legacy',
+      JSON.stringify([serializedPreset('legacy-id')])
+    );
+
+    const migration = migratePresetStorage<SampleInput>(
+      'comparison-legacy',
+      'comparison-v4',
+      isSampleInput
+    );
+
+    expect(migration).toMatchObject({
+      attempted: true,
+      migrated: true,
+      blocking: false,
+    });
+    expect(window.localStorage.getItem('comparison-legacy')).toBeNull();
+    expect(loadPresetsResult('comparison-v4', isSampleInput).presets)
+      .toHaveLength(1);
+
+    const destinationSnapshot = window.localStorage.getItem('comparison-v4');
+    expect(migratePresetStorage(
+      'comparison-legacy',
+      'comparison-v4',
+      isSampleInput
+    )).toMatchObject({ attempted: false, migrated: false });
+    expect(window.localStorage.getItem('comparison-v4')).toBe(destinationSnapshot);
+  });
+
+  it('não migra parcialmente nem apaga um storage legado misto', () => {
+    const original = JSON.stringify([
+      serializedPreset('valid-id'),
+      { ...serializedPreset('invalid-id'), input: { amount: '10' } },
+    ]);
+    window.localStorage.setItem('comparison-legacy', original);
+
+    const migration = migratePresetStorage<SampleInput>(
+      'comparison-legacy',
+      'comparison-v4',
+      isSampleInput
+    );
+
+    expect(migration).toMatchObject({
+      attempted: true,
+      migrated: false,
+      blocking: true,
+    });
+    expect(migration.error).toContain('conteúdo original foi preservado');
+    expect(window.localStorage.getItem('comparison-legacy')).toBe(original);
+    expect(window.localStorage.getItem('comparison-v4')).toBeNull();
+  });
+
+  it('preserva o storage legado corrompido e não cria o destino', () => {
+    window.localStorage.setItem('comparison-legacy', '{invalid-json');
+
+    const migration = migratePresetStorage<SampleInput>(
+      'comparison-legacy',
+      'comparison-v4',
+      isSampleInput
+    );
+
+    expect(migration).toMatchObject({
+      attempted: true,
+      migrated: false,
+      blocking: true,
+    });
+    expect(migration.error).toContain('corrompidos');
+    expect(window.localStorage.getItem('comparison-legacy')).toBe('{invalid-json');
+    expect(window.localStorage.getItem('comparison-v4')).toBeNull();
+  });
+
   it('salva envelope versionado e migra o formato legado em array', () => {
     const preset = createPreset('Teste', { amount: 10, nested: { enabled: true } });
     expect(savePresets('sample', [preset]).success).toBe(true);

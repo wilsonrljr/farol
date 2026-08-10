@@ -9,7 +9,7 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from .inflation import apply_inflation
 from .protocols import AdditionalCostsLike
@@ -25,6 +25,7 @@ class CostsBreakdown(TypedDict):
     total_upfront: float
     monthly_hoa: float
     monthly_property_tax: float
+    monthly_other_costs: float
     total_monthly: float
 
 
@@ -37,8 +38,12 @@ class AdditionalCostsCalculator:
 
     itbi_percentage: float = 0.0
     deed_percentage: float = 0.0
-    monthly_hoa: float = 0.0
-    monthly_property_tax: float = 0.0
+    owner_monthly_hoa: float = 0.0
+    owner_monthly_property_tax: float = 0.0
+    owner_monthly_other: float = 0.0
+    renter_monthly_hoa: float = 0.0
+    renter_monthly_property_tax: float = 0.0
+    renter_monthly_other: float = 0.0
 
     @classmethod
     def from_input(
@@ -51,8 +56,14 @@ class AdditionalCostsCalculator:
         return cls(
             itbi_percentage=costs_input.itbi_percentage,
             deed_percentage=costs_input.deed_percentage,
-            monthly_hoa=costs_input.monthly_hoa or 0.0,
-            monthly_property_tax=costs_input.monthly_property_tax or 0.0,
+            owner_monthly_hoa=costs_input.owner_monthly_costs.hoa,
+            owner_monthly_property_tax=costs_input.owner_monthly_costs.property_tax,
+            owner_monthly_other=getattr(costs_input.owner_monthly_costs, "other", 0.0),
+            renter_monthly_hoa=costs_input.renter_monthly_costs.hoa,
+            renter_monthly_property_tax=costs_input.renter_monthly_costs.property_tax,
+            renter_monthly_other=getattr(
+                costs_input.renter_monthly_costs, "other", 0.0
+            ),
         )
 
     def calculate(self, property_value: float) -> CostsBreakdown:
@@ -71,16 +82,22 @@ class AdditionalCostsCalculator:
             itbi=itbi,
             deed=deed,
             total_upfront=itbi + deed,
-            monthly_hoa=self.monthly_hoa,
-            monthly_property_tax=self.monthly_property_tax,
-            total_monthly=self.monthly_hoa + self.monthly_property_tax,
+            monthly_hoa=self.owner_monthly_hoa,
+            monthly_property_tax=self.owner_monthly_property_tax,
+            monthly_other_costs=self.owner_monthly_other,
+            total_monthly=(
+                self.owner_monthly_hoa
+                + self.owner_monthly_property_tax
+                + self.owner_monthly_other
+            ),
         )
 
     def get_inflated_monthly_costs(
         self,
         month: int,
         inflation_rate: float | None,
-    ) -> tuple[float, float, float]:
+        occupancy: Literal["owner", "renter"] = "owner",
+    ) -> tuple[float, float, float, float]:
         """Get inflation-adjusted monthly costs.
 
         Args:
@@ -88,13 +105,28 @@ class AdditionalCostsCalculator:
             inflation_rate: Annual inflation rate in percentage.
 
         Returns:
-            Tuple of (monthly_hoa, monthly_property_tax, total_monthly).
+            Tuple of (monthly_hoa, monthly_property_tax, monthly_other_costs,
+            total_monthly).
         """
-        monthly_hoa = apply_inflation(self.monthly_hoa, month, 1, inflation_rate)
+        if occupancy == "owner":
+            base_hoa = self.owner_monthly_hoa
+            base_property_tax = self.owner_monthly_property_tax
+            base_other = self.owner_monthly_other
+        else:
+            base_hoa = self.renter_monthly_hoa
+            base_property_tax = self.renter_monthly_property_tax
+            base_other = self.renter_monthly_other
+        monthly_hoa = apply_inflation(base_hoa, month, 1, inflation_rate)
         monthly_property_tax = apply_inflation(
-            self.monthly_property_tax, month, 1, inflation_rate
+            base_property_tax, month, 1, inflation_rate
         )
-        return monthly_hoa, monthly_property_tax, monthly_hoa + monthly_property_tax
+        monthly_other = apply_inflation(base_other, month, 1, inflation_rate)
+        return (
+            monthly_hoa,
+            monthly_property_tax,
+            monthly_other,
+            monthly_hoa + monthly_property_tax + monthly_other,
+        )
 
 
 def calculate_additional_costs(

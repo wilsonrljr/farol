@@ -15,7 +15,11 @@ from dataclasses import dataclass, field
 from ..core.amortization import preprocess_amortizations
 from ..core.costs import CostsBreakdown, calculate_additional_costs
 from ..core.inflation import apply_property_appreciation
-from ..core.investment import InvestmentAccount, InvestmentResult
+from ..core.investment import (
+    InvestmentAccount,
+    InvestmentResult,
+    InvestmentWithdrawalResult,
+)
 from ..core.protocols import (
     ContributionLike,
     InvestmentReturnLike,
@@ -30,6 +34,15 @@ from ..models import (
 from .base import RentalScenarioMixin, ScenarioSimulator
 
 MILESTONE_THRESHOLDS = frozenset({25, 50, 75, 90, 100})
+
+
+@dataclass(frozen=True)
+class _StartPurchaseExecution:
+    """Resources locked for an outright purchase at the start of a month."""
+
+    fgts_used: float
+    cash_reserve_used: float
+    investment_withdrawal: InvestmentWithdrawalResult
 
 
 @dataclass
@@ -123,7 +136,6 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         self._monthly_data = []
 
         for month in range(1, self.term_months + 1):
-            self.accumulate_fgts()
             current_property_value, costs, total_purchase_cost = (
                 self._compute_purchase_cost(month)
             )
@@ -134,6 +146,12 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 self._handle_pre_purchase_month(
                     month, current_property_value, costs, total_purchase_cost
                 )
+
+            # FGTS deposits/yield belong to the month that just elapsed. They
+            # appear in the end-of-month balance, but cannot retroactively fund
+            # a purchase whose eligibility was assessed at the month's start.
+            if self._fgts_manager is not None:
+                self._monthly_data[-1].fgts_balance = self.accumulate_fgts()
 
         self._annotate_metadata()
         return self._build_domain_result()
@@ -169,26 +187,92 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         current_rent = rent_result["current_rent"]
         total_rent_cost = rent_result["total_rent_cost"]
 
-        # 2) Apply rent cashflows (income covers housing, surplus is held as cash).
-        cashflow_result = self._process_rent_cashflows(total_rent_cost, month)
+        # Under the monthly-plan contract a purchase is decided with resources
+        # already available at the start of the month. This prevents the same
+        # month's provisional (renter-only) surplus from funding a purchase
+        # whose transition costs would have reduced that surplus.
+        purchase_eligible_at_start = (
+            self.monthly_plan is not None
+            and self._can_purchase(
+                current_property_value=current_property_value,
+                total_purchase_cost=total_purchase_cost,
+            )
+        )
+        transition_costs_included = False
+        if purchase_eligible_at_start:
+            owner_hoa, owner_property_tax, owner_other, owner_additional = (
+                self.get_inflated_monthly_costs(month, "owner")
+            )
+            rent_result["monthly_hoa"] += owner_hoa
+            rent_result["monthly_property_tax"] += owner_property_tax
+            rent_result["monthly_other_costs"] += owner_other
+            rent_result["monthly_additional"] += owner_additional
+            total_rent_cost += owner_additional
+            rent_result["total_rent_cost"] = total_rent_cost
+            transition_costs_included = True
+
+        # Lock and liquidate the purchase resources before this month's
+        # contributions and market return. Otherwise a negative return could
+        # prevent a purchase that was already affordable at the start, while a
+        # positive return would be forbidden from enabling the symmetric case.
+        start_purchase = (
+            self._execute_start_purchase(
+                month=month,
+                current_property_value=current_property_value,
+                total_purchase_cost=total_purchase_cost,
+            )
+            if purchase_eligible_at_start
+            else None
+        )
+
         housing_due = total_rent_cost
+        budget = self.allocate_budget(month=month, housing_due=housing_due)
+        if budget is None:
+            cashflow_result = self._process_rent_cashflows(total_rent_cost, month)
+        else:
+            cashflow_result = {
+                "rent_withdrawal": 0.0,
+                "income_cover": budget.housing_paid,
+                "external_cover": budget.housing_paid,
+                "income_surplus_available": budget.disposable_surplus,
+                "remaining_before_return": self._account.balance,
+                "actual_housing_paid": budget.housing_paid,
+                "housing_shortfall": budget.housing_shortfall,
+                "effective_income": budget.effective_net_income,
+            }
+            if budget.investment_allocation > 0:
+                self._account.deposit(budget.investment_allocation)
+                self._total_scheduled_contributions += budget.investment_allocation
+
+        if start_purchase is not None:
+            withdrawal = start_purchase.investment_withdrawal
+            cashflow_result["investment_withdrawal_gross"] = withdrawal.gross_withdrawal
+            cashflow_result["investment_withdrawal_net"] = withdrawal.net_cash
+            cashflow_result["investment_withdrawal_realized_gain"] = (
+                withdrawal.realized_gain
+            )
+            cashflow_result["investment_withdrawal_tax_paid"] = withdrawal.tax_paid
 
         # 3) Apply scheduled contributions BEFORE returns.
         contrib_fixed, contrib_pct, contrib_total = self._apply_scheduled_contributions(
             month
         )
+        if budget is not None:
+            contrib_fixed += budget.investment_allocation
+            contrib_total += budget.investment_allocation
 
         # Keep the non-yielding cash policy executable inside this strategy, not
         # merely as a post-hoc reporting adjustment. Prior cash can cover a
         # later expensive month and any balance left after housing/contributions
         # can fund the outright purchase.
-        cashflow_result.update(
-            self._reconcile_cash_reserve(
-                month=month,
-                housing_due=housing_due,
-                contribution=contrib_total,
+        if budget is None:
+            cashflow_result.update(
+                self._reconcile_cash_reserve(
+                    month=month,
+                    housing_due=housing_due,
+                    contribution=contrib_total,
+                )
             )
-        )
         housing_paid = cashflow_result["actual_housing_paid"]
         housing_shortfall = cashflow_result["housing_shortfall"]
         rent_paid = min(current_rent, housing_paid)
@@ -228,8 +312,17 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             housing_due=housing_due,
             housing_paid=housing_paid,
             housing_shortfall=housing_shortfall,
+            purchase_eligible_at_start=purchase_eligible_at_start,
+            transition_costs_included=transition_costs_included,
+            start_purchase=start_purchase,
         )
-        self._monthly_data.append(record)
+        if budget is not None and record.housing_due != housing_due:
+            # A purchase can add owner costs in the transition month. Recompute
+            # the public budget breakdown against the complete obligation.
+            budget = self.allocate_budget(
+                month=month, housing_due=record.housing_due or 0
+            )
+        self._monthly_data.append(self.attach_budget(record, budget))
 
     def _reconcile_cash_reserve(
         self,
@@ -305,8 +398,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     ) -> dict[str, float]:
         """Compute rent and additional costs for a month."""
         current_rent = self.get_current_rent(month)
-        monthly_hoa, monthly_property_tax, monthly_additional = (
-            self.get_inflated_monthly_costs(month)
+        monthly_hoa, monthly_property_tax, monthly_other, monthly_additional = (
+            self.get_inflated_monthly_costs(month, "renter")
         )
         total_rent_cost = current_rent + monthly_additional
 
@@ -314,6 +407,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             "current_rent": current_rent,
             "monthly_hoa": monthly_hoa,
             "monthly_property_tax": monthly_property_tax,
+            "monthly_other_costs": monthly_other,
             "monthly_additional": monthly_additional,
             "total_rent_cost": total_rent_cost,
         }
@@ -425,6 +519,83 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         is_milestone = month <= 12 or month % 12 == 0 or crossed_bucket
         return progress_percent, shortfall, is_milestone
 
+    def _can_purchase(
+        self,
+        *,
+        current_property_value: float,
+        total_purchase_cost: float,
+    ) -> bool:
+        investment_available = self._account.liquidation_net_value()
+        liquid_available = investment_available + self._cash_reserve
+        fgts_available = 0.0
+        if self._fgts_manager and self._fgts_manager.use_at_purchase:
+            fgts_available = min(self.fgts_balance, current_property_value)
+            maximum = getattr(self._fgts_manager, "max_withdrawal_at_purchase", None)
+            if maximum is not None:
+                fgts_available = min(fgts_available, float(maximum))
+        upfront = max(0.0, total_purchase_cost - current_property_value)
+        return (
+            liquid_available + fgts_available >= total_purchase_cost
+            and liquid_available >= upfront
+        )
+
+    def _execute_start_purchase(
+        self,
+        *,
+        month: int,
+        current_property_value: float,
+        total_purchase_cost: float,
+    ) -> _StartPurchaseExecution:
+        """Execute a purchase already affordable at the start of ``month``.
+
+        FGTS covers only the property-price shortfall, never transaction costs.
+        The remaining target is paid from non-yielding legacy cash (if any) and
+        then by liquidating the investment account net of withdrawal tax.
+        """
+
+        investment_available = self._account.liquidation_net_value()
+        liquid_available = investment_available + self._cash_reserve
+        fgts_available = 0.0
+        if self._fgts_manager and self._fgts_manager.use_at_purchase:
+            fgts_available = min(self.fgts_balance, current_property_value)
+            maximum = getattr(self._fgts_manager, "max_withdrawal_at_purchase", None)
+            if maximum is not None:
+                fgts_available = min(fgts_available, float(maximum))
+
+        upfront = max(0.0, total_purchase_cost - current_property_value)
+        if (
+            liquid_available + fgts_available < total_purchase_cost
+            or liquid_available < upfront
+        ):
+            raise RuntimeError("start-of-month purchase resources became inconsistent")
+
+        remaining_needed = total_purchase_cost
+        fgts_used = 0.0
+        if self._fgts_manager and self._fgts_manager.use_at_purchase:
+            shortfall_for_fgts = max(0.0, total_purchase_cost - liquid_available)
+            fgts_needed = min(shortfall_for_fgts, fgts_available)
+            if fgts_needed > 0:
+                fgts_used = self._fgts_manager.withdraw_for_purchase(
+                    fgts_needed, month=month
+                )
+                remaining_needed -= fgts_used
+
+        cash_used = min(self._cash_reserve, remaining_needed)
+        self._cash_reserve -= cash_used
+        remaining_needed -= cash_used
+
+        withdrawal = self._account.withdraw_net(remaining_needed)
+        tolerance = max(0.01, total_purchase_cost * 1e-10)
+        if withdrawal.net_cash + tolerance < remaining_needed:
+            raise RuntimeError("investment liquidation did not fund eligible purchase")
+
+        self._purchase_month = month
+        return _StartPurchaseExecution(
+            fgts_used=fgts_used,
+            cash_reserve_used=cash_used,
+            investment_withdrawal=withdrawal,
+        )
+
     def _maybe_purchase_and_create_record(
         self,
         *,
@@ -447,14 +618,28 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         housing_due: float,
         housing_paid: float,
         housing_shortfall: float,
+        purchase_eligible_at_start: bool,
+        transition_costs_included: bool,
+        start_purchase: _StartPurchaseExecution | None,
     ) -> DomainMonthlyRecord:
         """Check for purchase and create monthly record."""
-        fgts_used_this_month = 0.0
-        cash_reserve_used_for_purchase = 0.0
-        status = "Aguardando compra"
-        equity = 0.0
+        fgts_used_this_month = (
+            start_purchase.fgts_used if start_purchase is not None else 0.0
+        )
+        cash_reserve_used_for_purchase = (
+            start_purchase.cash_reserve_used if start_purchase is not None else 0.0
+        )
+        status = (
+            "Imóvel comprado" if start_purchase is not None else "Aguardando compra"
+        )
+        equity = current_property_value if start_purchase is not None else 0.0
+        if start_purchase is not None:
+            progress_percent = 100.0
+            shortfall = 0.0
+            is_milestone = True
         monthly_hoa = rent_result["monthly_hoa"]
         monthly_property_tax = rent_result["monthly_property_tax"]
+        monthly_other_costs = rent_result["monthly_other_costs"]
         monthly_additional = rent_result["monthly_additional"]
 
         investment_available = self._account.liquidation_net_value()
@@ -478,8 +663,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
         can_cover_total = (liquid_available + fgts_available) >= total_purchase_cost
         can_cover_upfront = liquid_available >= purchase_upfront
+        if self.monthly_plan is not None:
+            can_cover_total = can_cover_total and purchase_eligible_at_start
+            can_cover_upfront = can_cover_upfront and purchase_eligible_at_start
 
-        if can_cover_total and can_cover_upfront:
+        if start_purchase is None and can_cover_total and can_cover_upfront:
             # Purchase!
             remaining_needed = total_purchase_cost
             if self._fgts_manager and self._fgts_manager.use_at_purchase:
@@ -490,6 +678,58 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                         fgts_needed, month=month
                     )
                     remaining_needed -= fgts_used_this_month
+
+            # Conservative transition rule: rent and renter costs computed at
+            # the start of this month remain due, while owner costs begin when
+            # the purchase closes. The public monthly breakdown is therefore
+            # the sum of both occupancy profiles in this one transition month.
+            if transition_costs_included:
+                owner_additional = 0.0
+            else:
+                owner_hoa, owner_property_tax, owner_other, owner_additional = (
+                    self.get_inflated_monthly_costs(month, "owner")
+                )
+                monthly_hoa += owner_hoa
+                monthly_property_tax += owner_property_tax
+                monthly_other_costs += owner_other
+                monthly_additional += owner_additional
+                housing_due += owner_additional
+
+            if self.monthly_plan is not None:
+                owner_costs_paid = 0.0
+            elif self.monthly_net_income is None:
+                # Exploratory mode assumes recurring housing costs are paid by
+                # external resources, consistently with the rental phase.
+                owner_costs_paid = owner_additional
+            else:
+                # Preserve enough modeled cash to complete the already-eligible
+                # outright purchase. Only residual cash above that minimum can
+                # pay the new owner costs; any remainder becomes an explicit
+                # housing shortfall (and a liability in the canonical ledger).
+                minimum_cash_for_purchase = max(
+                    0.0, remaining_needed - investment_available
+                )
+                cash_available_for_owner_costs = max(
+                    0.0, self._cash_reserve - minimum_cash_for_purchase
+                )
+                owner_costs_paid = min(owner_additional, cash_available_for_owner_costs)
+                self._cash_reserve -= owner_costs_paid
+
+            housing_paid += owner_costs_paid
+            housing_shortfall = max(0.0, housing_due - housing_paid)
+            cashflow_result["actual_housing_paid"] = housing_paid
+            cashflow_result["housing_shortfall"] = housing_shortfall
+
+            if self.monthly_net_income is not None:
+                effective_income = max(
+                    0.0, float(cashflow_result.get("effective_income", 0.0))
+                )
+                income_cover = min(housing_due, effective_income)
+                cashflow_result["income_cover"] = income_cover
+                cashflow_result["external_cover"] = income_cover
+                cashflow_result["income_surplus_available"] = max(
+                    0.0, effective_income - housing_due
+                )
 
             cash_reserve_used_for_purchase = min(self._cash_reserve, remaining_needed)
             self._cash_reserve -= cash_reserve_used_for_purchase
@@ -521,14 +761,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 + purchase_withdrawal.tax_paid
             )
 
-            # Regra de negócio (conservadora): no mês da compra ainda pode existir
-            # sobreposição de despesas (ex.: aluguel do mês já contratado/pago e,
-            # ao mesmo tempo, início de custos como condomínio/IPTU).
-            # Modelar essa sobreposição evita subestimar o custo real do mês da compra.
-            monthly_hoa, monthly_property_tax, monthly_additional = (
-                self.get_inflated_monthly_costs(month)
-            )
-            self._total_monthly_additional_costs += monthly_additional
+        self._total_monthly_additional_costs += monthly_additional
 
         # New semantics: cash_flow/total_monthly_cost represent all monthly outflows and cash allocations.
         initial_deposit = (
@@ -551,10 +784,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         if additional_investment_effective == contrib_total:
             contributions_outflow = initial_deposit + contrib_total
 
-        # Rent is always due pre-purchase (purchase month can overlap). Costs (HOA/IPTU)
-        # are tracked separately via monthly_additional_costs.
+        # Rent is always due pre-purchase. On the purchase month, housing_due
+        # also contains both renter and owner recurring costs.
         rent_due = current_rent
-        total_monthly_cost = rent_due + monthly_additional + contributions_outflow
+        total_monthly_cost = housing_due + contributions_outflow
         cash_flow = -total_monthly_cost
         if additional_investment_effective > 0:
             self._total_additional_investments += additional_investment_effective
@@ -581,6 +814,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             initial_allocation=initial_deposit,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
+            monthly_other_costs=monthly_other_costs,
             monthly_additional_costs=monthly_additional,
             total_monthly_cost=total_monthly_cost,
             status=status,
@@ -643,7 +877,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         _costs: CostsBreakdown,
     ) -> None:
         """Handle simulation for months after purchase."""
-        _, _, monthly_additional = self.get_inflated_monthly_costs(month)
+        monthly_hoa, monthly_property_tax, monthly_other, monthly_additional = (
+            self.get_inflated_monthly_costs(month)
+        )
+
+        budget = self.allocate_budget(month=month, housing_due=monthly_additional)
 
         # Apply scheduled contributions if configured to continue after purchase
         contrib_fixed = 0.0
@@ -654,11 +892,26 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 self._apply_scheduled_contributions(month)
             )
 
-        cashflow_result = self._reconcile_cash_reserve(
-            month=month,
-            housing_due=monthly_additional,
-            contribution=contrib_total,
-        )
+        if budget is not None and budget.investment_allocation > 0:
+            self._account.deposit(budget.investment_allocation)
+            self._total_scheduled_contributions += budget.investment_allocation
+            contrib_fixed += budget.investment_allocation
+            contrib_total += budget.investment_allocation
+
+        if budget is None:
+            cashflow_result = self._reconcile_cash_reserve(
+                month=month,
+                housing_due=monthly_additional,
+                contribution=contrib_total,
+            )
+        else:
+            cashflow_result = {
+                "actual_housing_paid": budget.housing_paid,
+                "housing_shortfall": budget.housing_shortfall,
+                "external_cover": budget.housing_paid,
+                "income_surplus_available": budget.disposable_surplus,
+                "effective_income": budget.effective_net_income,
+            }
 
         # Apply investment returns
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)
@@ -674,6 +927,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             investment_balance=self._account.balance,
             equity=current_property_value,
             status="Imóvel comprado",
+            monthly_hoa=monthly_hoa,
+            monthly_property_tax=monthly_property_tax,
+            monthly_other_costs=monthly_other,
             monthly_additional_costs=monthly_additional,
             housing_due=monthly_additional,
             housing_paid=cashflow_result.get("actual_housing_paid", monthly_additional),
@@ -700,7 +956,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             fgts_balance=self.fgts_balance if self.fgts else None,
             fgts_used=0.0,
         )
-        self._monthly_data.append(record)
+        self._monthly_data.append(self.attach_budget(record, budget))
 
     def _annotate_metadata(self) -> None:
         """Annotate metadata on first monthly record."""
@@ -777,6 +1033,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             total_consumption += d.rent_due or 0.0
             total_consumption += d.monthly_additional_costs or 0.0
             total_consumption += d.upfront_additional_costs or 0.0
+            total_consumption += d.effective_non_housing_expenses or 0.0
+            total_consumption += d.outside_plan_amount or 0.0
 
         # Ensure chronological ordering
         self._monthly_data.sort(key=lambda d: d.month)

@@ -9,15 +9,19 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Literal, Protocol
 
 from ..core.costs import AdditionalCostsCalculator, CostsBreakdown
 from ..core.fgts import FGTSManager
 from ..core.inflation import apply_inflation
+from ..core.monthly_budget import MonthlyBudgetAllocation, allocate_monthly_budget
 from ..core.protocols import (
     AdditionalCostsLike,
+    ExtraIncomeEventLike,
     FGTSLike,
+    MonthlyPlanLike,
 )
 from ..domain.models import MonthlyRecord
 from ..models import ComparisonScenario
@@ -52,6 +56,8 @@ class ScenarioSimulator(ABC):
     additional_costs: AdditionalCostsLike | None = field(default=None)
     inflation_rate: float | None = field(default=None)
     fgts: FGTSLike | None = field(default=None)
+    monthly_plan: MonthlyPlanLike | None = field(default=None)
+    extra_income_events: Sequence[ExtraIncomeEventLike] | None = field(default=None)
 
     # Computed fields
     _costs_calculator: AdditionalCostsCalculator = field(init=False)
@@ -95,10 +101,12 @@ class ScenarioSimulator(ABC):
             return 0.0
         return self._fgts_manager.accumulate_monthly()
 
-    def get_inflated_monthly_costs(self, month: int) -> tuple[float, float, float]:
+    def get_inflated_monthly_costs(
+        self, month: int, occupancy: Literal["owner", "renter"] = "owner"
+    ) -> tuple[float, float, float, float]:
         """Get inflation-adjusted monthly costs."""
         return self._costs_calculator.get_inflated_monthly_costs(
-            month, self.inflation_rate
+            month, self.inflation_rate, occupancy
         )
 
     def get_effective_monthly_net_income(
@@ -115,6 +123,50 @@ class ScenarioSimulator(ABC):
         if self.inflation_rate is None:
             return base_income
         return apply_inflation(base_income, month, 1, self.inflation_rate)
+
+    def allocate_budget(
+        self,
+        *,
+        month: int,
+        housing_due: float,
+        financed: bool = False,
+        outstanding_balance: float | None = None,
+    ) -> MonthlyBudgetAllocation | None:
+        if self.monthly_plan is None:
+            return None
+        return allocate_monthly_budget(
+            self.monthly_plan,
+            month=month,
+            housing_due=housing_due,
+            inflation_rate=self.inflation_rate,
+            extra_income_events=self.extra_income_events,
+            financed=financed,
+            outstanding_balance=outstanding_balance,
+        )
+
+    @staticmethod
+    def attach_budget(
+        record: MonthlyRecord,
+        allocation: MonthlyBudgetAllocation | None,
+    ) -> MonthlyRecord:
+        if allocation is None:
+            return record
+        record.effective_income = allocation.effective_net_income
+        record.effective_net_income = allocation.effective_net_income
+        record.effective_non_housing_expenses = (
+            allocation.effective_non_housing_expenses
+        )
+        record.extra_income = allocation.extra_income
+        record.income_surplus_available = allocation.disposable_surplus
+        record.disposable_surplus = allocation.disposable_surplus
+        record.wealth_allocation = allocation.wealth_allocation
+        record.investment_allocation = allocation.investment_allocation
+        record.extra_amortization_allocation = allocation.extra_amortization_allocation
+        record.outside_plan_amount = allocation.outside_plan_amount
+        record.budget_deficit = allocation.budget_deficit
+        record.housing_paid = allocation.housing_paid
+        record.housing_shortfall = allocation.housing_shortfall
+        return record
 
     @abstractmethod
     def simulate(self) -> ComparisonScenario:

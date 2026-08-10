@@ -57,4 +57,35 @@ describe('API errors', () => {
     ]);
     expect(normalized.message).toContain('items.0');
   });
+
+  it.each([
+    [404, 'Request failed with status code 404', 'serviço solicitado não foi encontrado'],
+    [503, 'Request failed with status code 503', 'falha temporária'],
+    [undefined, 'Network Error', 'Não foi possível conectar'],
+  ])('localiza falhas de transporte sem expor mensagem técnica (%s)', async (status, raw, expected) => {
+    const normalized = await toApiError({
+      isAxiosError: true,
+      message: raw,
+      response: status == null ? undefined : { status, data: null, headers: {} },
+    });
+
+    expect(normalized.message).toContain(expected);
+    expect(normalized.message).not.toContain(raw);
+  });
+
+  it('não exibe HTML de proxy e mantém o código de suporte', async () => {
+    const normalized = await toApiError({
+      isAxiosError: true,
+      message: 'Request failed with status code 404',
+      response: {
+        status: 404,
+        data: '<!doctype html><html><body>Not Found</body></html>',
+        headers: { 'x-request-id': 'support-404' },
+      },
+    });
+
+    expect(normalized.message).toContain('serviço solicitado não foi encontrado');
+    expect(normalized.message).toContain('Código de suporte: support-404');
+    expect(normalized.message).not.toContain('<html>');
+  });
 });

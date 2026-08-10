@@ -102,6 +102,7 @@ class MonthlyRecord:
     initial_allocation: float | None = None
     monthly_hoa: float | None = None
     monthly_property_tax: float | None = None
+    monthly_other_costs: float | None = None
     monthly_additional_costs: float | None = None
     total_monthly_cost: float | None = None
     cumulative_payments: float | None = None
@@ -134,6 +135,15 @@ class MonthlyRecord:
     income_surplus_available: float | None = None
     # NEW: effective_income shows the inflation-adjusted income for the month
     effective_income: float | None = None
+    effective_net_income: float | None = None
+    effective_non_housing_expenses: float | None = None
+    extra_income: float | None = None
+    disposable_surplus: float | None = None
+    wealth_allocation: float | None = None
+    investment_allocation: float | None = None
+    extra_amortization_allocation: float | None = None
+    outside_plan_amount: float | None = None
+    budget_deficit: float | None = None
     # Canonical resource ledger. Initial allocations are funded from
     # ``total_savings`` and therefore excluded from ``required_cash_outflow``.
     required_cash_outflow: float | None = None
@@ -188,6 +198,10 @@ class ComparisonScenario:
     is_feasible: bool | None = None
     first_unfunded_month: int | None = None
     total_unfunded_amount: float | None = None
+    total_investment_from_income: float | None = None
+    total_extra_amortization_from_income: float | None = None
+    total_outside_plan: float | None = None
+    total_budget_deficit: float | None = None
     comparison_warnings: list[str] = field(default_factory=list)
 
 
@@ -233,6 +247,10 @@ class EnhancedComparisonScenario:
     is_feasible: bool | None = None
     first_unfunded_month: int | None = None
     total_unfunded_amount: float | None = None
+    total_investment_from_income: float | None = None
+    total_extra_amortization_from_income: float | None = None
+    total_outside_plan: float | None = None
+    total_budget_deficit: float | None = None
     comparison_warnings: list[str] = field(default_factory=list)
 
 
@@ -242,7 +260,7 @@ class ComparisonResult:
     scenarios: list[ComparisonScenario]
     best_scenario_type: ScenarioType | None = None
     comparison_status: ComparisonStatus = "exploratory"
-    calculation_version: str = "2.0"
+    calculation_version: str = "3.0"
     warnings: list[str] = field(default_factory=list)
 
 
@@ -253,5 +271,5 @@ class EnhancedComparisonResult:
     comparative_summary: dict[str, dict[str, object]]
     best_scenario_type: ScenarioType | None = None
     comparison_status: ComparisonStatus = "exploratory"
-    calculation_version: str = "2.0"
+    calculation_version: str = "3.0"
     warnings: list[str] = field(default_factory=list)

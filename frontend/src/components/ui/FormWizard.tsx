@@ -22,6 +22,8 @@ interface WizardStep {
 interface FormWizardProps {
   steps: WizardStep[];
   active: number;
+  furthest?: number;
+  completed?: readonly boolean[];
   children: ReactNode;
   onStepClick?: (step: number) => void;
 }
@@ -31,6 +33,7 @@ interface StepIndicatorProps {
   index: number;
   active: boolean;
   completed: boolean;
+  disabled?: boolean;
   onClick?: () => void;
 }
 
@@ -76,9 +79,13 @@ function StepIndicator(props: StepIndicatorProps) {
     textAlign: 'left' as const,
   };
 
-  if (!onClick) {
+  if (!onClick || props.disabled) {
     return (
-      <Box style={commonStyle} aria-current={props.active ? 'step' : undefined}>
+      <Box
+        style={{ ...commonStyle, opacity: props.disabled ? 0.55 : 1 }}
+        aria-current={props.active ? 'step' : undefined}
+        aria-disabled={props.disabled || undefined}
+      >
         <StepContent {...contentProps} />
       </Box>
     );
@@ -96,9 +103,24 @@ function StepIndicator(props: StepIndicatorProps) {
   );
 }
 
-export function FormWizard({ steps, active, children, onStepClick }: FormWizardProps) {
+export function FormWizard({
+  steps,
+  active,
+  furthest = active,
+  completed,
+  children,
+  onStepClick,
+}: FormWizardProps) {
   const currentStep = Math.min(Math.max(active, 0), Math.max(steps.length - 1, 0));
-  const progress = steps.length > 0 ? ((currentStep + 1) / steps.length) * 100 : 0;
+  const visitedStep = Math.min(Math.max(furthest, currentStep), Math.max(steps.length - 1, 0));
+  const progress = steps.length > 0
+    ? completed
+      ? (completed.filter(Boolean).length / steps.length) * 100
+      : ((visitedStep + 1) / steps.length) * 100
+    : 0;
+  const progressLabel = completed
+    ? `${Math.round(progress)}% dos dados validados`
+    : `${Math.round(progress)}% do formulário percorrido`;
 
   return (
     <Box>
@@ -117,7 +139,7 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
             size="sm"
             radius="xl"
             color="ocean"
-            aria-label={`${Math.round(progress)}% do formulário concluído`}
+            aria-label={progressLabel}
           />
         </Box>
 
@@ -128,7 +150,7 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
             radius="xl"
             color="ocean"
             mb="sm"
-            aria-label={`${Math.round(progress)}% do formulário concluído`}
+            aria-label={progressLabel}
           />
           <SimpleGrid cols={steps.length} spacing="xs">
             {steps.map((step, index) => (
@@ -137,7 +159,11 @@ export function FormWizard({ steps, active, children, onStepClick }: FormWizardP
                 step={step}
                 index={index}
                 active={index === currentStep}
-                completed={index < currentStep}
+                completed={
+                  index !== currentStep &&
+                  (completed?.[index] ?? index <= visitedStep)
+                }
+                disabled={index > visitedStep + 1}
                 onClick={onStepClick ? () => onStepClick(index) : undefined}
               />
             ))}
@@ -194,7 +220,7 @@ export function FormSection({ title, description, children, icon }: FormSectionP
           </ThemeIcon>
         )}
         <Box style={{ minWidth: 0 }}>
-          <Text fw={700} size="lg">
+          <Text component="h3" fw={700} size="lg" m={0}>
             {title}
           </Text>
           {description && (

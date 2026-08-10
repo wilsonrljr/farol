@@ -12,8 +12,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
+from ..core.fgts import FGTS_COOLDOWN_MONTHS
 from ..core.inflation import apply_property_appreciation
-from ..core.investment import InvestmentAccount
+from ..core.investment import InvestmentAccount, InvestmentResult
+from ..core.monthly_budget import MonthlyBudgetAllocation
 from ..core.protocols import (
     AmortizationLike,
     ContributionLike,
@@ -40,6 +42,18 @@ from ..models import (
 from .base import ScenarioSimulator
 
 
+@dataclass(frozen=True)
+class _GeneratedAmortization:
+    month: int | None
+    value: float
+    end_month: int | None
+    interval_months: int | None
+    occurrences: int | None = None
+    value_type: str | None = "fixed"
+    inflation_adjust: bool | None = False
+    funding_source: str | None = "fgts"
+
+
 @dataclass
 class BuyScenarioSimulator(ScenarioSimulator):
     """Simulator for buying a property with financing.
@@ -63,8 +77,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
     contributions: Sequence[ContributionLike] | None = field(default=None)
 
     # Monthly net income (optional): housing costs are paid from this income;
-    # any surplus is invested. This keeps the buy scenario consistent with
-    # rent/invest behavior, especially after early payoff.
+    # unused income remains in the common non-yielding cash ledger unless the
+    # user configures an explicit contribution.
     monthly_net_income: float | None = field(default=None)
     monthly_net_income_adjust_inflation: bool = field(default=False)
 
@@ -114,24 +128,37 @@ class BuyScenarioSimulator(ScenarioSimulator):
         init=False, default_factory=dict
     )
     _total_contributions: float = field(init=False, default=0.0)
+    _loan_term_months: int = field(init=False, default=0)
+    _budget_by_month: dict[int, MonthlyBudgetAllocation] = field(
+        init=False, default_factory=dict
+    )
 
     @property
     def scenario_name(self) -> str:
         """Name of the scenario in Portuguese."""
+        if (
+            self._purchase_breakdown is not None
+            and self._purchase_breakdown.financed_amount <= 0
+        ):
+            return "Comprar à vista"
         return "Comprar com financiamento"
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        # Keep the base field `term_months` as the single source of truth.
-        self.term_months = self.loan_term_years * 12
-        if self.term_months <= 0:
+        self._loan_term_months = self.loan_term_years * 12
+        if self._loan_term_months <= 0:
             raise ValueError("loan_term_years must be > 0")
+        # ``term_months`` is the comparison horizon. Direct simulator callers
+        # that do not provide it retain the historical behavior of evaluating
+        # at the end of the financing contract.
+        if self.term_months <= 0:
+            self.term_months = self._loan_term_months
 
         # Preprocess scheduled contributions
         self._preprocess_contributions()
 
         # Check if we need investment tracking (for opportunity cost or contributions)
-        has_contributions = bool(self.contributions)
+        has_contributions = bool(self.contributions) or self.monthly_plan is not None
         needs_investment_tracking = self.initial_investment > 0 or has_contributions
 
         # Initialize investment tracking for opportunity cost and/or contributions.
@@ -265,9 +292,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
     def _prepare_simulation(self) -> None:
         """Prepare simulation parameters."""
-        self._split_amortizations()
         self._total_upfront_costs = self._costs["total_upfront"]
         self._calculate_fgts_usage()
+        # Generated FGTS amortizations depend on whether month-1 FGTS was
+        # actually withdrawn for the purchase. Resolve the purchase first so a
+        # recurring policy never schedules its first attempt inside cooldown.
+        self._split_amortizations()
         self._calculate_loan_value()
 
     def _calculate_fgts_usage(self) -> None:
@@ -326,6 +356,32 @@ class BuyScenarioSimulator(ScenarioSimulator):
             else:
                 cash.append(amort)
 
+        fgts_policy = (
+            getattr(self.fgts, "financed_amortization", None)
+            if self.fgts is not None
+            else None
+        )
+        if fgts_policy is not None and getattr(fgts_policy, "enabled", False):
+            amount_mode = getattr(fgts_policy, "amount_mode", "available_balance")
+            first_month = int(getattr(fgts_policy, "first_month", 24))
+            if self._fgts_used_at_purchase > 0:
+                first_month = max(first_month, 1 + FGTS_COOLDOWN_MONTHS)
+            fgts.append(
+                _GeneratedAmortization(
+                    month=first_month,
+                    value=(
+                        100.0
+                        if amount_mode == "available_balance"
+                        else float(getattr(fgts_policy, "amount", 0.0) or 0.0)
+                    ),
+                    end_month=self._loan_term_months,
+                    interval_months=int(getattr(fgts_policy, "interval_months", 24)),
+                    value_type=(
+                        "percentage" if amount_mode == "available_balance" else "fixed"
+                    ),
+                )
+            )
+
         self._cash_amortizations = cash or None
         self._fgts_amortizations = fgts or None
         self._bonus_amortizations = bonus or None
@@ -339,16 +395,16 @@ class BuyScenarioSimulator(ScenarioSimulator):
         (
             self._cash_extra_fixed_by_month,
             self._cash_extra_percent_by_month,
-        ) = preprocess_amortizations(cash, self.term_months, self.inflation_rate)
+        ) = preprocess_amortizations(cash, self._loan_term_months, self.inflation_rate)
         (
             self._bonus_fixed_by_month,
             self._bonus_percent_by_month,
-        ) = preprocess_amortizations(bonus, self.term_months, self.inflation_rate)
+        ) = preprocess_amortizations(bonus, self._loan_term_months, self.inflation_rate)
         (
             self._13_salario_fixed_by_month,
             self._13_salario_percent_by_month,
         ) = preprocess_amortizations(
-            decimo_terceiro, self.term_months, self.inflation_rate
+            decimo_terceiro, self._loan_term_months, self.inflation_rate
         )
 
     @staticmethod
@@ -420,26 +476,54 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
     def _simulate_loan(self) -> None:
         """Simulate the loan using appropriate method."""
+        self._budget_by_month = {}
+
+        def dynamic_extra_provider(
+            month: int,
+            base_installment: float,
+            remaining_balance: float,
+        ) -> float:
+            _, _, _, monthly_additional = self.get_inflated_monthly_costs(month)
+            allocation = self.allocate_budget(
+                month=month,
+                housing_due=base_installment + monthly_additional,
+                financed=True,
+                outstanding_balance=remaining_balance,
+            )
+            if allocation is None:
+                return 0.0
+            self._budget_by_month[month] = allocation
+            return allocation.extra_amortization_allocation
+
+        amortization_effect = (
+            self.monthly_plan.financed_purchase.amortization_effect
+            if self.monthly_plan is not None
+            else "reduce_term"
+        )
         simulator: LoanSimulator
         if self.loan_type == "SAC":
             simulator = SACLoanSimulator(
                 loan_value=self._loan_value,
-                term_months=self.term_months,
+                term_months=self._loan_term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
                 amortizations=self._cash_amortizations,
                 fgts_amortizations=self._fgts_amortizations,
                 fgts_manager=self._fgts_manager,
                 annual_inflation_rate=self.inflation_rate,
+                dynamic_extra_provider=dynamic_extra_provider,
+                amortization_effect=amortization_effect,
             )
         else:
             simulator = PriceLoanSimulator(
                 loan_value=self._loan_value,
-                term_months=self.term_months,
+                term_months=self._loan_term_months,
                 monthly_interest_rate=self.monthly_interest_rate,
                 amortizations=self._cash_amortizations,
                 fgts_amortizations=self._fgts_amortizations,
                 fgts_manager=self._fgts_manager,
                 annual_inflation_rate=self.inflation_rate,
+                dynamic_extra_provider=dynamic_extra_provider,
+                amortization_effect=amortization_effect,
             )
 
         self._loan_simulator = simulator
@@ -484,9 +568,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 self.inflation_rate,
             )
 
-            monthly_hoa, monthly_property_tax, monthly_additional = (
-                self.get_inflated_monthly_costs(month)
-            )
+            (
+                monthly_hoa,
+                monthly_property_tax,
+                monthly_other_costs,
+                monthly_additional,
+            ) = self.get_inflated_monthly_costs(month)
             self._total_monthly_additional_costs += monthly_additional
 
             # Running totals (new semantics): include all cash allocations/outflows.
@@ -536,19 +623,44 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 + extra_amortization_13_salario
             )
             installment_base = max(0.0, installment_value - extra_total)
-            housing_due = (
-                installment_base + monthly_additional + extra_amortization_cash
-            )
+            budget = self._budget_by_month.get(month)
+            if budget is None and self.monthly_plan is not None:
+                budget = self.allocate_budget(
+                    month=month,
+                    housing_due=installment_base + monthly_additional,
+                    financed=False,
+                )
+                if budget is not None:
+                    self._budget_by_month[month] = budget
+            housing_due = installment_base + monthly_additional
+            if budget is None:
+                housing_due += extra_amortization_cash
 
             cumulative_payments += installment_value + monthly_additional
             cumulative_interest += interest_value
 
             # Apply scheduled contributions and fixed monthly investment
             contrib_fixed, contrib_pct, contrib_total = self._apply_contributions(month)
+            if budget is not None and budget.investment_allocation > 0:
+                if self._investment_account is None:
+                    raise RuntimeError("monthly plan requires investment tracking")
+                self._investment_account.deposit(budget.investment_allocation)
+                self._total_contributions += budget.investment_allocation
+                contrib_fixed += budget.investment_allocation
+                contrib_total += budget.investment_allocation
             if contrib_total > 0:
                 cumulative_payments += contrib_total
 
-            cashflow_result = self._process_monthly_cashflows(housing_due, month)
+            if budget is None:
+                cashflow_result = self._process_monthly_cashflows(housing_due, month)
+            else:
+                cashflow_result = {
+                    "actual_housing_paid": budget.housing_paid,
+                    "housing_shortfall": budget.housing_shortfall,
+                    "income_cover": budget.housing_paid,
+                    "income_surplus_available": budget.disposable_surplus,
+                    "effective_income": budget.effective_net_income,
+                }
 
             # NOTE: income_surplus is no longer automatically invested.
             # Investments come only from explicit contributions (aportes).
@@ -558,8 +670,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
             )
 
             # Apply investment returns for opportunity cost tracking
+            investment_result: InvestmentResult | None = None
             if self._investment_account is not None:
-                self._investment_account.apply_monthly_return(month)
+                investment_result = self._investment_account.apply_monthly_return(month)
             if self._initial_investment_tracker is not None:
                 self._initial_investment_tracker.apply_monthly_return(month)
 
@@ -568,6 +681,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 property_value,
                 monthly_hoa,
                 monthly_property_tax,
+                monthly_other_costs,
                 monthly_additional,
                 cumulative_payments,
                 cumulative_interest,
@@ -590,8 +704,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
                 cashflow_result["income_cover"],
                 income_surplus_available,
                 cashflow_result.get("effective_income"),
+                investment_result,
             )
-            self._monthly_data.append(record)
+            self._monthly_data.append(self.attach_budget(record, budget))
 
     def _create_monthly_record(
         self,
@@ -599,6 +714,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         property_value: float,
         monthly_hoa: float,
         monthly_property_tax: float,
+        monthly_other_costs: float,
         monthly_additional: float,
         cumulative_payments: float,
         cumulative_interest: float,
@@ -621,6 +737,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
         external_cover: float = 0.0,
         income_surplus_available: float = 0.0,
         effective_income: float | None = None,
+        investment_result: InvestmentResult | None = None,
     ) -> DomainMonthlyRecord:
         """Create a monthly record from loan installment.
 
@@ -692,6 +809,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
             initial_allocation=initial_allocation,
             monthly_hoa=monthly_hoa,
             monthly_property_tax=monthly_property_tax,
+            monthly_other_costs=monthly_other_costs,
             monthly_additional_costs=monthly_additional,
             property_value=property_value,
             total_monthly_cost=total_monthly_cost,
@@ -724,6 +842,17 @@ class BuyScenarioSimulator(ScenarioSimulator):
             extra_contribution_total=contrib_total if contrib_total > 0 else None,
             # additional_investment is now only from explicit contributions
             additional_investment=(contrib_total if contrib_total > 0 else None),
+            investment_return_gross=(
+                investment_result.gross_return
+                if investment_result is not None
+                else None
+            ),
+            investment_tax_paid=(
+                investment_result.tax_paid if investment_result is not None else None
+            ),
+            investment_return_net=(
+                investment_result.net_return if investment_result is not None else None
+            ),
         )
 
     def _build_fgts_summary(self) -> None:
@@ -733,7 +862,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
             self._fgts_summary = None
             return
 
-        history = self._fgts_manager.withdrawal_history
+        history = [
+            record
+            for record in self._fgts_manager.withdrawal_history
+            if record.month is None or record.month <= self.term_months
+        ]
 
         withdrawal_records: list[FGTSWithdrawalRecord] = [
             FGTSWithdrawalRecord(
@@ -764,6 +897,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
         monthly_contribution = getattr(self.fgts, "monthly_contribution", 0.0)
         total_contributions = monthly_contribution * self.term_months
 
+        final_fgts_balance = (
+            float(self._monthly_data[-1].fgts_balance or 0.0)
+            if self._monthly_data
+            else 0.0
+        )
         self._fgts_summary = FGTSUsageSummary(
             initial_balance=getattr(self.fgts, "initial_balance", 0.0),
             total_contributions=total_contributions,
@@ -772,7 +910,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
             withdrawn_for_amortizations=withdrawn_for_amortizations,
             blocked_count=len(blocked),
             blocked_total_value=blocked_total_value,
-            final_balance=self.fgts_balance,
+            final_balance=final_fgts_balance,
             withdrawal_history=withdrawal_records,
         )
 
@@ -789,17 +927,17 @@ class BuyScenarioSimulator(ScenarioSimulator):
             self.inflation_rate,
         )
 
-        # Final equity should reflect the remaining loan balance (if any).
-        final_outstanding_balance = (
-            self._loan_result.installments[-1].outstanding_balance
-            if self._loan_result.installments
-            else 0.0
+        # Final equity is evaluated at the comparison horizon, which can be
+        # shorter or longer than the financing contract.
+        final_row = self._monthly_data[-1] if self._monthly_data else None
+        final_outstanding_balance = float(
+            final_row.outstanding_balance or 0.0 if final_row else 0.0
         )
+        final_fgts_balance = float(final_row.fgts_balance or 0.0 if final_row else 0.0)
         final_equity = (
             final_property_value - final_outstanding_balance
-        ) + self.fgts_balance
+        ) + final_fgts_balance
         total_outflows = sum((d.total_monthly_cost or 0.0) for d in self._monthly_data)
-        net_cost = total_outflows - final_equity
 
         # Consumption approximation: interest + ownership monthly costs + transaction costs.
         # Principal payments (amortization) and equity building are not consumption.
@@ -808,6 +946,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
             total_consumption += d.interest_payment or 0.0
             total_consumption += d.monthly_additional_costs or 0.0
             total_consumption += d.upfront_additional_costs or 0.0
+            total_consumption += d.effective_non_housing_expenses or 0.0
+            total_consumption += d.outside_plan_amount or 0.0
 
         # Calculate opportunity cost (what initial investment would have grown to)
         # and include investment balance in final equity for fair comparison
@@ -820,6 +960,11 @@ class BuyScenarioSimulator(ScenarioSimulator):
             # Include investment balance in final equity for fair comparison
             # This applies both for initial investment tracking AND for contributions
             final_equity += self._investment_account.balance
+
+        # ``final_equity`` includes every terminal asset, including the
+        # investment account funded by the monthly plan. Calculate net cost only
+        # after composing that complete balance sheet.
+        net_cost = total_outflows - final_equity
 
         return DomainComparisonScenario(
             name=self.scenario_name,

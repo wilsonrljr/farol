@@ -18,7 +18,16 @@ BASE_PAYLOAD = {
         "monthly_hoa": 0.0,
         "monthly_property_tax": 0.0,
     },
-    "monthly_net_income": 8000.0,  # Income-based model
+    "monthly_plan": {
+        "net_income": 8000.0,
+        "non_housing_expenses": 3000.0,
+        "adjust_for_inflation": True,
+        "wealth_allocation_percentage": 100.0,
+        "financed_purchase": {
+            "amortization_percentage": 0.0,
+            "amortization_effect": "reduce_term",
+        },
+    },
 }
 
 
@@ -39,7 +48,7 @@ def test_metrics_summary_basic():
 def test_metrics_summary_no_income():
     """Test scenario metrics when no income is provided (legacy mode)."""
     payload = dict(BASE_PAYLOAD)
-    payload["monthly_net_income"] = None
+    payload["monthly_plan"] = None
     r = client.post("/api/scenario-metrics", json=payload)
     assert r.status_code == 200, r.text
     data = r.json()

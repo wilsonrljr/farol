@@ -38,3 +38,11 @@ class SACLoanSimulator(LoanSimulator):
             The fixed amortization amount.
         """
         return self._fixed_amortization
+
+    def _recalculate_after_extra(self, month: int) -> None:
+        remaining_months = max(0, self.term_months - month)
+        self._fixed_amortization = (
+            self._outstanding_balance / remaining_months
+            if remaining_months > 0
+            else 0.0
+        )

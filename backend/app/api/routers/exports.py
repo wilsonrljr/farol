@@ -26,8 +26,8 @@ def _input_to_flat_frame(input_data: ComparisonInput) -> pd.DataFrame:
     # Keep complex/nested values readable and stable in a single-cell JSON string.
     for key in (
         "investment_returns",
-        "amortizations",
-        "contributions",
+        "monthly_plan",
+        "extra_income_events",
         "additional_costs",
         "investment_tax",
         "fgts",
@@ -91,15 +91,20 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
             "unit": "R$",
             "description": "IPTU do mês (corrigido por inflação quando configurado).",
         },
+        "monthly_other_costs": {
+            "label": "Outros custos de moradia",
+            "unit": "R$",
+            "description": "Manutenção, seguro e outros custos mensais exclusivos da ocupação (corrigidos por inflação quando configurado).",
+        },
         "monthly_additional_costs": {
             "label": "Custos mensais adicionais",
             "unit": "R$",
-            "description": "Condomínio + IPTU do mês.",
+            "description": "Condomínio + IPTU + outros custos de moradia do mês.",
         },
         "housing_due": {
             "label": "Moradia devida",
             "unit": "R$",
-            "description": "Total de moradia do mês. Aluguel + custos mensais (condomínio/IPTU) ou, no financiamento, parcela base + custos + amortização extra em cash.",
+            "description": "Total obrigatório de moradia do mês. Aluguel + custos mensais (condomínio/IPTU/outros) ou, no financiamento, parcela base + custos. A amortização extra opcional aparece em campo próprio.",
         },
         "housing_paid": {
             "label": "Moradia paga",
@@ -119,17 +124,62 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
         "external_surplus_invested": {
             "label": "Sobra externa investida (legado)",
             "unit": "R$",
-            "description": "Campo legado, sem preenchimento nos contratos atuais. A sobra do orçamento permanece em caixa sem rendimento e é exposta em residual_cash_balance.",
+            "description": "Campo legado, sem preenchimento no contrato atual.",
         },
         "additional_investment": {
             "label": "Investimento adicional",
             "unit": "R$",
-            "description": "Aporte explicitamente configurado e investido no mês além do saldo inicial; a sobra do orçamento não é investida automaticamente.",
+            "description": "Alocação adicional já incorporada ao investimento no mês.",
         },
         "effective_income": {
             "label": "Orçamento efetivo",
             "unit": "R$",
             "description": "Orçamento mensal disponível no mês, corrigido pela inflação somente quando configurado.",
+        },
+        "effective_net_income": {
+            "label": "Salário líquido efetivo",
+            "unit": "R$",
+            "description": "Salário líquido do mês, corrigido pela inflação quando configurado.",
+        },
+        "effective_non_housing_expenses": {
+            "label": "Outros gastos efetivos",
+            "unit": "R$",
+            "description": "Gastos mensais fora da moradia, corrigidos quando configurado.",
+        },
+        "extra_income": {
+            "label": "Renda extra",
+            "unit": "R$",
+            "description": "13º, bônus ou outra renda configurada para o mês.",
+        },
+        "disposable_surplus": {
+            "label": "Sobra disponível",
+            "unit": "R$",
+            "description": "Renda menos outros gastos e moradia, sem valores negativos.",
+        },
+        "wealth_allocation": {
+            "label": "Destino para patrimônio",
+            "unit": "R$",
+            "description": "Parte da sobra escolhida para investir ou amortizar.",
+        },
+        "investment_allocation": {
+            "label": "Investimento da sobra",
+            "unit": "R$",
+            "description": "Parte da alocação patrimonial investida neste cenário.",
+        },
+        "extra_amortization_allocation": {
+            "label": "Amortização da sobra",
+            "unit": "R$",
+            "description": "Parte da alocação patrimonial usada para amortizar financiamento.",
+        },
+        "outside_plan_amount": {
+            "label": "Fora do plano",
+            "unit": "R$",
+            "description": "Sobra não alocada; não vira caixa nem patrimônio na simulação.",
+        },
+        "budget_deficit": {
+            "label": "Déficit do orçamento",
+            "unit": "R$",
+            "description": "Parcela dos gastos obrigatórios que a renda não cobre.",
         },
         "income_surplus_available": {
             "label": "Sobra do orçamento no mês",
@@ -139,17 +189,17 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
         "required_cash_outflow": {
             "label": "Recursos necessários",
             "unit": "R$",
-            "description": "Moradia, aportes explícitos e eventual caixa aplicado na compra que precisam ser financiados no mês.",
+            "description": "Outros gastos, moradia, construção de patrimônio e valor fora do plano reconciliados no mês.",
         },
         "funded_from_resources": {
             "label": "Financiado pelos recursos",
             "unit": "R$",
-            "description": "Parcela da necessidade mensal coberta pelo orçamento e pelo caixa residual acumulado.",
+            "description": "Parcela da necessidade mensal coberta pela renda e rendas extras do mês.",
         },
         "residual_cash_balance": {
             "label": "Caixa residual",
             "unit": "R$",
-            "description": "Sobra acumulada dos recursos modelados, mantida sem rendimento.",
+            "description": "Sempre zero no contrato v3: valores não alocados ficam fora da simulação.",
         },
         "cash_reserve_used_for_purchase": {
             "label": "Caixa usado na compra à vista",
@@ -410,6 +460,10 @@ def export_compare_scenarios(
                 "is_feasible": sc.is_feasible,
                 "first_unfunded_month": sc.first_unfunded_month,
                 "total_unfunded_amount": sc.total_unfunded_amount,
+                "total_investment_from_income": sc.total_investment_from_income,
+                "total_extra_amortization_from_income": sc.total_extra_amortization_from_income,
+                "total_outside_plan": sc.total_outside_plan,
+                "total_budget_deficit": sc.total_budget_deficit,
                 "total_outflows": sc.total_outflows,
                 "net_cost": sc.net_cost,
                 "opportunity_cost": sc.opportunity_cost,
@@ -540,6 +594,10 @@ def export_compare_scenarios_enhanced(
                 "is_feasible": sc.is_feasible,
                 "first_unfunded_month": sc.first_unfunded_month,
                 "total_unfunded_amount": sc.total_unfunded_amount,
+                "total_investment_from_income": sc.total_investment_from_income,
+                "total_extra_amortization_from_income": sc.total_extra_amortization_from_income,
+                "total_outside_plan": sc.total_outside_plan,
+                "total_budget_deficit": sc.total_budget_deficit,
                 "initial_wealth": sc.initial_wealth,
                 "final_wealth": sc.final_wealth,
                 "net_worth_change": sc.net_worth_change,

@@ -24,12 +24,6 @@ export interface AmortizationInput {
   funding_source?: 'cash' | 'fgts' | 'bonus' | '13_salario';
 }
 
-// Mirrors backend ContributionInput (same recurrence fields as AmortizationInput,
-// but semantics differ: percentage is over investment balance, not loan balance).
-export interface ContributionInput extends Omit<AmortizationInput, 'funding_source'> {
-  applies_to?: ComparisonScenarioType[] | null;
-}
-
 export interface InvestmentReturnInput {
   start_month: number;
   end_month?: number | null;
@@ -48,6 +42,34 @@ export interface FGTSInput {
   annual_yield_rate?: number; // percentage
   use_at_purchase?: boolean;
   max_withdrawal_at_purchase?: number | null; // R$
+  financed_amortization?: {
+    enabled: boolean;
+    first_month: number;
+    interval_months: number;
+    amount_mode: 'available_balance' | 'fixed';
+    amount?: number | null;
+  } | null;
+}
+
+export interface MonthlyPlanInput {
+  net_income: number;
+  non_housing_expenses: number;
+  adjust_for_inflation: boolean;
+  wealth_allocation_percentage: number;
+  financed_purchase: {
+    amortization_percentage: number;
+    amortization_effect: 'reduce_term' | 'reduce_payment';
+  };
+}
+
+export interface ExtraIncomeEventInput {
+  kind: 'thirteenth_salary' | 'bonus' | 'other';
+  label?: string | null;
+  amount: number;
+  month: number;
+  interval_months?: number | null;
+  end_month?: number | null;
+  inflation_adjust: boolean;
 }
 
 export interface FGTSWithdrawalRecord {
@@ -86,32 +108,41 @@ export interface FGTSUsageSummary {
 export interface AdditionalCostsInput {
   itbi_percentage?: number; // default 2
   deed_percentage?: number; // default 1
+  owner_monthly_costs?: HousingMonthlyCostsInput;
+  renter_monthly_costs?: HousingMonthlyCostsInput;
+  /** @deprecated Migrated to both owner and renter profiles when loading v1/v2 data. */
   monthly_hoa?: number | null;
+  /** @deprecated Migrated to both owner and renter profiles when loading v1/v2 data. */
   monthly_property_tax?: number | null;
+}
+
+export interface HousingMonthlyCostsInput {
+  hoa?: number;
+  property_tax?: number;
+  /** Maintenance, insurance and other recurring costs specific to this housing option. */
+  other?: number;
 }
 
 export interface ComparisonInput {
   property_value: number;
   down_payment: number;
-  total_savings?: number | null; // Total available savings (initial_investment = total_savings - down_payment)
-  loan_term_years: number;
+  /** Liquid cash available today; remaining investment subtracts cash down payment plus ITBI/registration. */
+  total_savings?: number | null;
+  loan_term_years?: number | null;
+  /** Evaluation window; defaults to loan_term_years for legacy inputs. */
+  comparison_horizon_years?: number | null;
   annual_interest_rate?: number | null;
   monthly_interest_rate?: number | null;
-  loan_type: LoanType;
+  loan_type?: LoanType | null;
   rent_value?: number | null;
   rent_percentage?: number | null;
   investment_returns: InvestmentReturnInput[];
-  amortizations?: AmortizationInput[];
-  contributions?: ContributionInput[];
-  continue_contributions_after_purchase?: boolean; // If true, contributions continue after property purchase
+  monthly_plan?: MonthlyPlanInput | null;
+  extra_income_events?: ExtraIncomeEventInput[] | null;
   additional_costs: AdditionalCostsInput;
   inflation_rate?: number | null;
   rent_inflation_rate?: number | null;
   property_appreciation_rate?: number | null;
-  /** Budget left after living expenses, available for housing and configured contributions. */
-  monthly_net_income?: number | null;
-  monthly_net_income_adjust_inflation?: boolean;
-
   investment_tax?: InvestmentTaxInput | null;
   fgts?: FGTSInput | null;
 }
@@ -159,6 +190,7 @@ export interface MonthlyRecord {
   initial_allocation?: number;
   monthly_hoa?: number;
   monthly_property_tax?: number;
+  monthly_other_costs?: number;
   monthly_additional_costs?: number;
   total_monthly_cost?: number;
   cumulative_payments?: number;
@@ -184,10 +216,19 @@ export interface MonthlyRecord {
   external_cover?: number;
   /** @deprecated Always omitted by current responses; retained for OpenAPI compatibility. */
   external_surplus_invested?: number;
-  // Informational monthly budget left after housing; it remains as residual cash.
+  // Informational disposable surplus before the configured wealth allocation.
   income_surplus_available?: number;
   // Inflation-adjusted budget for the month, when enabled.
   effective_income?: number;
+  effective_net_income?: number;
+  effective_non_housing_expenses?: number;
+  extra_income?: number;
+  disposable_surplus?: number;
+  wealth_allocation?: number;
+  investment_allocation?: number;
+  extra_amortization_allocation?: number;
+  outside_plan_amount?: number;
+  budget_deficit?: number;
   required_cash_outflow?: number;
   funded_from_resources?: number;
   residual_cash_balance?: number;
@@ -234,6 +275,10 @@ export interface ComparisonScenario {
   is_feasible?: boolean | null;
   first_unfunded_month?: number | null;
   total_unfunded_amount?: number | null;
+  total_investment_from_income?: number | null;
+  total_extra_amortization_from_income?: number | null;
+  total_outside_plan?: number | null;
+  total_budget_deficit?: number | null;
   comparison_warnings?: string[];
   total_outflows?: number;
   net_cost?: number;

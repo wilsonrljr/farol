@@ -73,6 +73,14 @@ export interface PresetSaveResult {
   error?: string;
 }
 
+export interface PresetStorageMigrationResult {
+  attempted: boolean;
+  migrated: boolean;
+  /** Blocks writes to the destination so recoverable legacy data is not hidden. */
+  blocking: boolean;
+  error?: string;
+}
+
 export interface ImportResult<T> {
   success: boolean;
   presets: Preset<T>[];
@@ -81,7 +89,7 @@ export interface ImportResult<T> {
   invalidSkipped?: number;
 }
 
-export const PRESET_EXPORT_VERSION = 2;
+export const PRESET_EXPORT_VERSION = 3;
 export const MAX_PRESET_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_PRESETS_PER_FILE = 100;
 export const MAX_PRESET_TAGS = 20;
@@ -340,6 +348,107 @@ export function savePresets<T>(
       error: 'Não foi possível salvar os presets. Verifique o espaço e as permissões do navegador.',
     };
   }
+}
+
+/**
+ * Move a complete, valid preset collection to a new storage key exactly once.
+ *
+ * The destination always wins when it already exists. A mixed or corrupt
+ * legacy collection is deliberately left untouched and the destination is not
+ * created: silently keeping only the valid subset would make the skipped
+ * scenarios look deleted. The source is removed only after the destination can
+ * be read back with the same validated records.
+ */
+export function migratePresetStorage<T>(
+  legacyStorageKey: string,
+  destinationStorageKey: string,
+  validateInput?: PresetInputValidator<T>
+): PresetStorageMigrationResult {
+  if (typeof window === 'undefined') {
+    return {
+      attempted: false,
+      migrated: false,
+      blocking: false,
+    };
+  }
+
+  let destinationRaw: string | null;
+  let legacyRaw: string | null;
+  try {
+    destinationRaw = window.localStorage.getItem(destinationStorageKey);
+    legacyRaw = window.localStorage.getItem(legacyStorageKey);
+  } catch {
+    return {
+      attempted: true,
+      migrated: false,
+      blocking: true,
+      error: 'Não foi possível acessar os presets salvos neste navegador',
+    };
+  }
+
+  // An explicit destination, including an intentionally empty collection,
+  // prevents a later render from resurrecting presets from the old key.
+  if (destinationRaw !== null || legacyRaw === null) {
+    return {
+      attempted: false,
+      migrated: false,
+      blocking: false,
+    };
+  }
+
+  const legacy = loadPresetsResult<T>(legacyStorageKey, validateInput);
+  if (legacy.error) {
+    return {
+      attempted: true,
+      migrated: false,
+      blocking: true,
+      error: `Não foi possível migrar os presets antigos. ${legacy.error}`,
+    };
+  }
+
+  const saved = savePresets(destinationStorageKey, legacy.presets);
+  if (!saved.success) {
+    return {
+      attempted: true,
+      migrated: false,
+      blocking: true,
+      error: `Não foi possível migrar os presets antigos. ${saved.error ?? 'Falha ao salvar presets'}`,
+    };
+  }
+
+  const verification = loadPresetsResult<T>(destinationStorageKey, validateInput);
+  const verified =
+    !verification.error &&
+    JSON.stringify(verification.presets) === JSON.stringify(legacy.presets);
+  if (!verified) {
+    // The destination was created by this attempt, so removing only that new
+    // value restores the pre-migration state. The legacy value remains intact.
+    try {
+      window.localStorage.removeItem(destinationStorageKey);
+    } catch {
+      // Keep the original verification error; recovery remains possible from
+      // the untouched legacy key even if storage permissions changed mid-run.
+    }
+    return {
+      attempted: true,
+      migrated: false,
+      blocking: true,
+      error: 'Não foi possível confirmar a migração dos presets antigos. O conteúdo original foi preservado.',
+    };
+  }
+
+  try {
+    window.localStorage.removeItem(legacyStorageKey);
+  } catch {
+    // The new copy is already verified. Leaving the source behind is harmless:
+    // destination precedence makes the operation idempotent on the next load.
+  }
+
+  return {
+    attempted: true,
+    migrated: true,
+    blocking: false,
+  };
 }
 
 export function createPreset<T>(

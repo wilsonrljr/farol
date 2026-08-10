@@ -9,7 +9,7 @@ the Free Software Foundation, either version 3 of the License, or
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from ..core.amortization import preprocess_amortizations
@@ -35,6 +35,8 @@ class LoanSimulator(ABC):
     annual_inflation_rate: float | None = None
     fgts_amortizations: Sequence[AmortizationLike] | None = None
     fgts_manager: FGTSManager | None = None
+    dynamic_extra_provider: Callable[[int, float, float], float] | None = None
+    amortization_effect: str = "reduce_term"
 
     # Internal state
     _installments: list[LoanInstallment] = field(init=False, default_factory=list)
@@ -66,6 +68,8 @@ class LoanSimulator(ABC):
             raise ValueError("loan_value must be >= 0")
         if self.monthly_interest_rate < 0:
             raise ValueError("monthly_interest_rate must be >= 0")
+        if self.amortization_effect not in {"reduce_term", "reduce_payment"}:
+            raise ValueError("invalid amortization_effect")
         self._outstanding_balance = self.loan_value
         self._preprocess_amortizations()
         self._preprocess_fgts_amortizations()
@@ -129,7 +133,16 @@ class LoanSimulator(ABC):
         starting_balance = self._outstanding_balance
         interest = starting_balance * self.monthly_rate_decimal
 
-        regular_amortization = self._calculate_regular_amortization(month)
+        # The contractual final installment retires every remaining cent. This
+        # also protects long PRICE schedules from floating-point cancellation:
+        # at very high (but valid) rates the early principal component can be
+        # smaller than binary-float precision even though the mathematical
+        # schedule still amortizes fully by maturity.
+        regular_amortization = (
+            starting_balance
+            if month == self.term_months
+            else self._calculate_regular_amortization(month)
+        )
         if regular_amortization < 0:
             regular_amortization = 0.0
         regular_amortization = min(regular_amortization, starting_balance)
@@ -139,6 +152,17 @@ class LoanSimulator(ABC):
 
         # Cash-backed extra amortization
         cash_extra = self._calculate_cash_extra(month, starting_balance)
+        if self.dynamic_extra_provider is not None and remaining_for_extra > 0:
+            cash_extra += max(
+                0.0,
+                float(
+                    self.dynamic_extra_provider(
+                        month,
+                        interest + regular_amortization,
+                        remaining_for_extra,
+                    )
+                ),
+            )
         cash_extra = min(max(0.0, cash_extra), remaining_for_extra)
         remaining_after_cash = max(0.0, remaining_for_extra - cash_extra)
 
@@ -163,7 +187,16 @@ class LoanSimulator(ABC):
         total_amortization = regular_amortization + total_extra_amortization
 
         installment_value = interest + total_amortization
-        self._outstanding_balance -= total_amortization
+        self._outstanding_balance = max(0.0, starting_balance - total_amortization)
+
+        if (
+            total_extra_amortization > 0
+            and self.amortization_effect == "reduce_payment"
+            and self._outstanding_balance > 0
+        ):
+            self._recalculate_after_extra(month)
+        if total_extra_amortization > 0:
+            self._on_extra_amortization(month)
 
         if total_extra_amortization > 0:
             self._total_extra_amortization += total_extra_amortization
@@ -205,6 +238,14 @@ class LoanSimulator(ABC):
                 extra += starting_balance * (pct / PERCENTAGE_BASE)
 
         return extra
+
+    def _recalculate_after_extra(self, month: int) -> None:
+        """Recalculate future scheduled payments after extra principal, if supported."""
+        del month
+
+    def _on_extra_amortization(self, month: int) -> None:
+        """Notify subclasses after an extra principal payment is applied."""
+        del month
 
     @abstractmethod
     def _calculate_regular_amortization(self, month: int) -> float:

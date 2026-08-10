@@ -22,8 +22,8 @@ def test_export_compare_scenarios_enhanced_xlsx_smoke():
         "additional_costs": {
             "itbi_percentage": 2.0,
             "deed_percentage": 1.0,
-            "monthly_hoa": 0.0,
-            "monthly_property_tax": 0.0,
+            "owner_monthly_costs": {"other": 125.0},
+            "renter_monthly_costs": {"other": 75.0},
         },
         "inflation_rate": 0.0,
         "rent_inflation_rate": 0.0,
@@ -50,5 +50,20 @@ def test_export_compare_scenarios_enhanced_xlsx_smoke():
 
     # These are the contract sheets produced by the export endpoint.
     assert "metrics" in sheets
+    assert "columns" in sheets
     assert "monthly_long" in sheets
     assert "comparative_summary" in sheets
+
+    dictionary_rows = list(wb["columns"].iter_rows(values_only=True))
+    dictionary_header = dictionary_rows[0]
+    field_index = dictionary_header.index("field")
+    label_index = dictionary_header.index("label")
+    other_definition = next(
+        row for row in dictionary_rows[1:] if row[field_index] == "monthly_other_costs"
+    )
+    assert other_definition[label_index] == "Outros custos de moradia"
+
+    monthly_rows = list(wb["monthly_long"].iter_rows(values_only=True))
+    monthly_header = monthly_rows[0]
+    other_index = monthly_header.index("monthly_other_costs")
+    assert {row[other_index] for row in monthly_rows[1:]} >= {75.0, 125.0}

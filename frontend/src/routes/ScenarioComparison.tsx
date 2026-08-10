@@ -5,10 +5,10 @@ import {
   IconPigMoney,
   IconScale,
 } from '@tabler/icons-react';
-import ComparisonForm from '../components/ComparisonForm';
+import ComparisonJourney from '../components/comparison/ComparisonJourney';
 
 const strategies = [
-  { label: 'Comprar financiado', icon: IconBuildingBank },
+  { label: 'Comprar', icon: IconBuildingBank },
   { label: 'Alugar e investir', icon: IconChartLine },
   { label: 'Investir para comprar', icon: IconPigMoney },
 ];
@@ -18,8 +18,8 @@ export default function ScenarioComparison() {
     <Box>
       <Box component="header" className="page-hero">
         <Container size="lg" className="page-hero__content">
-          <Stack gap="md">
-            <Group gap="xs" wrap="nowrap">
+          <Stack gap="sm">
+            <Group gap="xs" wrap="nowrap" className="comparison-eyebrow">
               <IconScale
                 size={20}
                 color="var(--mantine-color-ocean-6)"
@@ -34,20 +34,15 @@ export default function ScenarioComparison() {
               Projete custos, patrimônio e viabilidade de três estratégias. Comece pelos dados
               essenciais e refine a análise somente quando precisar.
             </Text>
-            <Group gap="xs" aria-label="Estratégias incluídas na comparação">
-              {strategies.map((strategy) => (
-                <span className="strategy-chip" key={strategy.label}>
-                  <strategy.icon size={15} aria-hidden="true" />
-                  {strategy.label}
-                </span>
-              ))}
-            </Group>
+            <Text size="sm" c="dimmed" className="comparison-strategies">
+              {strategies.map((strategy) => strategy.label).join(' · ')}
+            </Text>
           </Stack>
         </Container>
       </Box>
 
       <Container size="lg" className="comparison-workspace">
-        <ComparisonForm />
+        <ComparisonJourney />
       </Container>
     </Box>
   );

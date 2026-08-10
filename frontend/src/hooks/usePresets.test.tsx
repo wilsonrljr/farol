@@ -47,6 +47,21 @@ beforeEach(() => {
 });
 
 describe('usePresets cross-tab persistence', () => {
+  it('carrega a migração validada do storage legado sem ecoar outra gravação', async () => {
+    values.set('presets-legacy', envelope('legado', 7));
+    const { result } = renderHook(() => usePresets({
+      storageKey: 'presets-v4',
+      legacyStorageKeys: ['presets-legacy'],
+      validateInput: isInput,
+    }));
+
+    await waitFor(() => expect(result.current.initialized).toBe(true));
+    expect(result.current.presets[0]?.id).toBe('legado');
+    expect(values.has('presets-legacy')).toBe(false);
+    expect(values.has('presets-v4')).toBe(true);
+    expect(setItem).toHaveBeenCalledTimes(1);
+  });
+
   it('não regrava o carregamento inicial nem ecoa uma alteração recebida de outra aba', async () => {
     values.set('presets', envelope('inicial', 1));
     const { result } = renderHook(() => usePresets({

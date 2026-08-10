@@ -105,6 +105,30 @@ function messageFromDetail(detail: unknown): string | null {
     .join('\n');
 }
 
+function friendlyHttpFallback(status: number | undefined): string {
+  if (status === 404) {
+    return 'O serviço solicitado não foi encontrado. Verifique se a aplicação está atualizada e tente novamente.';
+  }
+  if (status === 429) {
+    return 'Foram feitas muitas tentativas em pouco tempo. Aguarde um momento e tente novamente.';
+  }
+  if (status !== undefined && status >= 500) {
+    return 'O serviço encontrou uma falha temporária. Tente novamente em instantes.';
+  }
+  if (status === undefined) {
+    return 'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.';
+  }
+  return 'Não foi possível concluir a solicitação. Revise os dados e tente novamente.';
+}
+
+function isGenericTransportMessage(message: string | null): boolean {
+  if (!message) return true;
+  if (/^\s*(?:<!doctype\s+html|<html\b)/i.test(message)) return true;
+  return /^(not found|internal server error|bad gateway|service unavailable|gateway timeout|request failed(?: with status code \d+)?|network error)$/i.test(
+    message.trim()
+  );
+}
+
 async function responsePayload(error: AxiosError): Promise<unknown> {
   const data = error.response?.data;
   if (typeof Blob !== 'undefined' && data instanceof Blob) {
@@ -153,16 +177,21 @@ export async function toApiError(error: unknown): Promise<ApiError> {
         : payload;
     const issues = validationIssues(detail);
     const status = error.response?.status;
-    const message =
-      messageFromDetail(detail) ||
-      (typeof error.message === 'string' ? error.message : 'Erro ao comunicar com a API');
+    const requestId = responseRequestId(error.response?.headers);
+    const detailedMessage = messageFromDetail(detail);
+    const baseMessage = isGenericTransportMessage(detailedMessage)
+      ? friendlyHttpFallback(status)
+      : detailedMessage!;
+    const message = requestId
+      ? `${baseMessage} Código de suporte: ${requestId}.`
+      : baseMessage;
 
     return new ApiError(message, {
       status,
       code: error.code,
       details: payload,
       validationIssues: issues,
-      requestId: responseRequestId(error.response?.headers),
+      requestId,
       retryable: status === 429 || status === undefined || status >= 500,
       cause: error,
     });

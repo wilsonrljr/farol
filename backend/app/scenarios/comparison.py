@@ -17,9 +17,11 @@ from ..core.protocols import (
     AdditionalCostsLike,
     AmortizationLike,
     ContributionLike,
+    ExtraIncomeEventLike,
     FGTSLike,
     InvestmentReturnLike,
     InvestmentTaxLike,
+    MonthlyPlanLike,
 )
 from ..domain import models as domain
 from ..domain.mappers import comparison_result_to_api, enhanced_comparison_result_to_api
@@ -105,6 +107,7 @@ def _assess_resource_ledger(
     monthly_net_income_adjust_inflation: bool,
     inflation_rate: float | None,
     initial_wealth: float,
+    monthly_plan: MonthlyPlanLike | None = None,
 ) -> None:
     """Attach an auditable recurring-resource ledger to one scenario.
 
@@ -116,6 +119,64 @@ def _assess_resource_ledger(
 
     scenario.initial_wealth = initial_wealth
     scenario.final_assets = float(scenario.final_equity)
+
+    if monthly_plan is not None:
+        cumulative_unfunded = 0.0
+        first_unfunded_month: int | None = None
+        total_investment = 0.0
+        total_amortization = 0.0
+        total_outside = 0.0
+        cumulative_rent_paid = 0.0
+
+        for row in sorted(scenario.monthly_data, key=lambda item: item.month):
+            deficit = max(0.0, float(row.budget_deficit or 0.0))
+            cumulative_unfunded += deficit
+            if cumulative_unfunded > _LEDGER_EPSILON and first_unfunded_month is None:
+                first_unfunded_month = row.month
+
+            total_investment += max(0.0, float(row.investment_allocation or 0.0))
+            total_amortization += max(
+                0.0, float(row.extra_amortization_allocation or 0.0)
+            )
+            total_outside += max(0.0, float(row.outside_plan_amount or 0.0))
+
+            required = (
+                max(0.0, float(row.effective_non_housing_expenses or 0.0))
+                + max(0.0, float(row.housing_due or 0.0))
+                + max(0.0, float(row.wealth_allocation or 0.0))
+                + max(0.0, float(row.outside_plan_amount or 0.0))
+            )
+            available = max(0.0, float(row.effective_net_income or 0.0)) + max(
+                0.0, float(row.extra_income or 0.0)
+            )
+            row.required_cash_outflow = required
+            row.funded_from_resources = min(required, available)
+            row.residual_cash_balance = 0.0
+            row.unfunded_amount = deficit
+            row.cumulative_unfunded_amount = cumulative_unfunded
+            if row.rent_due is not None:
+                cumulative_rent_paid += max(0.0, float(row.rent_paid or 0.0))
+                row.cumulative_rent_paid = cumulative_rent_paid
+            elif cumulative_rent_paid > 0.0:
+                row.cumulative_rent_paid = cumulative_rent_paid
+
+        scenario.residual_cash_balance = 0.0
+        scenario.total_unfunded_amount = cumulative_unfunded
+        scenario.final_liabilities = cumulative_unfunded
+        scenario.final_assets = float(scenario.final_equity)
+        scenario.final_wealth = scenario.final_assets - cumulative_unfunded
+        scenario.net_worth_change = scenario.final_wealth - initial_wealth
+        scenario.first_unfunded_month = first_unfunded_month
+        scenario.is_feasible = cumulative_unfunded <= _LEDGER_EPSILON
+        scenario.total_investment_from_income = total_investment
+        scenario.total_extra_amortization_from_income = total_amortization
+        scenario.total_outside_plan = total_outside
+        scenario.total_budget_deficit = cumulative_unfunded
+        if not scenario.is_feasible:
+            scenario.comparison_warnings.append(
+                "A renda líquida não cobre todos os gastos obrigatórios; o déficit foi registrado como passivo."
+            )
+        return
 
     if monthly_net_income is None:
         scenario.final_liabilities = None
@@ -155,7 +216,7 @@ def _assess_resource_ledger(
         residual_cash = max(0.0, available - required)
         cumulative_unfunded += unfunded
 
-        if unfunded > _LEDGER_EPSILON and first_unfunded_month is None:
+        if cumulative_unfunded > _LEDGER_EPSILON and first_unfunded_month is None:
             first_unfunded_month = row.month
 
         # Housing has priority over optional investment contributions.
@@ -213,6 +274,9 @@ def compare_scenarios(
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
     continue_contributions_after_purchase: bool = True,
+    comparison_horizon_years: int | None = None,
+    monthly_plan: MonthlyPlanLike | None = None,
+    extra_income_events: Sequence[ExtraIncomeEventLike] | None = None,
 ) -> ComparisonResult:
     """Compare different scenarios for housing decisions."""
     result = _compare_scenarios_domain(
@@ -235,6 +299,9 @@ def compare_scenarios(
         fgts=fgts,
         total_savings=total_savings,
         continue_contributions_after_purchase=continue_contributions_after_purchase,
+        comparison_horizon_years=comparison_horizon_years,
+        monthly_plan=monthly_plan,
+        extra_income_events=extra_income_events,
     )
     return comparison_result_to_api(result)
 
@@ -260,8 +327,11 @@ def _compare_scenarios_domain(
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
     continue_contributions_after_purchase: bool = True,
+    comparison_horizon_years: int | None = None,
+    monthly_plan: MonthlyPlanLike | None = None,
+    extra_income_events: Sequence[ExtraIncomeEventLike] | None = None,
 ) -> domain.ComparisonResult:
-    term_months = loan_term_years * 12
+    term_months = (comparison_horizon_years or loan_term_years) * 12
 
     # Reporting-only: baseline initial wealth estimate (does not change simulation).
     # - cash: total_savings if provided, otherwise down_payment (legacy mode)
@@ -290,6 +360,7 @@ def _compare_scenarios_domain(
     buy = BuyScenarioSimulator(
         property_value=property_value,
         down_payment=down_payment,
+        term_months=term_months,
         loan_term_years=loan_term_years,
         monthly_interest_rate=monthly_interest_rate,
         loan_type=loan_type,
@@ -304,6 +375,8 @@ def _compare_scenarios_domain(
         contributions=buy_contribs,
         monthly_net_income=monthly_net_income,
         monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
+        monthly_plan=monthly_plan,
+        extra_income_events=extra_income_events,
     ).simulate_domain()
 
     rent = RentAndInvestScenarioSimulator(
@@ -322,6 +395,8 @@ def _compare_scenarios_domain(
         fgts=fgts,
         initial_investment=rent_initial,
         contributions=rent_contribs,
+        monthly_plan=monthly_plan,
+        extra_income_events=extra_income_events,
     ).simulate_domain()
 
     invest_buy = InvestThenBuyScenarioSimulator(
@@ -343,6 +418,8 @@ def _compare_scenarios_domain(
         investment_tax=investment_tax,
         fgts=fgts,
         initial_investment=invest_buy_initial,
+        monthly_plan=monthly_plan,
+        extra_income_events=extra_income_events,
     ).simulate_domain()
 
     scenarios = [buy, rent, invest_buy]
@@ -355,6 +432,7 @@ def _compare_scenarios_domain(
             monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
             inflation_rate=inflation_rate,
             initial_wealth=initial_wealth,
+            monthly_plan=monthly_plan,
         )
 
     incomparability_reasons = _find_incomparability_reasons(
@@ -362,19 +440,21 @@ def _compare_scenarios_domain(
         amortizations=amortizations,
     )
     warnings = list(incomparability_reasons)
-    missing_resource_contract = total_savings is None or monthly_net_income is None
+    missing_resource_contract = total_savings is None or (
+        monthly_plan is None and monthly_net_income is None
+    )
     if total_savings is None:
         warnings.append(
             "Informe a reserva total disponível para comparar o patrimônio inicial de forma auditável."
         )
-    if monthly_net_income is None:
+    if monthly_plan is None and monthly_net_income is None:
         warnings.append(
-            "Informe a renda líquida mensal para validar viabilidade e eliminar recursos externos implícitos."
+            "Informe o plano mensal para validar viabilidade e eliminar recursos externos implícitos."
         )
 
     feasible = [scenario for scenario in scenarios if scenario.is_feasible is True]
 
-    if monthly_net_income is not None and not feasible:
+    if (monthly_plan is not None or monthly_net_income is not None) and not feasible:
         comparison_status: domain.ComparisonStatus = "no_feasible_scenario"
         warnings.append(
             "Nenhum cenário cabe nos recursos mensais informados; não há vencedor válido."
@@ -425,6 +505,9 @@ def enhanced_compare_scenarios(
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
     continue_contributions_after_purchase: bool = True,
+    comparison_horizon_years: int | None = None,
+    monthly_plan: MonthlyPlanLike | None = None,
+    extra_income_events: Sequence[ExtraIncomeEventLike] | None = None,
 ) -> EnhancedComparisonResult:
     """Enhanced comparison with detailed metrics and month-by-month differences."""
     result = _enhanced_compare_scenarios_domain(
@@ -447,6 +530,9 @@ def enhanced_compare_scenarios(
         fgts=fgts,
         total_savings=total_savings,
         continue_contributions_after_purchase=continue_contributions_after_purchase,
+        comparison_horizon_years=comparison_horizon_years,
+        monthly_plan=monthly_plan,
+        extra_income_events=extra_income_events,
     )
     return enhanced_comparison_result_to_api(result)
 
@@ -472,6 +558,9 @@ def _enhanced_compare_scenarios_domain(
     fgts: FGTSLike | None = None,
     total_savings: float | None = None,
     continue_contributions_after_purchase: bool = True,
+    comparison_horizon_years: int | None = None,
+    monthly_plan: MonthlyPlanLike | None = None,
+    extra_income_events: Sequence[ExtraIncomeEventLike] | None = None,
 ) -> domain.EnhancedComparisonResult:
     basic = _compare_scenarios_domain(
         property_value=property_value,
@@ -493,6 +582,9 @@ def _enhanced_compare_scenarios_domain(
         fgts=fgts,
         total_savings=total_savings,
         continue_contributions_after_purchase=continue_contributions_after_purchase,
+        comparison_horizon_years=comparison_horizon_years,
+        monthly_plan=monthly_plan,
+        extra_income_events=extra_income_events,
     )
 
     feasible_costs = [
@@ -523,6 +615,12 @@ def _enhanced_compare_scenarios_domain(
             is_feasible=sc.is_feasible,
             first_unfunded_month=sc.first_unfunded_month,
             total_unfunded_amount=sc.total_unfunded_amount,
+            total_investment_from_income=sc.total_investment_from_income,
+            total_extra_amortization_from_income=(
+                sc.total_extra_amortization_from_income
+            ),
+            total_outside_plan=sc.total_outside_plan,
+            total_budget_deficit=sc.total_budget_deficit,
             comparison_warnings=sc.comparison_warnings,
             total_outflows=sc.total_outflows,
             net_cost=sc.net_cost,

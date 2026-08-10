@@ -203,13 +203,16 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
   
   if (results.length === 0) return insights;
 
-  if (global_best == null) {
+  if (
+    result.comparison_status === 'no_authoritative_result' ||
+    global_best == null
+  ) {
     insights.push({
       id: 'no-comparable-ranking',
       type: 'warning',
       category: 'risk',
       title: 'Sem ranking comparável',
-      description: 'Os presets usam bases de recursos diferentes ou não possuem fluxo viável. Os gráficos podem ser explorados, mas não sustentam um campeão global nem recomendações de parâmetros.',
+      description: 'Os presets usam bases de recursos diferentes ou não possuem fluxo viável. Consulte cada cartão separadamente; estes dados não sustentam um campeão global nem recomendações de parâmetros.',
       icon: <IconScale size={16} />,
       priority: 10,
     });

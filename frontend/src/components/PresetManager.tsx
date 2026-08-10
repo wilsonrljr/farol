@@ -50,11 +50,16 @@ import {
   PresetTagType,
   createTag,
 } from '../utils/presets';
+import {
+  MAX_BATCH_COMPARISON_ITEMS,
+  MIN_BATCH_COMPARISON_ITEMS,
+} from '../constants/limits';
 import { PresetTagList, TagSelector, TagFilter } from './PresetTagSelector';
 
 interface PresetManagerProps<T> {
   presets: Preset<T>[];
   onSave: (name: string, description?: string, tags?: PresetTag[]) => boolean | void;
+  onBeforeSave?: () => boolean | void;
   onLoad: (preset: Preset<T>) => void;
   onDelete: (id: string) => boolean | void;
   onDuplicate: (id: string) => Preset<T> | boolean | null | void;
@@ -67,6 +72,7 @@ interface PresetManagerProps<T> {
   onCompare?: (selectedPresets: Preset<T>[]) => void;
   isCompareLoading?: boolean;
   minCompareSelection?: number;
+  maxCompareSelection?: number;
   // Tag management
   allTags?: PresetTag[];
   onAddTag?: (presetId: string, tagType: PresetTagType, customLabel?: string) => void;
@@ -77,6 +83,7 @@ interface PresetManagerProps<T> {
 export function PresetManager<T>({
   presets,
   onSave,
+  onBeforeSave,
   onLoad,
   onDelete,
   onDuplicate,
@@ -88,7 +95,8 @@ export function PresetManager<T>({
   // Quick Compare
   onCompare,
   isCompareLoading = false,
-  minCompareSelection = 2,
+  minCompareSelection = MIN_BATCH_COMPARISON_ITEMS,
+  maxCompareSelection = MAX_BATCH_COMPARISON_ITEMS,
   // Tag management
   allTags = [],
   onAddTag,
@@ -129,14 +137,23 @@ export function PresetManager<T>({
   }, [presets, tagFilters]);
   
   // Check if can compare
-  const canCompare = compareSelection.size >= minCompareSelection;
+  const canCompare =
+    compareSelection.size >= minCompareSelection &&
+    compareSelection.size <= maxCompareSelection;
   
   const handleQuickCompare = () => {
     if (!onCompare || !canCompare) return;
     const selected = presets.filter((p) => compareSelection.has(p.id));
-    onCompare(selected);
+    close();
     setCompareMode(false);
     setCompareSelection(new Set());
+    notifications.show({
+      title: 'Comparação iniciada',
+      message: `Calculando ${selected.length} cenários salvos. Os resultados aparecerão nesta página.`,
+      color: 'ocean',
+      icon: <IconScale size={16} />,
+    });
+    onCompare(selected);
   };
   
   const toggleCompareSelection = (id: string) => {
@@ -145,6 +162,15 @@ export function PresetManager<T>({
       if (next.has(id)) {
         next.delete(id);
       } else {
+        if (next.size >= maxCompareSelection) {
+          notifications.show({
+            title: 'Limite de cenários atingido',
+            message: `Compare no máximo ${maxCompareSelection} cenários por vez.`,
+            color: 'yellow',
+            icon: <IconAlertCircle size={16} />,
+          });
+          return prev;
+        }
         next.add(id);
       }
       return next;
@@ -155,7 +181,7 @@ export function PresetManager<T>({
     if (!saveName.trim()) {
       notifications.show({
         title: 'Nome obrigatório',
-        message: 'Informe um nome para o preset',
+        message: 'Informe um nome para o cenário salvo',
         color: 'red',
         icon: <IconAlertCircle size={16} />,
       });
@@ -168,22 +194,21 @@ export function PresetManager<T>({
     setSaveTags([]);
     closeSaveModal();
     notifications.show({
-      title: 'Preset salvo',
+      title: 'Cenário salvo',
       message: `"${saveName}" foi salvo com sucesso`,
       color: 'ocean',
       icon: <IconCheck size={16} />,
     });
   };
 
+  const requestOpenSaveModal = () => {
+    if (onBeforeSave?.() === false) return;
+    openSaveModal();
+  };
+
   const handleLoad = (preset: Preset<T>) => {
     onLoad(preset);
     close();
-    notifications.show({
-      title: 'Preset carregado',
-      message: `"${preset.name}" foi aplicado ao formulário`,
-      color: 'ocean',
-      icon: <IconCheck size={16} />,
-    });
   };
 
   const handleEdit = (preset: Preset<T>) => {
@@ -206,7 +231,7 @@ export function PresetManager<T>({
     setEditingPreset(null);
     setEditTags([]);
     notifications.show({
-      title: 'Preset atualizado',
+      title: 'Cenário atualizado',
       message: 'As alterações foram salvas',
       color: 'ocean',
       icon: <IconCheck size={16} />,
@@ -225,8 +250,8 @@ export function PresetManager<T>({
       closeDeleteConfirm();
       setDeletingPresetId(null);
       notifications.show({
-        title: 'Preset excluído',
-        message: 'O preset foi removido',
+        title: 'Cenário excluído',
+        message: 'O cenário salvo foi removido',
         color: 'ocean',
         icon: <IconTrash size={16} />,
       });
@@ -237,7 +262,7 @@ export function PresetManager<T>({
     const duplicated = onDuplicate(id);
     if (duplicated === false || duplicated === null) return;
     notifications.show({
-      title: 'Preset duplicado',
+      title: 'Cenário duplicado',
       message: 'Uma cópia foi criada',
       color: 'ocean',
       icon: <IconCopy size={16} />,
@@ -256,8 +281,8 @@ export function PresetManager<T>({
         result.invalidSkipped ? `${result.invalidSkipped} inválido(s)` : null,
       ].filter(Boolean).join(' e ');
       const message = skipped
-        ? `${result.presets.length} preset(s) importado(s). ${skipped} ignorado(s).`
-        : `${result.presets.length} preset(s) importado(s) com sucesso`;
+        ? `${result.presets.length} cenário(s) importado(s). ${skipped} ignorado(s).`
+        : `${result.presets.length} cenário(s) importado(s) com sucesso`;
       notifications.show({
         title: 'Importação concluída',
         message,
@@ -267,7 +292,7 @@ export function PresetManager<T>({
     } else {
       notifications.show({
         title: 'Erro na importação',
-        message: result.error || 'Não foi possível importar os presets',
+        message: result.error || 'Não foi possível importar os cenários salvos',
         color: 'red',
         icon: <IconX size={16} />,
       });
@@ -277,8 +302,8 @@ export function PresetManager<T>({
   const handleExportSelected = () => {
     if (selectedPresets.size === 0) {
       notifications.show({
-        title: 'Nenhum preset selecionado',
-        message: 'Selecione os presets que deseja exportar',
+        title: 'Nenhum cenário selecionado',
+        message: 'Selecione os cenários que deseja exportar',
         color: 'yellow',
         icon: <IconAlertCircle size={16} />,
       });
@@ -288,7 +313,7 @@ export function PresetManager<T>({
     setSelectedPresets(new Set());
     notifications.show({
       title: 'Exportação concluída',
-      message: `${selectedPresets.size} preset(s) exportado(s)`,
+      message: `${selectedPresets.size} cenário(s) exportado(s)`,
       color: 'ocean',
       icon: <IconDownload size={16} />,
     });
@@ -300,8 +325,8 @@ export function PresetManager<T>({
     closeClearConfirm();
     setSelectedPresets(new Set());
     notifications.show({
-      title: 'Presets removidos',
-      message: 'Todos os presets foram excluídos',
+      title: 'Cenários removidos',
+      message: 'Todos os cenários salvos foram excluídos',
       color: 'ocean',
       icon: <IconTrash size={16} />,
     });
@@ -340,13 +365,13 @@ export function PresetManager<T>({
             size="md"
             mih={44}
             leftSection={<IconDeviceFloppy size={16} />}
-            onClick={openSaveModal}
+            onClick={requestOpenSaveModal}
             loading={isLoading}
           >
-            Salvar Preset
+            Salvar cenário
           </Button>
         </Tooltip>
-        <Tooltip label="Gerenciar presets salvos" withArrow>
+        <Tooltip label="Gerenciar cenários salvos" withArrow>
           <Button
             variant="subtle"
             color="ocean"
@@ -362,7 +387,7 @@ export function PresetManager<T>({
               )
             }
           >
-            Meus Presets
+            Cenários salvos
           </Button>
         </Tooltip>
       </Group>
@@ -376,7 +401,7 @@ export function PresetManager<T>({
             <ThemeIcon size="md" radius="md" variant="light" color="ocean">
               <IconDeviceFloppy size={16} />
             </ThemeIcon>
-            <Text fw={600}>Salvar Preset</Text>
+            <Text fw={600}>Salvar cenário</Text>
           </Group>
         }
         size="md"
@@ -384,7 +409,7 @@ export function PresetManager<T>({
       >
         <Stack gap="md">
           <TextInput
-            label="Nome do preset"
+            label="Nome do cenário"
             placeholder="Ex: Apartamento SP 500k"
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
@@ -439,7 +464,7 @@ export function PresetManager<T>({
             <ThemeIcon size="md" radius="md" variant="light" color="ocean">
               <IconPencil size={16} />
             </ThemeIcon>
-            <Text fw={600}>Editar Preset</Text>
+            <Text fw={600}>Editar cenário salvo</Text>
           </Group>
         }
         size="md"
@@ -448,7 +473,7 @@ export function PresetManager<T>({
       >
         <Stack gap="md">
           <TextInput
-            label="Nome do preset"
+            label="Nome do cenário"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             maxLength={MAX_PRESET_NAME_LENGTH}
@@ -501,7 +526,7 @@ export function PresetManager<T>({
             <ThemeIcon size="md" radius="md" variant="light" color="red">
               <IconTrash size={16} />
             </ThemeIcon>
-            <Text fw={600}>Excluir Preset</Text>
+            <Text fw={600}>Excluir cenário salvo</Text>
           </Group>
         }
         size="sm"
@@ -510,7 +535,7 @@ export function PresetManager<T>({
       >
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Tem certeza que deseja excluir este preset? Esta ação não pode ser desfeita.
+            Tem certeza que deseja excluir este cenário salvo? Esta ação não pode ser desfeita.
           </Text>
           <Group justify="flex-end" gap="sm">
             <Button variant="default" mih={44} onClick={closeDeleteConfirm}>
@@ -532,7 +557,7 @@ export function PresetManager<T>({
             <ThemeIcon size="md" radius="md" variant="light" color="red">
               <IconTrash size={16} />
             </ThemeIcon>
-            <Text fw={600}>Excluir Todos os Presets</Text>
+            <Text fw={600}>Excluir todos os cenários salvos</Text>
           </Group>
         }
         size="sm"
@@ -541,7 +566,7 @@ export function PresetManager<T>({
       >
         <Stack gap="md">
           <Alert color="red" variant="light" icon={<IconAlertCircle size={16} />}>
-            Esta ação irá excluir todos os {presets.length} presets salvos. Esta ação não pode ser desfeita.
+            Esta ação irá excluir todos os {presets.length} cenários salvos. Esta ação não pode ser desfeita.
           </Alert>
           <Group justify="flex-end" gap="sm">
             <Button variant="default" mih={44} onClick={closeClearConfirm}>
@@ -569,11 +594,11 @@ export function PresetManager<T>({
               <IconBookmarkFilled size={18} />
             </ThemeIcon>
             <Box>
-              <Text fw={600} size="lg">Meus Presets</Text>
+              <Text fw={600} size="lg">Cenários salvos</Text>
               <Text size="xs" c="dimmed">
                 {presets.length === 0
-                  ? 'Nenhum preset salvo'
-                  : `${presets.length} preset${presets.length > 1 ? 's' : ''} salvo${presets.length > 1 ? 's' : ''}`}
+                  ? 'Nenhum cenário salvo'
+                  : `${presets.length} cenário${presets.length > 1 ? 's' : ''} salvo${presets.length > 1 ? 's' : ''}`}
               </Text>
             </Box>
           </Group>
@@ -699,8 +724,10 @@ export function PresetManager<T>({
                   <Badge size="lg" variant={canCompare ? 'filled' : 'light'} color={canCompare ? 'ocean' : 'gray'}>
                     {compareSelection.size} selecionado{compareSelection.size !== 1 ? 's' : ''}
                   </Badge>
-                  <Text size="xs" c="dimmed">
-                    Selecione pelo menos {minCompareSelection} presets
+                  <Text size="xs" c="dimmed" role="status" aria-live="polite">
+                    {compareSelection.size >= maxCompareSelection
+                      ? `Limite de ${maxCompareSelection} cenários atingido`
+                      : `Selecione de ${minCompareSelection} a ${maxCompareSelection} cenários`}
                   </Text>
                 </Group>
                 <Button
@@ -725,10 +752,10 @@ export function PresetManager<T>({
                 <IconBookmark size={30} />
               </ThemeIcon>
               <Text fw={600} size="lg" mb="xs">
-                Nenhum preset salvo
+                Nenhum cenário salvo
               </Text>
               <Text size="sm" c="dimmed" maw={300} mx="auto" mb="md">
-                Salve configurações de simulação para reutilizar depois. Você também pode importar presets de um arquivo.
+                Salve configurações de simulação para reutilizar depois. Você também pode importar cenários de um arquivo.
               </Text>
               <Group justify="center" gap="sm">
                 <Button
@@ -737,10 +764,10 @@ export function PresetManager<T>({
                   leftSection={<IconPlus size={16} />}
                   onClick={() => {
                     close();
-                    openSaveModal();
+                    requestOpenSaveModal();
                   }}
                 >
-                  Salvar preset atual
+                  Salvar cenário atual
                 </Button>
                 <FileButton
                   onChange={handleImport}
@@ -766,10 +793,10 @@ export function PresetManager<T>({
                 <IconTag size={30} />
               </ThemeIcon>
               <Text fw={600} size="lg" mb="xs">
-                Nenhum preset encontrado
+                Nenhum cenário encontrado
               </Text>
               <Text size="sm" c="dimmed" maw={300} mx="auto" mb="md">
-                Nenhum preset corresponde aos filtros selecionados.
+                Nenhum cenário corresponde aos filtros selecionados.
               </Text>
               <Button
                 variant="light"
@@ -875,7 +902,7 @@ export function PresetManager<T>({
                         </Group>
                         {!compareMode && (
                           <Group gap="xs" wrap="nowrap">
-                            <Tooltip label="Carregar preset" withArrow>
+                            <Tooltip label="Carregar cenário" withArrow>
                               <Button
                                 variant="light"
                                 color="ocean"
@@ -963,7 +990,7 @@ export function PresetManager<T>({
               }}
             >
               <Text size="xs" c="dimmed" ta="center">
-                💡 Clique em um preset para selecioná-lo, ou use os botões para carregar diretamente
+                Selecione um cenário salvo ou use “Carregar” para aplicá-lo diretamente.
               </Text>
             </Box>
           )}

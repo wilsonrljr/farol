@@ -18,7 +18,6 @@ from backend.app.api.routers.simulations import (
 )
 from backend.app.core.emergency_fund import plan_emergency_fund
 from backend.app.core.fire import plan_fire
-from backend.app.core.inflation import apply_inflation
 from backend.app.core.stress_test import run_stress_test
 from backend.app.core.vehicles import compare_vehicle_options
 from backend.app.loans import PriceLoanSimulator, SACLoanSimulator
@@ -26,12 +25,13 @@ from backend.app.models import (
     AdditionalCostsInput,
     AmortizationInput,
     ComparisonInput,
-    ContributionInput,
     EmergencyFundPlanInput,
     FGTSInput,
+    FinancedPurchaseAllocationInput,
     FIREPlanInput,
     InvestmentReturnInput,
     InvestmentTaxInput,
+    MonthlyPlanInput,
     StressTestInput,
     VehicleComparisonInput,
     VehicleConsortiumConfig,
@@ -77,34 +77,6 @@ def _random_comparison_input(rng: random.Random) -> ComparisonInput:
     total_savings = down_payment + upfront + rng.uniform(0, property_value * 0.4)
     term_years = rng.randint(1, 5)
 
-    contributions: list[ContributionInput] | None = None
-    if rng.random() < 0.7:
-        contributions = [
-            ContributionInput(
-                month=rng.randint(1, term_years * 12),
-                value=rng.uniform(0, 5_000),
-                interval_months=rng.choice([None, 3, 6, 12]),
-                value_type="fixed",
-                applies_to=["buy", "rent_invest", "invest_buy"],
-            )
-        ]
-
-    amortizations: list[AmortizationInput] | None = None
-    if rng.random() < 0.7:
-        amortization_type = rng.choice(["fixed", "percentage"])
-        amortizations = [
-            AmortizationInput(
-                month=rng.randint(1, term_years * 12),
-                value=(
-                    rng.uniform(0, 100)
-                    if amortization_type == "percentage"
-                    else rng.uniform(0, 20_000)
-                ),
-                value_type=amortization_type,
-                funding_source=rng.choice(["cash", "fgts"]),
-            )
-        ]
-
     inflation = rng.uniform(0, 20)
     return ComparisonInput(
         property_value=property_value,
@@ -120,15 +92,20 @@ def _random_comparison_input(rng: random.Random) -> ComparisonInput:
                 annual_rate=rng.uniform(-30, 80),
             )
         ],
-        amortizations=amortizations,
-        contributions=contributions,
-        continue_contributions_after_purchase=rng.choice([True, False]),
+        monthly_plan=MonthlyPlanInput(
+            net_income=rng.uniform(0, 40_000),
+            non_housing_expenses=rng.uniform(0, 20_000),
+            adjust_for_inflation=rng.choice([True, False]),
+            wealth_allocation_percentage=rng.uniform(0, 100),
+            financed_purchase=FinancedPurchaseAllocationInput(
+                amortization_percentage=rng.uniform(0, 100),
+                amortization_effect=rng.choice(["reduce_term", "reduce_payment"]),
+            ),
+        ),
         additional_costs=costs,
         inflation_rate=inflation,
         rent_inflation_rate=rng.uniform(0, 25),
         property_appreciation_rate=rng.uniform(0, 25),
-        monthly_net_income=rng.uniform(0, 40_000),
-        monthly_net_income_adjust_inflation=rng.choice([True, False]),
         investment_tax=InvestmentTaxInput(
             enabled=rng.choice([True, False]),
             mode=rng.choice(["monthly", "on_withdrawal"]),
@@ -189,19 +166,10 @@ def test_randomized_comparisons_preserve_accounting_and_surface_parity(
             scenario.final_wealth - scenario.initial_wealth
         )
 
-        residual = 0.0
         cumulative_unfunded = 0.0
         cumulative_rent_paid = 0.0
         for row in scenario.monthly_data:
-            income = float(input_data.monthly_net_income or 0.0)
-            if input_data.monthly_net_income_adjust_inflation:
-                income = apply_inflation(
-                    income,
-                    row.month,
-                    1,
-                    input_data.inflation_rate,
-                )
-            available = residual + income
+            available = (row.effective_net_income or 0.0) + (row.extra_income or 0.0)
             required = row.required_cash_outflow or 0.0
             funded = row.funded_from_resources or 0.0
             unfunded = row.unfunded_amount or 0.0
@@ -209,10 +177,14 @@ def test_randomized_comparisons_preserve_accounting_and_surface_parity(
             assert funded >= 0
             assert unfunded >= 0
             assert funded + unfunded == pytest.approx(required)
-            residual = max(0.0, available - required)
             cumulative_unfunded += unfunded
-            assert row.residual_cash_balance == pytest.approx(residual)
+            assert row.residual_cash_balance == pytest.approx(0.0)
             assert row.cumulative_unfunded_amount == pytest.approx(cumulative_unfunded)
+            assert funded == pytest.approx(min(required, available))
+            assert (row.wealth_allocation or 0.0) == pytest.approx(
+                (row.investment_allocation or 0.0)
+                + (row.extra_amortization_allocation or 0.0)
+            )
 
             if row.rent_due is not None:
                 cumulative_rent_paid += row.rent_paid or 0.0
@@ -237,7 +209,7 @@ def test_randomized_comparisons_preserve_accounting_and_surface_parity(
                     (row.principal_base or 0.0) + applied_sources
                 )
 
-        assert scenario.residual_cash_balance == pytest.approx(residual)
+        assert scenario.residual_cash_balance == pytest.approx(0.0)
         assert scenario.total_unfunded_amount == pytest.approx(cumulative_unfunded)
         assert scenario.final_liabilities == pytest.approx(cumulative_unfunded)
         assert scenario.is_feasible is (cumulative_unfunded <= 0.01)

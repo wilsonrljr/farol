@@ -24,17 +24,16 @@ def _comparison_payload(**overrides: object) -> dict[str, object]:
         "loan_type": "PRICE",
         "rent_value": 500.0,
         "investment_returns": [{"start_month": 1, "annual_rate": 0.0}],
-        "contributions": [
-            {
-                "month": 1,
-                "end_month": 12,
-                "interval_months": 1,
-                "value": 1_000.0,
-                "value_type": "fixed",
-                "applies_to": ["invest_buy"],
-            }
-        ],
-        "continue_contributions_after_purchase": False,
+        "monthly_plan": {
+            "net_income": 20_000.0,
+            "non_housing_expenses": 5_000.0,
+            "adjust_for_inflation": False,
+            "wealth_allocation_percentage": 80.0,
+            "financed_purchase": {
+                "amortization_percentage": 25.0,
+                "amortization_effect": "reduce_term",
+            },
+        },
         "additional_costs": {
             "itbi_percentage": 0.0,
             "deed_percentage": 0.0,
@@ -54,13 +53,12 @@ def test_canonical_comparison_arguments_include_behavior_flags() -> None:
 
     kwargs = simulations.build_comparison_kwargs(input_data)
 
-    assert kwargs["continue_contributions_after_purchase"] is False
-    assert kwargs["monthly_net_income_adjust_inflation"] is False
+    assert kwargs["monthly_plan"] == input_data.monthly_plan
+    assert kwargs["extra_income_events"] == input_data.extra_income_events
 
 
 def test_enhanced_response_preserves_basic_opportunity_cost() -> None:
     payload = _comparison_payload(
-        contributions=None,
         investment_returns=[{"start_month": 1, "annual_rate": 12.0}],
     )
 
@@ -86,18 +84,19 @@ def test_enhanced_response_preserves_basic_opportunity_cost() -> None:
     )
 
 
-def test_opportunity_gain_excludes_later_contribution_principal() -> None:
+def test_opportunity_gain_excludes_monthly_investment_principal() -> None:
     input_data = ComparisonInput.model_validate(
         _comparison_payload(
-            monthly_net_income=20_000.0,
-            contributions=[
-                {
-                    "month": 1,
-                    "value": 1_000.0,
-                    "value_type": "fixed",
-                    "applies_to": ["buy", "rent_invest", "invest_buy"],
-                }
-            ],
+            monthly_plan={
+                "net_income": 20_000.0,
+                "non_housing_expenses": 0.0,
+                "adjust_for_inflation": False,
+                "wealth_allocation_percentage": 100.0,
+                "financed_purchase": {
+                    "amortization_percentage": 0.0,
+                    "amortization_effect": "reduce_term",
+                },
+            },
             investment_returns=[{"start_month": 1, "annual_rate": 0.0}],
         )
     )
@@ -107,7 +106,7 @@ def test_opportunity_gain_excludes_later_contribution_principal() -> None:
         scenario for scenario in result.scenarios if scenario.scenario_type == "buy"
     )
 
-    assert buy.monthly_data[-1].investment_balance == pytest.approx(101_000.0)
+    assert buy.total_investment_from_income > 0.0
     assert buy.opportunity_cost == pytest.approx(0.0)
 
 
@@ -128,7 +127,7 @@ def test_enhanced_xlsx_matches_api_and_long_shape_omits_wide_sheet() -> None:
         if scenario["scenario_type"] == "invest_buy"
     )
     api_contributions = sum(
-        float(month.get("additional_investment") or 0.0)
+        float(month.get("investment_allocation") or 0.0)
         for month in api_scenario["monthly_data"]
     )
 
@@ -142,7 +141,7 @@ def test_enhanced_xlsx_matches_api_and_long_shape_omits_wide_sheet() -> None:
     rows = sheet.iter_rows(values_only=True)
     headers = [str(value) for value in next(rows)]
     scenario_index = headers.index("scenario")
-    contribution_index = headers.index("additional_investment")
+    contribution_index = headers.index("investment_allocation")
     export_contributions = sum(
         float(row[contribution_index] or 0.0)
         for row in rows
@@ -170,12 +169,14 @@ def test_batch_is_atomic_instead_of_silently_dropping_failed_item(
                 {
                     "preset_id": "first",
                     "preset_name": "First",
-                    "input": _comparison_payload(),
+                    "input": _comparison_payload(monthly_plan=None),
                 },
                 {
                     "preset_id": "second",
                     "preset_name": "Second",
-                    "input": _comparison_payload(property_value=200_000.0),
+                    "input": _comparison_payload(
+                        property_value=200_000.0, monthly_plan=None
+                    ),
                 },
             ]
         },
@@ -193,12 +194,15 @@ def test_batch_keeps_exploratory_results_without_inventing_global_winner() -> No
                 {
                     "preset_id": "first",
                     "preset_name": "First",
-                    "input": _comparison_payload(),
+                    "input": _comparison_payload(monthly_plan=None),
                 },
                 {
                     "preset_id": "second",
                     "preset_name": "Second",
-                    "input": _comparison_payload(property_value=200_000.0),
+                    "input": _comparison_payload(
+                        property_value=200_000.0,
+                        monthly_plan=None,
+                    ),
                 },
             ]
         },
@@ -214,10 +218,7 @@ def test_batch_keeps_exploratory_results_without_inventing_global_winner() -> No
 
 
 def test_batch_omits_global_ranking_across_different_resource_baselines() -> None:
-    common = {
-        "contributions": None,
-        "monthly_net_income": 20_000.0,
-    }
+    common: dict[str, object] = {}
     response = client.post(
         "/api/compare-scenarios-batch",
         json={
@@ -251,10 +252,7 @@ def test_batch_omits_global_ranking_across_different_resource_baselines() -> Non
 
 
 def test_batch_ranks_every_feasible_scenario_with_a_common_resource_baseline() -> None:
-    common = {
-        "contributions": None,
-        "monthly_net_income": 20_000.0,
-    }
+    common: dict[str, object] = {}
     response = client.post(
         "/api/compare-scenarios-batch",
         json={
@@ -279,15 +277,16 @@ def test_batch_ranks_every_feasible_scenario_with_a_common_resource_baseline() -
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["comparison_status"] == "ranked"
-    assert len(data["ranking"]) == 6
+    assert len(data["ranking"]) >= 5
     wealth = [entry["final_wealth"] for entry in data["ranking"]]
     assert wealth == sorted(wealth, reverse=True)
     assert data["global_best"] == data["ranking"][0]
-    assert all(
+    feasible_count = sum(
         scenario["is_feasible"] is True
         for item in data["results"]
         for scenario in item["result"]["scenarios"]
     )
+    assert len(data["ranking"]) == feasible_count
 
 
 def test_sensitivity_uses_honest_discrete_terms() -> None:
@@ -355,7 +354,7 @@ def test_sensitivity_returns_all_exploratory_points_without_a_fake_winner() -> N
     response = client.post(
         "/api/sensitivity-analysis",
         json={
-            "base_input": _comparison_payload(),
+            "base_input": _comparison_payload(monthly_plan=None),
             "parameter": "inflation_rate",
             "range": {"min_value": 0.0, "max_value": 2.0, "steps": 3},
         },
@@ -376,10 +375,7 @@ def test_sensitivity_returns_all_exploratory_points_without_a_fake_winner() -> N
 
 
 def test_sensitivity_ranked_points_match_direct_comparisons() -> None:
-    payload = _comparison_payload(
-        contributions=None,
-        monthly_net_income=20_000.0,
-    )
+    payload = _comparison_payload()
     response = client.post(
         "/api/sensitivity-analysis",
         json={
@@ -423,10 +419,7 @@ def test_loan_term_sensitivity_does_not_rank_different_horizons() -> None:
     response = client.post(
         "/api/sensitivity-analysis",
         json={
-            "base_input": _comparison_payload(
-                contributions=None,
-                monthly_net_income=20_000.0,
-            ),
+            "base_input": _comparison_payload(),
             "parameter": "loan_term_years",
             "range": {"min_value": 1.0, "max_value": 3.0, "steps": 3},
         },

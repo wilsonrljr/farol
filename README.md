@@ -37,7 +37,7 @@ Para conversar: abra uma discussão, issue ou mande um PR. Ideias e feedback sã
 - Amortizações extraordinárias configuráveis ao longo do tempo.
  - Amortizações extraordinárias avançadas: eventos únicos, recorrentes, valores fixos ou % do saldo, ajuste opcional por inflação.
 - Múltiplas faixas de retorno de investimento (variação temporal).
-- Considera inflação, valorização do imóvel, custos adicionais (ITBI, escritura, condomínio, IPTU).
+- Considera inflação, valorização do imóvel, custos adicionais (ITBI, escritura, condomínio, IPTU, manutenção, seguro e outros recorrentes exclusivos de proprietário/inquilino).
 - Resultados detalhados: fluxo de caixa mensal, patrimônio, saldo investido, equity, valor do imóvel.
 - Comparação com ledger comum de caixa e passivos, validação de viabilidade e status explícito de comparabilidade.
 - Planejamento FIRE em valores reais (dinheiro de hoje), além de reserva de emergência, estresse e veículos.
@@ -172,11 +172,13 @@ docker compose build --no-cache
 
 ## Contrato da comparação
 
-- Informe exatamente uma taxa do financiamento: `annual_interest_rate` **ou** `monthly_interest_rate`.
+- Quando houver principal financiado após entrada + FGTS elegível, informe prazo, sistema e exatamente uma taxa: `annual_interest_rate` **ou** `monthly_interest_rate`. Se a compra não tiver principal financiado, a taxa pode ser omitida e prazo/sistema são opcionais quando `comparison_horizon_years` estiver presente; as duas taxas juntas nunca são aceitas.
 - Informe exatamente uma forma de aluguel: `rent_value` **ou** `rent_percentage`. O percentual é **mensal (% a.m.)**; por exemplo, `0,5` sobre R$ 500.000 resulta em R$ 2.500 no primeiro mês.
-- `total_savings` representa o caixa inicial total e precisa cobrir entrada mais custos upfront. Para um ranking autoritativo também é necessária `monthly_net_income`.
-- A renda alimenta um ledger comum: custos e aportes consomem recursos; sobra vira `residual_cash_balance` sem rendimento; falta vira `total_unfunded_amount`/`final_liabilities`. Um déficit não é convertido em patrimônio.
-- No cenário `invest_buy`, a sobra de orçamento também participa da compra: o alvo considera investimento líquido + caixa acumulado + FGTS elegível, e `cash_reserve_used_for_purchase` registra quanto do caixa foi convertido no imóvel.
+- `comparison_horizon_years` define quando os patrimônios são comparados, independentemente de `loan_term_years`.
+- `total_savings` representa o dinheiro disponível no início e precisa cobrir entrada mais custos upfront. Para um ranking autoritativo também é necessário `monthly_plan`.
+- `monthly_plan` informa salário líquido, gastos fora da moradia, correção pela inflação, percentual da sobra destinado ao patrimônio e, na compra financiada, a divisão entre investir e amortizar.
+- A mesma regra mensal é aplicada às três estratégias. A parte não alocada fica fora da simulação; a falta para gastos obrigatórios vira `total_unfunded_amount`/`final_liabilities` e nunca é convertida em patrimônio.
+- No cenário `invest_buy`, a compra usa investimento líquido + FGTS elegível. Não existe caixa residual implícito.
 - O campo `comparison_status` informa se é válido eleger um vencedor: `comparable`, `exploratory`, `incomparable` ou `no_feasible_scenario`. `best_scenario` e `best_scenario_type` ficam nulos fora de `comparable`.
 - `roi_percentage` e `roi_including_withdrawals_percentage` são atualmente nulos (`N.D.` na interface). Um ROI agregado só será publicado quando houver série de fluxos suficiente para TWR/XIRR.
 - Use `scenario_type` (`buy`, `rent_invest`, `invest_buy`) como identificador estável; os nomes visíveis podem ser traduzidos.
