@@ -7,8 +7,16 @@ contexts (CLI, batch jobs, notebooks).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
+
+ScenarioType = Literal["buy", "rent_invest", "invest_buy"]
+ComparisonStatus = Literal[
+    "comparable",
+    "exploratory",
+    "incomparable",
+    "no_feasible_scenario",
+]
 
 
 @dataclass
@@ -126,6 +134,14 @@ class MonthlyRecord:
     income_surplus_available: float | None = None
     # NEW: effective_income shows the inflation-adjusted income for the month
     effective_income: float | None = None
+    # Canonical resource ledger. Initial allocations are funded from
+    # ``total_savings`` and therefore excluded from ``required_cash_outflow``.
+    required_cash_outflow: float | None = None
+    funded_from_resources: float | None = None
+    residual_cash_balance: float | None = None
+    cash_reserve_used_for_purchase: float | None = None
+    unfunded_amount: float | None = None
+    cumulative_unfunded_amount: float | None = None
     sustainable_withdrawal_ratio: float | None = None
     burn_month: bool | None = None
 
@@ -151,7 +167,7 @@ class MonthlyRecord:
 @dataclass
 class ComparisonScenario:
     name: str
-    scenario_type: Literal["buy", "rent_invest", "invest_buy"] | None
+    scenario_type: ScenarioType
     total_cost: float
     final_equity: float
     monthly_data: list[MonthlyRecord]
@@ -165,6 +181,14 @@ class ComparisonScenario:
     final_wealth: float | None = None
     net_worth_change: float | None = None
     total_consumption: float | None = None
+    # Canonical terminal balance sheet and affordability assessment.
+    final_assets: float | None = None
+    final_liabilities: float | None = None
+    residual_cash_balance: float | None = None
+    is_feasible: bool | None = None
+    first_unfunded_month: int | None = None
+    total_unfunded_amount: float | None = None
+    comparison_warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -172,7 +196,10 @@ class ComparisonMetrics:
     total_cost_difference: float
     total_cost_percentage_difference: float | None
     break_even_month: int | None
-    roi_percentage: float
+    # A comparable money-weighted/time-weighted return requires dated external
+    # flows. Until that contract exists, do not present salary or residual cash
+    # accumulation as investment performance.
+    roi_percentage: float | None
     roi_including_withdrawals_percentage: float | None
     average_monthly_cost: float
     total_interest_or_rent_paid: float
@@ -185,12 +212,14 @@ class ComparisonMetrics:
 @dataclass
 class EnhancedComparisonScenario:
     name: str
+    scenario_type: ScenarioType
     total_cost: float
     final_equity: float
     monthly_data: list[MonthlyRecord]
     metrics: ComparisonMetrics
     total_outflows: float | None = None
     net_cost: float | None = None
+    opportunity_cost: float | None = None
     purchase_breakdown: PurchaseBreakdown | None = None
     fgts_summary: FGTSUsageSummary | None = None
     # New: explicit wealth/consumption semantics (additive, backward-compatible)
@@ -198,16 +227,31 @@ class EnhancedComparisonScenario:
     final_wealth: float | None = None
     net_worth_change: float | None = None
     total_consumption: float | None = None
+    final_assets: float | None = None
+    final_liabilities: float | None = None
+    residual_cash_balance: float | None = None
+    is_feasible: bool | None = None
+    first_unfunded_month: int | None = None
+    total_unfunded_amount: float | None = None
+    comparison_warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ComparisonResult:
-    best_scenario: str
+    best_scenario: str | None
     scenarios: list[ComparisonScenario]
+    best_scenario_type: ScenarioType | None = None
+    comparison_status: ComparisonStatus = "exploratory"
+    calculation_version: str = "2.0"
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
 class EnhancedComparisonResult:
-    best_scenario: str
+    best_scenario: str | None
     scenarios: list[EnhancedComparisonScenario]
     comparative_summary: dict[str, dict[str, object]]
+    best_scenario_type: ScenarioType | None = None
+    comparison_status: ComparisonStatus = "exploratory"
+    calculation_version: str = "2.0"
+    warnings: list[str] = field(default_factory=list)

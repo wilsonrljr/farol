@@ -233,6 +233,16 @@ export function PresetCompareSelector({
                         transition: 'all 150ms ease',
                       }}
                       onClick={() => togglePreset(preset.id)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          togglePreset(preset.id);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={isSelected}
                     >
                       <Group justify="space-between" wrap="nowrap">
                         <Group gap="md" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>

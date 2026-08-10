@@ -1,26 +1,40 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  Alert,
   Box,
   Button,
-  Container,
+  Collapse,
   Group,
   NumberInput,
   Paper,
   SimpleGrid,
-  Stack,
   Switch,
   Text,
-  TextInput,
-  Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { LineChart } from '@mantine/charts';
+import { IconAdjustments, IconCar, IconChartLine } from '@tabler/icons-react';
 import { compareVehicleOptions } from '../api/toolsApi';
-import type { VehicleComparisonInput, VehicleComparisonResult } from '../api/types';
+import type { VehicleComparisonInput } from '../api/types';
 import { money, moneyCompact } from '../utils/format';
-import { loadPresets, newPresetId, savePresets, type Preset } from '../utils/presets';
+import { toApiError } from '../api/client';
+import { usePresets } from '../hooks/usePresets';
+import { useToolSimulation } from '../hooks/useToolSimulation';
+import {
+  firstInputError,
+  isVehicleInput,
+  validateVehicleInput,
+} from '../utils/toolInputs';
+import { MAX_PRESET_NAME_LENGTH } from '../utils/presets';
+import {
+  ToolMetricCard,
+  ToolPageShell,
+  ToolPanel,
+  ToolPresetsPanel,
+  ToolResults,
+} from '../components/ToolPageShell';
 
-type VehiclesPreset = Preset<VehicleComparisonInput>;
 const PRESETS_STORAGE_KEY = 'farol.tools.vehicles.presets.v1';
 
 export default function Vehicles() {
@@ -49,36 +63,58 @@ export default function Vehicles() {
   const [includeSub, setIncludeSub] = useState(false);
   const [subFee, setSubFee] = useState<number>(2500);
 
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<VehicleComparisonResult | null>(null);
-
   const [presetName, setPresetName] = useState('');
-  const [presets, setPresets] = useState<VehiclesPreset[]>(() => loadPresets(PRESETS_STORAGE_KEY));
+  const presetsManager = usePresets<VehicleComparisonInput>({
+    storageKey: PRESETS_STORAGE_KEY,
+    validateInput: isVehicleInput,
+  });
+  const currentInputValue = currentInput();
+  const { result, loading, simulate } = useToolSimulation(
+    currentInputValue,
+    compareVehicleOptions
+  );
+
+  useEffect(() => {
+    if (!presetsManager.storageError) return;
+    notifications.show({
+      color: 'red',
+      title: 'Presets não puderam ser persistidos',
+      message: presetsManager.storageError,
+    });
+  }, [presetsManager.storageError]);
 
   const chartData = useMemo(() => {
-    if (!result) return [];
-    // Plot net position for each scenario
-    const months = Math.max(...result.scenarios.map((s) => s.monthly_data.length));
-    const rows: any[] = [];
-    for (let i = 0; i < months; i++) {
-      const row: any = { month: i + 1 };
-      for (const s of result.scenarios) {
-        row[s.name] = s.monthly_data[i]?.net_position ?? null;
+    if (!result || result.scenarios.length === 0) return [];
+    const months = Math.max(...result.scenarios.map((scenario) => scenario.monthly_data.length));
+    const rows: Array<Record<string, number | null>> = [];
+    for (let index = 0; index < months; index += 1) {
+      const row: Record<string, number | null> = { month: index + 1 };
+      for (const scenario of result.scenarios) {
+        row[scenario.name] = scenario.monthly_data[index]?.net_position ?? null;
       }
       rows.push(row);
     }
     return rows;
   }, [result]);
 
+  const bestScenarioName = useMemo(() => {
+    if (!result || result.scenarios.length === 0) return null;
+    return result.scenarios.reduce((best, scenario) =>
+      scenario.net_cost < best.net_cost ? scenario : best
+    ).name;
+  }, [result]);
+
   async function onSimulate() {
-    setLoading(true);
+    const validationError = firstInputError(validateVehicleInput(currentInputValue));
+    if (validationError) {
+      notifications.show({ color: 'red', title: 'Revise os dados', message: validationError });
+      return;
+    }
     try {
-      const data = await compareVehicleOptions(currentInput());
-      setResult(data);
-    } catch (e: any) {
-      notifications.show({ color: 'red', title: 'Erro ao comparar', message: String(e) });
-    } finally {
-      setLoading(false);
+      await simulate();
+    } catch (caught: unknown) {
+      const error = await toApiError(caught);
+      notifications.show({ color: 'red', title: 'Erro ao comparar', message: error.message });
     }
   }
 
@@ -110,7 +146,9 @@ export default function Vehicles() {
             contemplation_month: consMonth,
           }
         : { enabled: false },
-      subscription: includeSub ? { enabled: true, monthly_fee: subFee } : { enabled: false, monthly_fee: 0 },
+      subscription: includeSub
+        ? { enabled: true, monthly_fee: subFee }
+        : { enabled: false, monthly_fee: 0 },
     };
   }
 
@@ -120,300 +158,384 @@ export default function Vehicles() {
       notifications.show({ color: 'yellow', title: 'Nome obrigatório', message: 'Informe um nome para o preset.' });
       return;
     }
-    const next: VehiclesPreset[] = [
-      { id: newPresetId(), name, createdAt: Date.now(), input: currentInput() },
-      ...presets,
-    ];
-    setPresets(next);
-    savePresets(PRESETS_STORAGE_KEY, next);
+    const validationError = firstInputError(validateVehicleInput(currentInputValue));
+    if (validationError) {
+      notifications.show({ color: 'red', title: 'Preset inválido', message: validationError });
+      return;
+    }
+    if (!presetsManager.addPreset(name, currentInputValue)) return;
     setPresetName('');
     notifications.show({ color: 'green', title: 'Preset salvo', message: `“${name}”` });
   }
 
-  function onLoadPreset(p: VehiclesPreset) {
-    const i = p.input;
-    setVehiclePrice(i.vehicle_price);
-    setHorizonMonths(i.horizon_months ?? 60);
-    setAnnualDep(i.annual_depreciation_rate ?? 12);
-    setAnnualInflation(i.annual_inflation_rate == null ? undefined : i.annual_inflation_rate);
+  function onLoadPreset(preset: (typeof presetsManager.presets)[number]) {
+    const input = preset.input;
+    setVehiclePrice(input.vehicle_price);
+    setHorizonMonths(input.horizon_months ?? 60);
+    setAnnualDep(input.annual_depreciation_rate ?? 12);
+    setAnnualInflation(input.annual_inflation_rate == null ? undefined : input.annual_inflation_rate);
 
-    setMonthlyInsurance(i.monthly_insurance ?? 0);
-    setMonthlyMaintenance(i.monthly_maintenance ?? 0);
-    setMonthlyFuel(i.monthly_fuel ?? 0);
-    setAnnualIpvaPct(i.annual_ipva_percentage ?? 0);
+    setMonthlyInsurance(input.monthly_insurance ?? 0);
+    setMonthlyMaintenance(input.monthly_maintenance ?? 0);
+    setMonthlyFuel(input.monthly_fuel ?? 0);
+    setAnnualIpvaPct(input.annual_ipva_percentage ?? 0);
 
-    setIncludeCash(i.include_cash ?? true);
+    setIncludeCash(input.include_cash ?? true);
 
-    const fin = i.financing;
-    setIncludeFin(!!fin?.enabled);
-    if (fin?.enabled) {
-      setFinDown(fin.down_payment ?? 0);
-      setFinTerm(fin.term_months ?? 48);
-      setFinAnnualRate(fin.annual_interest_rate ?? 0);
+    const financing = input.financing;
+    setIncludeFin(!!financing?.enabled);
+    if (financing?.enabled) {
+      setFinDown(financing.down_payment ?? 0);
+      setFinTerm(financing.term_months ?? 48);
+      setFinAnnualRate(financing.annual_interest_rate ?? 0);
     }
 
-    const cons = i.consortium;
-    setIncludeCons(!!cons?.enabled);
-    if (cons?.enabled) {
-      setConsTerm(cons.term_months ?? 60);
-      setConsFeePct(cons.admin_fee_percentage ?? 18);
-      setConsMonth(cons.contemplation_month ?? 24);
+    const consortium = input.consortium;
+    setIncludeCons(!!consortium?.enabled);
+    if (consortium?.enabled) {
+      setConsTerm(consortium.term_months ?? 60);
+      setConsFeePct(consortium.admin_fee_percentage ?? 18);
+      setConsMonth(consortium.contemplation_month ?? 24);
     }
 
-    const sub = i.subscription;
-    setIncludeSub(!!sub?.enabled);
-    if (sub?.enabled) {
-      setSubFee(sub.monthly_fee);
-    }
+    const subscription = input.subscription;
+    setIncludeSub(!!subscription?.enabled);
+    if (subscription?.enabled) setSubFee(subscription.monthly_fee);
 
-    notifications.show({ color: 'blue', title: 'Preset carregado', message: p.name });
+    notifications.show({ color: 'blue', title: 'Preset carregado', message: preset.name });
   }
 
   function onDeletePreset(id: string) {
-    const next = presets.filter((p) => p.id !== id);
-    setPresets(next);
-    savePresets(PRESETS_STORAGE_KEY, next);
+    presetsManager.removePreset(id);
   }
 
   function onClearPresets() {
-    const next: VehiclesPreset[] = [];
-    setPresets(next);
-    savePresets(PRESETS_STORAGE_KEY, next);
+    if (!presetsManager.clearAllPresets()) return;
     notifications.show({ color: 'green', title: 'Presets removidos', message: 'Todos os presets foram apagados.' });
   }
 
   return (
-    <Container size="lg" py="xl">
-      <Box mb="lg">
-        <Title order={2} fw={700} mb={6}>
-          Veículos
-        </Title>
-        <Text c="dimmed">Compare modalidades (à vista, financiamento, consórcio, assinatura) em um horizonte fixo.</Text>
-      </Box>
-
-      <Box
-        p="xl"
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-          borderRadius: 'var(--mantine-radius-xl)',
-        }}
+    <ToolPageShell
+      title="Comparador de veículos"
+      description="Compare compra à vista, financiamento, consórcio e assinatura considerando custos de uso, depreciação e obrigações ainda abertas no fim do prazo."
+      icon={<IconCar size={24} />}
+    >
+      <ToolPanel
+        title="Configure o veículo e as alternativas"
+        description="Os custos comuns valem para as modalidades de compra. Ative somente as opções que você realmente considera."
       >
-        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+        <Text fw={650} mb="sm">Veículo e período</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
           <NumberInput
             label="Preço do veículo"
+            description="Valor de referência no início da análise"
             value={vehiclePrice}
-            onChange={(v) => setVehiclePrice(Number(v) || 0)}
+            onChange={(value) => setVehiclePrice(Number(value) || 0)}
             min={0}
             thousandSeparator="."
-            decimalSeparator="," 
+            decimalSeparator=","
             prefix="R$ "
           />
-          <NumberInput label="Horizonte (meses)" value={horizonMonths} onChange={(v) => setHorizonMonths(Number(v) || 1)} min={1} max={240} />
-          <NumberInput label="Depreciação anual" value={annualDep} onChange={(v) => setAnnualDep(Number(v) || 0)} min={0} max={100} suffix="% a.a." />
-
-          <NumberInput label="Inflação anual (custos)" value={annualInflation} onChange={(v) => setAnnualInflation(v === '' || v == null ? undefined : Number(v))} step={0.5} suffix="% a.a." />
-          <NumberInput label="Seguro (mês)" value={monthlyInsurance} onChange={(v) => setMonthlyInsurance(Number(v) || 0)} min={0} prefix="R$ " thousandSeparator="." decimalSeparator="," />
-          <NumberInput label="Manutenção (mês)" value={monthlyMaintenance} onChange={(v) => setMonthlyMaintenance(Number(v) || 0)} min={0} prefix="R$ " thousandSeparator="." decimalSeparator="," />
-          <NumberInput label="Combustível (mês)" value={monthlyFuel} onChange={(v) => setMonthlyFuel(Number(v) || 0)} min={0} prefix="R$ " thousandSeparator="." decimalSeparator="," />
-          <NumberInput label="IPVA (anual)" value={annualIpvaPct} onChange={(v) => setAnnualIpvaPct(Number(v) || 0)} min={0} max={50} suffix="%" />
+          <NumberInput
+            label="Horizonte da comparação"
+            description="Prazo comum usado em todas as modalidades"
+            value={horizonMonths}
+            onChange={(value) => setHorizonMonths(Number(value) || 1)}
+            min={1}
+            max={240}
+            suffix=" meses"
+          />
         </SimpleGrid>
 
-        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="lg">
-          <Box
-            p="md"
-            style={{
-              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-              borderRadius: 'var(--mantine-radius-lg)',
-              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>À vista</Text>
-              <Switch checked={includeCash} onChange={(e) => setIncludeCash(e.currentTarget.checked)} />
-            </Group>
-            <Text size="sm" c="dimmed">Compra no mês 1 e assume custos/dep.</Text>
-          </Box>
-
-          <Box
-            p="md"
-            style={{
-              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-              borderRadius: 'var(--mantine-radius-lg)',
-              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>Financiamento</Text>
-              <Switch checked={includeFin} onChange={(e) => setIncludeFin(e.currentTarget.checked)} />
-            </Group>
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-              <NumberInput label="Entrada" value={finDown} onChange={(v) => setFinDown(Number(v) || 0)} min={0} prefix="R$ " thousandSeparator="." decimalSeparator="," />
-              <NumberInput label="Prazo" value={finTerm} onChange={(v) => setFinTerm(Number(v) || 1)} min={1} max={120} />
-              <NumberInput label="Taxa anual" value={finAnnualRate} onChange={(v) => setFinAnnualRate(Number(v) || 0)} min={-100} suffix="% a.a." />
-            </SimpleGrid>
-          </Box>
-
-          <Box
-            p="md"
-            style={{
-              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-              borderRadius: 'var(--mantine-radius-lg)',
-              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>Consórcio</Text>
-              <Switch checked={includeCons} onChange={(e) => setIncludeCons(e.currentTarget.checked)} />
-            </Group>
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-              <NumberInput label="Prazo" value={consTerm} onChange={(v) => setConsTerm(Number(v) || 1)} min={1} max={120} />
-              <NumberInput label="Taxa adm." value={consFeePct} onChange={(v) => setConsFeePct(Number(v) || 0)} min={0} max={200} suffix="%" />
-              <NumberInput label="Contemplação" value={consMonth} onChange={(v) => setConsMonth(Number(v) || 1)} min={1} max={consTerm} />
-            </SimpleGrid>
-          </Box>
-
-          <Box
-            p="md"
-            style={{
-              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-              borderRadius: 'var(--mantine-radius-lg)',
-              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            <Group justify="space-between" mb="xs">
-              <Text fw={600}>Assinatura</Text>
-              <Switch checked={includeSub} onChange={(e) => setIncludeSub(e.currentTarget.checked)} />
-            </Group>
-            <NumberInput label="Mensalidade" value={subFee} onChange={(v) => setSubFee(Number(v) || 0)} min={0} prefix="R$ " thousandSeparator="." decimalSeparator="," />
-          </Box>
+        <Text fw={650} mt="xl" mb="sm">Custos de uso</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
+          <NumberInput
+            label="Seguro mensal"
+            description="Média mensal do seguro"
+            value={monthlyInsurance}
+            onChange={(value) => setMonthlyInsurance(Number(value) || 0)}
+            min={0}
+            prefix="R$ "
+            thousandSeparator="."
+            decimalSeparator=","
+          />
+          <NumberInput
+            label="Manutenção mensal"
+            description="Revisões, pneus e reparos"
+            value={monthlyMaintenance}
+            onChange={(value) => setMonthlyMaintenance(Number(value) || 0)}
+            min={0}
+            prefix="R$ "
+            thousandSeparator="."
+            decimalSeparator=","
+          />
+          <NumberInput
+            label="Combustível mensal"
+            description="Uso estimado por mês"
+            value={monthlyFuel}
+            onChange={(value) => setMonthlyFuel(Number(value) || 0)}
+            min={0}
+            prefix="R$ "
+            thousandSeparator="."
+            decimalSeparator=","
+          />
+          <NumberInput
+            label="IPVA anual"
+            description="Percentual sobre o valor do veículo"
+            value={annualIpvaPct}
+            onChange={(value) => setAnnualIpvaPct(Number(value) || 0)}
+            min={0}
+            max={50}
+            suffix="%"
+          />
         </SimpleGrid>
 
-        <Group justify="flex-end" mt="lg">
-          <Button color="ocean" radius="xl" loading={loading} onClick={onSimulate}>
-            Comparar
+        <Accordion variant="separated" radius="lg" mt="lg">
+          <Accordion.Item value="assumptions">
+            <Accordion.Control icon={<IconAdjustments size={18} />}>
+              <Text fw={650}>Premissas de valor</Text>
+              <Text size="sm" c="dimmed">Depreciação do veículo e inflação dos custos</Text>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+                <NumberInput
+                  label="Depreciação anual"
+                  description="Redução estimada do valor de revenda"
+                  value={annualDep}
+                  onChange={(value) => setAnnualDep(Number(value) || 0)}
+                  min={0}
+                  max={100}
+                  suffix="% a.a."
+                />
+                <NumberInput
+                  label="Inflação anual dos custos"
+                  description="Reajusta seguro, manutenção e combustível"
+                  value={annualInflation}
+                  onChange={(value) => setAnnualInflation(value === '' || value == null ? undefined : Number(value))}
+                  min={-100}
+                  max={1000}
+                  step={0.5}
+                  suffix="% a.a."
+                />
+              </SimpleGrid>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+
+        <Text fw={650} mt="xl" mb="sm">Modalidades comparadas</Text>
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+          <Paper withBorder radius="lg" p="md">
+            <Switch
+              label="Compra à vista"
+              description="Pagamento integral no primeiro mês"
+              checked={includeCash}
+              onChange={(event) => setIncludeCash(event.currentTarget.checked)}
+              size="md"
+              styles={{ body: { minHeight: 44 } }}
+            />
+          </Paper>
+
+          <Paper withBorder radius="lg" p="md">
+            <Switch
+              label="Financiamento"
+              description="Entrada e parcelas pelo sistema PRICE"
+              checked={includeFin}
+              onChange={(event) => setIncludeFin(event.currentTarget.checked)}
+              size="md"
+              styles={{ body: { minHeight: 44 } }}
+            />
+            <Collapse in={includeFin}>
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" mt="md">
+                <NumberInput
+                  label="Entrada"
+                  value={finDown}
+                  onChange={(value) => setFinDown(Number(value) || 0)}
+                  min={0}
+                  max={vehiclePrice}
+                  prefix="R$ "
+                  thousandSeparator="."
+                  decimalSeparator=","
+                />
+                <NumberInput
+                  label="Prazo"
+                  value={finTerm}
+                  onChange={(value) => setFinTerm(Number(value) || 1)}
+                  min={1}
+                  max={120}
+                  suffix=" meses"
+                />
+                <NumberInput
+                  label="Juros anuais"
+                  value={finAnnualRate}
+                  onChange={(value) => setFinAnnualRate(Number(value) || 0)}
+                  min={0}
+                  max={1000}
+                  suffix="% a.a."
+                />
+              </SimpleGrid>
+            </Collapse>
+          </Paper>
+
+          <Paper withBorder radius="lg" p="md">
+            <Switch
+              label="Consórcio"
+              description="Parcelas, taxa administrativa e contemplação estimada"
+              checked={includeCons}
+              onChange={(event) => setIncludeCons(event.currentTarget.checked)}
+              size="md"
+              styles={{ body: { minHeight: 44 } }}
+            />
+            <Collapse in={includeCons}>
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" mt="md">
+                <NumberInput
+                  label="Prazo"
+                  value={consTerm}
+                  onChange={(value) => setConsTerm(Number(value) || 1)}
+                  min={1}
+                  max={120}
+                  suffix=" meses"
+                />
+                <NumberInput
+                  label="Taxa administrativa"
+                  value={consFeePct}
+                  onChange={(value) => setConsFeePct(Number(value) || 0)}
+                  min={0}
+                  max={200}
+                  suffix="%"
+                />
+                <NumberInput
+                  label="Mês da contemplação"
+                  value={consMonth}
+                  onChange={(value) => setConsMonth(Number(value) || 1)}
+                  min={1}
+                  max={consTerm}
+                />
+              </SimpleGrid>
+            </Collapse>
+          </Paper>
+
+          <Paper withBorder radius="lg" p="md">
+            <Switch
+              label="Assinatura"
+              description="Mensalidade com seguro, manutenção e tributos incluídos"
+              checked={includeSub}
+              onChange={(event) => setIncludeSub(event.currentTarget.checked)}
+              size="md"
+              styles={{ body: { minHeight: 44 } }}
+            />
+            <Collapse in={includeSub}>
+              <NumberInput
+                label="Mensalidade"
+                description="O combustível é somado à mensalidade"
+                value={subFee}
+                onChange={(value) => setSubFee(Number(value) || 0)}
+                min={0}
+                prefix="R$ "
+                thousandSeparator="."
+                decimalSeparator=","
+                mt="md"
+              />
+            </Collapse>
+          </Paper>
+        </SimpleGrid>
+
+        <Group justify="flex-end" mt="xl">
+          <Button
+            color="ocean"
+            size="md"
+            mih={44}
+            w={{ base: '100%', sm: 'auto' }}
+            loading={loading}
+            onClick={onSimulate}
+            leftSection={<IconChartLine size={18} />}
+          >
+            Comparar modalidades
           </Button>
         </Group>
+      </ToolPanel>
 
-        <Box mt="lg">
-          <Text fw={600} mb="xs">Presets</Text>
-          <Group align="flex-end" wrap="wrap">
-            <TextInput
-              label="Nome do preset"
-              placeholder="Ex.: Carro 80k (fin 48m, 22% a.a.)"
-              value={presetName}
-              onChange={(e) => setPresetName(e.currentTarget.value)}
-              style={{ flex: 1, minWidth: 260 }}
-            />
-            <Button variant="light" color="ocean" radius="xl" onClick={onSavePreset}>
-              Salvar preset
-            </Button>
-            <Button
-              variant="subtle"
-              color="red"
-              radius="xl"
-              disabled={presets.length === 0}
-              onClick={onClearPresets}
-            >
-              Limpar todos
-            </Button>
-          </Group>
-
-          {presets.length > 0 && (
-            <Stack gap="xs" mt="sm">
-              {presets.map((p) => (
-                <Box
-                  key={p.id}
-                  p="sm"
-                  style={{
-                    background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-                    borderRadius: 'var(--mantine-radius-lg)',
-                    boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-                  }}
-                >
-                  <Group justify="space-between" wrap="wrap">
-                    <Box>
-                      <Text fw={600}>{p.name}</Text>
-                      <Text size="xs" c="dimmed">
-                        Preço: {money(p.input.vehicle_price)} · Horizonte: {p.input.horizon_months ?? 60} meses
-                      </Text>
-                    </Box>
-                    <Group gap="xs">
-                      <Button size="xs" radius="xl" variant="light" color="ocean" onClick={() => onLoadPreset(p)}>
-                        Carregar
-                      </Button>
-                      <Button size="xs" radius="xl" variant="subtle" color="red" onClick={() => onDeletePreset(p.id)}>
-                        Excluir
-                      </Button>
-                    </Group>
-                  </Group>
-                </Box>
-              ))}
-            </Stack>
-          )}
-        </Box>
-      </Box>
+      <ToolPresetsPanel
+        presets={presetsManager.presets}
+        name={presetName}
+        onNameChange={setPresetName}
+        onSave={onSavePreset}
+        onLoad={onLoadPreset}
+        onDelete={onDeletePreset}
+        onClear={onClearPresets}
+        placeholder="Ex.: Hatch de R$ 80 mil"
+        maxNameLength={MAX_PRESET_NAME_LENGTH}
+        renderSummary={(preset) => (
+          <>
+            Preço: {money(preset.input.vehicle_price)} · Horizonte:{' '}
+            {preset.input.horizon_months ?? 60} meses
+          </>
+        )}
+      />
 
       {result && (
-        <Box mt="xl">
-          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mb="lg">
-            {result.scenarios.map((s) => (
-              <Box
-                key={s.name}
-                p="lg"
-                style={{
-                  background: 'var(--glass-bg)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                  borderRadius: 'var(--mantine-radius-xl)',
-                }}
-              >
-                <Text size="sm" c="dimmed">{s.name}</Text>
-                <Text fw={700} size="lg">Custo líquido</Text>
-                <Text fw={700} size="xl">{money(s.net_cost)}</Text>
-                <Text size="sm" c="dimmed" mt={6}>
-                  Saídas: {money(s.total_outflows)} · Ativo final: {money(s.final_asset_value)}
-                </Text>
-              </Box>
-            ))}
+        <ToolResults
+          title="Compare o custo econômico completo"
+          description="Menor custo líquido não significa necessariamente a melhor escolha pessoal, mas mostra o efeito financeiro de cada modalidade no mesmo horizonte."
+        >
+          {bestScenarioName && (
+            <Alert color="teal" variant="light">
+              <Text fw={650}>{bestScenarioName} apresenta o menor custo líquido nesta simulação.</Text>
+              <Text size="sm" mt={3}>
+                Considere também liquidez, previsibilidade, risco de crédito e sua necessidade de uso imediato.
+              </Text>
+            </Alert>
+          )}
+
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+            {result.scenarios.map((scenario) => {
+              const isBest = scenario.name === bestScenarioName;
+              return (
+                <ToolMetricCard
+                  key={scenario.name}
+                  label={`${scenario.name}${isBest ? ' · menor custo' : ''}`}
+                  value={money(scenario.net_cost)}
+                  tone={isBest ? 'positive' : 'default'}
+                  detail={
+                    <>
+                      Saídas: {money(scenario.total_outflows)} · Ativo final:{' '}
+                      {money(scenario.final_asset_value)} · Saldo devedor:{' '}
+                      {money(scenario.final_outstanding_liability ?? 0)}
+                    </>
+                  }
+                />
+              );
+            })}
           </SimpleGrid>
 
-          <Box
-            p="xl"
-            style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-              borderRadius: 'var(--mantine-radius-xl)',
-            }}
-          >
-            <Text fw={600} size="lg" mb="sm">Posição líquida ao longo do tempo</Text>
-            <LineChart
-              h={340}
-              data={chartData}
-              dataKey="month"
-              series={result.scenarios.map((s, i) => ({
-                name: s.name,
-                color: ['ocean.6', 'teal.5', 'violet.5', 'rose.5'][i % 4],
-              }))}
-              curveType="monotone"
-              gridAxis="xy"
-              withLegend
-              valueFormatter={(value) => money(value)}
-              xAxisProps={{ tickMargin: 10 }}
-              yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
-              tooltipAnimationDuration={150}
-            />
-            <Text size="xs" c="dimmed" mt="sm">
-              Posição líquida = valor do ativo − saídas acumuladas (simplificado).
+          <Paper withBorder radius="xl" p={{ base: 'md', sm: 'xl' }}>
+            <Text fw={650} size="lg">Posição líquida ao longo do tempo</Text>
+            <Text size="sm" c="dimmed" mt={4} mb="lg">
+              Valor do ativo menos saldo devedor e saídas acumuladas. Quanto mais alta a linha, melhor a posição líquida naquele mês.
             </Text>
-          </Box>
-        </Box>
+            <Box role="img" aria-label="Gráfico da posição líquida das modalidades de veículo">
+              <LineChart
+                h={340}
+                data={chartData}
+                dataKey="month"
+                series={result.scenarios.map((scenario, index) => ({
+                  name: scenario.name,
+                  color: ['ocean.6', 'teal.5', 'violet.5', 'rose.5'][index % 4],
+                }))}
+                curveType="monotone"
+                gridAxis="xy"
+                withLegend
+                valueFormatter={(value) => money(value)}
+                xAxisProps={{ tickMargin: 10 }}
+                yAxisProps={{ tickMargin: 10, tickFormatter: (value) => moneyCompact(value as number) }}
+                tooltipAnimationDuration={150}
+              />
+            </Box>
+            <Text size="xs" c="dimmed" mt="sm">
+              O custo líquido final incorpora obrigações ainda não quitadas; por isso, prazos maiores que o horizonte não desaparecem da comparação.
+            </Text>
+          </Paper>
+        </ToolResults>
       )}
-    </Container>
+    </ToolPageShell>
   );
 }

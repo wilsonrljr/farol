@@ -19,9 +19,48 @@ def test_emergency_fund_reaches_goal_with_contributions() -> None:
     )
 
     assert result.achieved_at_month == 6
-    assert result.months_to_goal == 5
+    assert result.months_to_goal == 6
     assert result.monthly_data[5].achieved is True
     assert result.monthly_data[5].emergency_fund_balance == 6000.0
+    assert all(m.contribution == 0.0 for m in result.monthly_data[6:])
+
+
+def test_emergency_fund_already_at_goal_does_not_keep_contributing() -> None:
+    result = plan_emergency_fund(
+        EmergencyFundPlanInput(
+            monthly_expenses=1000.0,
+            initial_emergency_fund=7000.0,
+            target_months_of_expenses=6,
+            monthly_contribution=1000.0,
+            horizon_months=3,
+            annual_inflation_rate=0.0,
+            annual_emergency_fund_yield_rate=0.0,
+        )
+    )
+
+    assert result.achieved_at_month == 1
+    assert result.months_to_goal == 0
+    assert result.final_emergency_fund_balance == 7000.0
+    assert all(m.contribution == 0.0 for m in result.monthly_data)
+
+
+def test_emergency_fund_contributes_only_enough_to_maintain_inflated_goal() -> None:
+    result = plan_emergency_fund(
+        EmergencyFundPlanInput(
+            monthly_expenses=1000.0,
+            initial_emergency_fund=6000.0,
+            target_months_of_expenses=6,
+            monthly_contribution=1000.0,
+            horizon_months=13,
+            annual_inflation_rate=12.0,
+            annual_emergency_fund_yield_rate=0.0,
+        )
+    )
+
+    assert all(m.contribution == 0.0 for m in result.monthly_data[:12])
+    assert result.monthly_data[12].target_amount == pytest.approx(6720.0)
+    assert result.monthly_data[12].contribution == pytest.approx(720.0)
+    assert result.final_emergency_fund_balance == pytest.approx(6720.0)
 
 
 def test_emergency_fund_target_increases_with_inflation() -> None:

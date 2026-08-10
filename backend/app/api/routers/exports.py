@@ -8,13 +8,14 @@ import pandas as pd  # type: ignore[import-untyped]
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from ..input_normalization import resolve_monthly_interest_rate, resolve_rent_value
 from ...finance import (
     simulate_price_loan,
     simulate_sac_loan,
 )
 from ...models import ComparisonInput, LoanSimulationInput
-from ...scenarios.comparison import compare_scenarios, enhanced_compare_scenarios
+from ..errors import PublicInputError
+from ..input_normalization import resolve_monthly_interest_rate
+from .simulations import run_basic_comparison, run_enhanced_comparison
 
 router = APIRouter(tags=["exports"])
 
@@ -78,7 +79,7 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
         "rent_shortfall": {
             "label": "Falta de aluguel",
             "unit": "R$",
-            "description": "Parte do aluguel não coberta por fontes modeladas (assume-se coberta por caixa/crédito externo).",
+            "description": "Parte do aluguel não coberta pelos recursos modelados; em comparação auditável, acumula como passivo.",
         },
         "monthly_hoa": {
             "label": "Condomínio",
@@ -111,19 +112,59 @@ def _columns_dictionary(columns: list[str]) -> pd.DataFrame:
             "description": "Parte do total de moradia não coberta por fontes modeladas.",
         },
         "external_cover": {
-            "label": "Cobertura externa",
+            "label": "Cobertura pelo orçamento (legado)",
             "unit": "R$",
-            "description": "Parte da moradia coberta por renda externa (ex.: renda líquida mensal).",
+            "description": "Alias legado da parcela da moradia coberta pelo orçamento mensal informado.",
         },
         "external_surplus_invested": {
-            "label": "Sobra externa investida",
+            "label": "Sobra externa investida (legado)",
             "unit": "R$",
-            "description": "Excedente de renda externa investido no mês.",
+            "description": "Campo legado, sem preenchimento nos contratos atuais. A sobra do orçamento permanece em caixa sem rendimento e é exposta em residual_cash_balance.",
         },
         "additional_investment": {
             "label": "Investimento adicional",
             "unit": "R$",
-            "description": "Aporte total investido no mês além do saldo inicial (ex.: aportes programados e sobras investidas).",
+            "description": "Aporte explicitamente configurado e investido no mês além do saldo inicial; a sobra do orçamento não é investida automaticamente.",
+        },
+        "effective_income": {
+            "label": "Orçamento efetivo",
+            "unit": "R$",
+            "description": "Orçamento mensal disponível no mês, corrigido pela inflação somente quando configurado.",
+        },
+        "income_surplus_available": {
+            "label": "Sobra do orçamento no mês",
+            "unit": "R$",
+            "description": "Orçamento do mês menos moradia; é informação de capacidade, não aporte automático.",
+        },
+        "required_cash_outflow": {
+            "label": "Recursos necessários",
+            "unit": "R$",
+            "description": "Moradia, aportes explícitos e eventual caixa aplicado na compra que precisam ser financiados no mês.",
+        },
+        "funded_from_resources": {
+            "label": "Financiado pelos recursos",
+            "unit": "R$",
+            "description": "Parcela da necessidade mensal coberta pelo orçamento e pelo caixa residual acumulado.",
+        },
+        "residual_cash_balance": {
+            "label": "Caixa residual",
+            "unit": "R$",
+            "description": "Sobra acumulada dos recursos modelados, mantida sem rendimento.",
+        },
+        "cash_reserve_used_for_purchase": {
+            "label": "Caixa usado na compra à vista",
+            "unit": "R$",
+            "description": "Parcela da reserva de caixa sem rendimento consumida no evento de compra à vista.",
+        },
+        "unfunded_amount": {
+            "label": "Déficit do mês",
+            "unit": "R$",
+            "description": "Necessidade do mês que não foi coberta pelos recursos modelados.",
+        },
+        "cumulative_unfunded_amount": {
+            "label": "Déficit acumulado",
+            "unit": "R$",
+            "description": "Soma dos déficits mensais, reconhecida como passivo na comparação.",
         },
         "investment_balance": {
             "label": "Saldo investido",
@@ -280,7 +321,7 @@ def export_simulate_loan(
         monthly_interest_rate=input_data.monthly_interest_rate,
     )
     term_months = input_data.loan_term_years * 12
-    amortizations = cast(Any, input_data.amortizations)
+    amortizations = cast("Any", input_data.amortizations)
 
     if input_data.loan_type == "SAC":
         result = simulate_sac_loan(
@@ -331,40 +372,7 @@ def export_compare_scenarios(
     shape: str = Query("long", pattern="^(long|wide)$"),
 ) -> StreamingResponse:
     """Export basic scenario comparison."""
-    monthly_rate = resolve_monthly_interest_rate(
-        annual_interest_rate=input_data.annual_interest_rate,
-        monthly_interest_rate=input_data.monthly_interest_rate,
-    )
-
-    rent_value = resolve_rent_value(
-        property_value=input_data.property_value,
-        rent_value=input_data.rent_value,
-        rent_percentage=input_data.rent_percentage,
-    )
-
-    amortizations = cast(Any, input_data.amortizations)
-    contributions = cast(Any, input_data.contributions)
-    investment_tax = cast(Any, input_data.investment_tax)
-    result = compare_scenarios(
-        property_value=input_data.property_value,
-        down_payment=input_data.down_payment,
-        loan_term_years=input_data.loan_term_years,
-        monthly_interest_rate=monthly_rate,
-        loan_type=input_data.loan_type,
-        rent_value=rent_value,
-        investment_returns=input_data.investment_returns,
-        amortizations=amortizations,
-        contributions=contributions,
-        additional_costs=input_data.additional_costs,
-        inflation_rate=input_data.inflation_rate,
-        rent_inflation_rate=input_data.rent_inflation_rate,
-        property_appreciation_rate=input_data.property_appreciation_rate,
-        monthly_net_income=input_data.monthly_net_income,
-        monthly_net_income_adjust_inflation=input_data.monthly_net_income_adjust_inflation,
-        investment_tax=investment_tax,
-        fgts=input_data.fgts,
-        total_savings=input_data.total_savings,
-    )
+    result = run_basic_comparison(input_data)
 
     long_rows: list[dict] = []
     for sc in result.scenarios:
@@ -374,7 +382,7 @@ def export_compare_scenarios(
             long_rows.append(row)
 
     if not long_rows:
-        raise ValueError("No data to export")
+        raise PublicInputError("No data to export")
 
     monthly_long = pd.DataFrame(long_rows)
 
@@ -382,10 +390,29 @@ def export_compare_scenarios(
         [
             {
                 "scenario": sc.name,
+                "scenario_type": sc.scenario_type,
+                "comparison_status": result.comparison_status,
+                "best_scenario": result.best_scenario,
+                "best_scenario_type": result.best_scenario_type,
+                "calculation_version": result.calculation_version,
+                "warnings": json.dumps(result.warnings, ensure_ascii=False),
+                "comparison_warnings": json.dumps(
+                    sc.comparison_warnings, ensure_ascii=False
+                ),
                 "total_cost": sc.total_cost,
                 "final_equity": sc.final_equity,
-                "total_outflows": getattr(sc, "total_outflows", None),
-                "net_cost": getattr(sc, "net_cost", None),
+                "initial_wealth": sc.initial_wealth,
+                "final_wealth": sc.final_wealth,
+                "net_worth_change": sc.net_worth_change,
+                "final_assets": sc.final_assets,
+                "final_liabilities": sc.final_liabilities,
+                "residual_cash_balance": sc.residual_cash_balance,
+                "is_feasible": sc.is_feasible,
+                "first_unfunded_month": sc.first_unfunded_month,
+                "total_unfunded_amount": sc.total_unfunded_amount,
+                "total_outflows": sc.total_outflows,
+                "net_cost": sc.net_cost,
+                "opportunity_cost": sc.opportunity_cost,
             }
             for sc in result.scenarios
         ]
@@ -442,16 +469,12 @@ def export_compare_scenarios(
             writer, index=False, sheet_name="columns"
         )
         monthly_long.to_excel(writer, index=False, sheet_name="monthly_long")
-        if wide is not None:
+        if shape == "wide" and wide is not None:
             wide.to_excel(writer, index=False, sheet_name="monthly_wide")
 
-        used_sheet_names = {
-            "input",
-            "summary",
-            "columns",
-            "monthly_long",
-            "monthly_wide",
-        }
+        used_sheet_names = {"input", "summary", "columns", "monthly_long"}
+        if shape == "wide" and wide is not None:
+            used_sheet_names.add("monthly_wide")
         for sc in result.scenarios:
             df_sc = pd.DataFrame([m.model_dump() for m in sc.monthly_data])
             base = sc.name.strip() or "scenario"
@@ -490,46 +513,7 @@ def export_compare_scenarios_enhanced(
     shape: str = Query("long", pattern="^(long|wide)$"),
 ) -> StreamingResponse:
     """Export enhanced scenario comparison (metrics + monthly data)."""
-    monthly_rate = resolve_monthly_interest_rate(
-        annual_interest_rate=input_data.annual_interest_rate,
-        monthly_interest_rate=input_data.monthly_interest_rate,
-    )
-
-    rent_value = resolve_rent_value(
-        property_value=input_data.property_value,
-        rent_value=input_data.rent_value,
-        rent_percentage=input_data.rent_percentage,
-    )
-
-    amortizations = cast(Any, input_data.amortizations)
-    contributions = cast(Any, input_data.contributions)
-    investment_tax = cast(Any, input_data.investment_tax)
-    extra_kwargs = cast(
-        Any,
-        {
-            "monthly_net_income_adjust_inflation": input_data.monthly_net_income_adjust_inflation,
-        },
-    )
-    result = enhanced_compare_scenarios(
-        property_value=input_data.property_value,
-        down_payment=input_data.down_payment,
-        loan_term_years=input_data.loan_term_years,
-        monthly_interest_rate=monthly_rate,
-        loan_type=input_data.loan_type,
-        rent_value=rent_value,
-        investment_returns=input_data.investment_returns,
-        amortizations=amortizations,
-        contributions=contributions,
-        additional_costs=input_data.additional_costs,
-        inflation_rate=input_data.inflation_rate,
-        rent_inflation_rate=input_data.rent_inflation_rate,
-        property_appreciation_rate=input_data.property_appreciation_rate,
-        monthly_net_income=input_data.monthly_net_income,
-        investment_tax=investment_tax,
-        fgts=input_data.fgts,
-        total_savings=input_data.total_savings,
-        **extra_kwargs,
-    )
+    result = run_enhanced_comparison(input_data)
 
     long_rows: list[dict] = []
     for sc in result.scenarios:
@@ -544,8 +528,30 @@ def export_compare_scenarios_enhanced(
         [
             {
                 "scenario": sc.name,
+                "scenario_type": sc.scenario_type,
+                "comparison_status": result.comparison_status,
+                "best_scenario": result.best_scenario,
+                "best_scenario_type": result.best_scenario_type,
+                "calculation_version": result.calculation_version,
+                "warnings": json.dumps(result.warnings, ensure_ascii=False),
+                "comparison_warnings": json.dumps(
+                    sc.comparison_warnings, ensure_ascii=False
+                ),
+                "is_feasible": sc.is_feasible,
+                "first_unfunded_month": sc.first_unfunded_month,
+                "total_unfunded_amount": sc.total_unfunded_amount,
+                "initial_wealth": sc.initial_wealth,
+                "final_wealth": sc.final_wealth,
+                "net_worth_change": sc.net_worth_change,
+                "final_assets": sc.final_assets,
+                "final_liabilities": sc.final_liabilities,
+                "residual_cash_balance": sc.residual_cash_balance,
                 "total_cost": sc.total_cost,
                 "final_equity": sc.final_equity,
+                "total_consumption": sc.total_consumption,
+                "total_outflows": sc.total_outflows,
+                "net_cost": sc.net_cost,
+                "opportunity_cost": sc.opportunity_cost,
                 "total_cost_difference": sc.metrics.total_cost_difference,
                 "total_cost_percentage_difference": sc.metrics.total_cost_percentage_difference,
                 "break_even_month": sc.metrics.break_even_month,
@@ -622,7 +628,7 @@ def export_compare_scenarios_enhanced(
         )
         metrics_df.to_excel(writer, index=False, sheet_name="metrics")
         monthly_long.to_excel(writer, index=False, sheet_name="monthly_long")
-        if wide is not None:
+        if shape == "wide" and wide is not None:
             wide.to_excel(writer, index=False, sheet_name="monthly_wide")
 
         comp: dict[str, dict[str, object]] = dict(result.comparative_summary)
@@ -654,9 +660,10 @@ def export_compare_scenarios_enhanced(
             "columns",
             "metrics",
             "monthly_long",
-            "monthly_wide",
             "comparative_summary",
         } | set(writer.book.sheetnames)
+        if shape == "wide" and wide is not None:
+            used_sheet_names.add("monthly_wide")
 
         for sc in result.scenarios:
             df_sc = pd.DataFrame([m.model_dump() for m in sc.monthly_data])

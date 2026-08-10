@@ -2,14 +2,14 @@
 
 Centralizes cross-field input logic so routers stay thin and consistent.
 
-We intentionally raise ValueError for business-rule validation; the API layer
-maps ValueError -> HTTP 400 with a simple {detail: "..."} payload.
-This keeps frontend error handling ergonomic.
+We intentionally raise PublicInputError for business-rule validation; unexpected
+ValueError instances remain private server errors.
 """
 
 from __future__ import annotations
 
 from ..core.rates import convert_interest_rate
+from .errors import PublicInputError
 
 
 def resolve_monthly_interest_rate(
@@ -19,17 +19,26 @@ def resolve_monthly_interest_rate(
 ) -> float:
     """Resolve monthly interest rate in percentage.
 
-    Accepts either annual or monthly (or both). At least one must be provided.
+    Exactly one representation must be provided so contradictory rates cannot
+    be silently accepted.
     """
-    if annual_interest_rate is None and monthly_interest_rate is None:
-        raise ValueError(
-            "Either annual_interest_rate or monthly_interest_rate must be provided"
+    provided = sum(
+        value is not None for value in (annual_interest_rate, monthly_interest_rate)
+    )
+    if provided != 1:
+        raise PublicInputError(
+            "Provide exactly one of annual_interest_rate or monthly_interest_rate"
         )
 
-    _, monthly_rate = convert_interest_rate(annual_interest_rate, monthly_interest_rate)
+    try:
+        _, monthly_rate = convert_interest_rate(
+            annual_interest_rate, monthly_interest_rate
+        )
+    except ValueError as exc:
+        raise PublicInputError("Invalid interest rate configuration") from exc
     if monthly_rate is None:
         # Defensive: convert_interest_rate should always return a monthly rate
-        raise ValueError("Unable to resolve monthly interest rate")
+        raise PublicInputError("Unable to resolve monthly interest rate")
 
     return float(monthly_rate)
 
@@ -42,12 +51,17 @@ def resolve_rent_value(
 ) -> float:
     """Resolve rent_value from either explicit value or percentage.
 
-    If both are provided, rent_value takes precedence.
+    ``rent_percentage`` is a monthly percentage, matching the form label and
+    Brazilian rental-market convention used throughout the product.
     """
+    provided = sum(value is not None for value in (rent_value, rent_percentage))
+    if provided != 1:
+        raise PublicInputError("Provide exactly one of rent_value or rent_percentage")
+
     if rent_value is not None:
         return float(rent_value)
 
     if rent_percentage is not None:
-        return float(property_value) * (float(rent_percentage) / 100.0) / 12.0
+        return float(property_value) * (float(rent_percentage) / 100.0)
 
-    raise ValueError("Either rent_value or rent_percentage must be provided")
+    raise PublicInputError("Provide exactly one of rent_value or rent_percentage")

@@ -1,6 +1,8 @@
 import csv
+import json
 from io import StringIO
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
@@ -8,13 +10,13 @@ from backend.app.main import app
 client = TestClient(app)
 
 
-def _parse_summary_section(csv_export_text: str) -> list[dict[str, str]]:
+def _parse_section(csv_export_text: str, marker: str) -> list[dict[str, str]]:
     lines = csv_export_text.splitlines()
 
     try:
-        start = lines.index("# --- summary ---") + 1
+        start = lines.index(marker) + 1
     except ValueError as exc:  # pragma: no cover
-        raise AssertionError("Missing summary section marker") from exc
+        raise AssertionError(f"Missing section marker: {marker}") from exc
 
     end = len(lines)
     for i in range(start, len(lines)):
@@ -27,6 +29,10 @@ def _parse_summary_section(csv_export_text: str) -> list[dict[str, str]]:
     ]
     reader = csv.DictReader(StringIO("\n".join(summary_lines)))
     return list(reader)
+
+
+def _parse_summary_section(csv_export_text: str) -> list[dict[str, str]]:
+    return _parse_section(csv_export_text, "# --- summary ---")
 
 
 def test_export_compare_scenarios_parity_with_total_savings_initial_investment():
@@ -48,8 +54,6 @@ def test_export_compare_scenarios_parity_with_total_savings_initial_investment()
         },
         "inflation_rate": 0.0,
         "rent_inflation_rate": 0.0,
-        "rent_reduces_investment": False,
-        "invest_external_surplus": False,
     }
 
     r_api = client.post("/api/compare-scenarios", json=payload)
@@ -78,3 +82,70 @@ def test_export_compare_scenarios_parity_with_total_savings_initial_investment()
 
     assert abs(export_outflows - float(rent_api["total_outflows"])) < 1e-6
     assert abs(export_net_cost - float(rent_api["net_cost"])) < 1e-6
+
+
+@pytest.mark.parametrize(
+    ("api_path", "export_path", "section_marker"),
+    [
+        (
+            "/api/compare-scenarios",
+            "/api/compare-scenarios/export?format=csv&shape=long",
+            "# --- summary ---",
+        ),
+        (
+            "/api/compare-scenarios-enhanced",
+            "/api/compare-scenarios-enhanced/export?format=csv&shape=long",
+            "# --- metrics ---",
+        ),
+    ],
+)
+def test_exports_preserve_version_balance_sheet_and_scenario_warnings(
+    api_path: str,
+    export_path: str,
+    section_marker: str,
+) -> None:
+    payload = {
+        "property_value": 500_000.0,
+        "down_payment": 100_000.0,
+        "total_savings": 115_000.0,
+        "loan_term_years": 30,
+        "annual_interest_rate": 10.0,
+        "loan_type": "PRICE",
+        "rent_value": 2_000.0,
+        "investment_returns": [{"start_month": 1, "annual_rate": 8.0}],
+        "additional_costs": {
+            "itbi_percentage": 2.0,
+            "deed_percentage": 1.0,
+            "monthly_hoa": 0.0,
+            "monthly_property_tax": 0.0,
+        },
+        "inflation_rate": 0.0,
+        "rent_inflation_rate": 0.0,
+        "property_appreciation_rate": 0.0,
+        "monthly_net_income": 3_000.0,
+    }
+
+    api_response = client.post(api_path, json=payload)
+    export_response = client.post(export_path, json=payload)
+
+    assert api_response.status_code == 200, api_response.text
+    assert export_response.status_code == 200, export_response.text
+    api_result = api_response.json()
+    api_buy = next(
+        scenario
+        for scenario in api_result["scenarios"]
+        if scenario["scenario_type"] == "buy"
+    )
+    assert api_buy["is_feasible"] is False
+    assert api_buy["comparison_warnings"]
+
+    rows = _parse_section(export_response.text, section_marker)
+    export_buy = next(row for row in rows if row["scenario_type"] == "buy")
+
+    assert export_buy["calculation_version"] == api_result["calculation_version"]
+    assert json.loads(export_buy["warnings"]) == api_result["warnings"]
+    assert (
+        json.loads(export_buy["comparison_warnings"]) == api_buy["comparison_warnings"]
+    )
+    for field in ("final_assets", "final_liabilities", "residual_cash_balance"):
+        assert float(export_buy[field]) == pytest.approx(api_buy[field])

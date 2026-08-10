@@ -1,575 +1,347 @@
+import { Box, Button, Container, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import {
-  Container,
-  Box,
-  Title,
-  Text,
-  SimpleGrid,
-  Group,
-  Button,
-  rem,
-  Paper,
-  ThemeIcon,
-  Timeline,
-  RingProgress,
-  Badge,
-  Center,
-} from '@mantine/core';
-import { Link } from 'react-router-dom';
-import {
+  IconAdjustments,
+  IconArrowRight,
+  IconBook2,
   IconBuildingBank,
   IconChartLine,
-  IconScale,
-  IconArrowRight,
-  IconHome,
-  IconCoin,
-  IconPigMoney,
-  IconShieldCheck,
   IconCheck,
-  IconSparkles,
-  IconClipboardList,
-  IconSettings,
-  IconChartBar,
-  IconLeaf,
-  IconTrendingUp,
-  IconPercentage,
-  IconTarget,
+  IconFileDescription,
+  IconPigMoney,
+  IconScale,
+  IconShieldCheck,
+  IconTimeline,
 } from '@tabler/icons-react';
-import { FeatureCard } from '../components/ui';
+import { Link } from 'react-router-dom';
+import FeaturesGrid from '../components/FeaturesGrid';
+
+const strategies = [
+  {
+    icon: IconBuildingBank,
+    title: 'Comprar financiado',
+    description: 'Entrada, custos de compra, parcelas, amortizações e valorização do imóvel.',
+  },
+  {
+    icon: IconChartLine,
+    title: 'Alugar e investir',
+    description: 'Aluguel, capital preservado, aportes, retiradas e retorno do investimento.',
+  },
+  {
+    icon: IconPigMoney,
+    title: 'Investir para comprar',
+    description: 'Acumulação de recursos até alcançar o custo da compra à vista.',
+  },
+];
+
+const proofPoints = [
+  {
+    icon: IconAdjustments,
+    title: 'Premissas comparáveis',
+    description: 'As estratégias partem do mesmo contexto financeiro sempre que possível.',
+  },
+  {
+    icon: IconTimeline,
+    title: 'Evolução mês a mês',
+    description: 'Custos, patrimônio, investimentos e dívidas permanecem rastreáveis.',
+  },
+  {
+    icon: IconShieldCheck,
+    title: 'Viabilidade explícita',
+    description: 'Déficits e limitações aparecem antes de qualquer interpretação de vencedor.',
+  },
+];
+
+const comparisonCoverage = [
+  'Entrada, ITBI, escritura, condomínio e IPTU',
+  'Juros SAC ou PRICE e amortizações extras',
+  'Aluguel, inflação, valorização e retorno dos investimentos',
+  'Poupança e renda para verificar se cada cenário cabe no orçamento',
+];
+
+const processSteps = [
+  {
+    title: 'Informe o que você sabe',
+    description:
+      'Comece pelos dados essenciais. Campos avançados ficam disponíveis quando você precisar refinar a análise.',
+  },
+  {
+    title: 'Compare cenários equivalentes',
+    description:
+      'O Farol projeta cada estratégia no mesmo horizonte e sinaliza quando as premissas não permitem um ranking justo.',
+  },
+  {
+    title: 'Questione o resultado',
+    description:
+      'Leia os alertas, altere taxas e custos e observe quais premissas realmente mudam sua decisão.',
+  },
+];
 
 export default function Home() {
   return (
     <Box>
-      {/* Hero Section */}
-      <Box
-        py={{ base: 80, md: 120 }}
-        style={{
-          position: 'relative',
-          overflow: 'hidden',
-          background: 'light-dark(linear-gradient(180deg, rgba(248, 250, 252, 1) 0%, rgba(240, 247, 255, 0.8) 100%), linear-gradient(180deg, rgba(15, 23, 42, 1) 0%, rgba(15, 23, 42, 0.95) 100%))',
-        }}
-      >
-        {/* Decorative elements */}
-        <Box
-          style={{
-            position: 'absolute',
-            top: '10%',
-            right: '-5%',
-            width: rem(500),
-            height: rem(500),
-            borderRadius: '50%',
-            background: 'light-dark(radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%), radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%))',
-            filter: 'blur(40px)',
-            pointerEvents: 'none',
-          }}
-        />
-        <Box
-          style={{
-            position: 'absolute',
-            bottom: '5%',
-            left: '-10%',
-            width: rem(400),
-            height: rem(400),
-            borderRadius: '50%',
-            background: 'light-dark(radial-gradient(circle, rgba(20, 184, 166, 0.06) 0%, transparent 70%), radial-gradient(circle, rgba(20, 184, 166, 0.08) 0%, transparent 70%))',
-            filter: 'blur(40px)',
-            pointerEvents: 'none',
-          }}
-        />
-        
-        <Container size="lg" style={{ position: 'relative', zIndex: 1 }}>
-          <Box maw={720} mx="auto" ta="center">
-            <Badge 
-              size="lg" 
-              radius="xl" 
-              variant="light" 
-              color="ocean"
-              mb="lg"
-              leftSection={<IconLeaf size={14} />}
-            >
-              Planejamento Financeiro
-            </Badge>
-            <Title
-              order={1}
-              fw={700}
-              mb="lg"
-              style={{
-                fontSize: 'clamp(2.25rem, 5vw, 3.5rem)',
-                lineHeight: 1.15,
-              }}
-            >
-              Tome a melhor decisão para{' '}
-              <Text
-                component="span"
-                inherit
-                style={{ color: 'light-dark(var(--mantine-color-ocean-7), var(--mantine-color-ocean-3))' }}
-              >
-                adquirir seu imóvel
+      <Box component="section" className="home-hero">
+        <Container size="xl">
+          <Box className="home-hero__grid">
+            <Stack gap="lg">
+              <Text component="p" className="eyebrow">
+                Simulador financeiro educativo
               </Text>
-            </Title>
-            <Text size="lg" c="dimmed" maw={580} mx="auto" mb="xl" lh={1.7}>
-              Compare financiamento, aluguel + investimento ou investir para comprar à vista.
-              Simule diferentes cenários e descubra qual estratégia faz mais sentido para você.
+              <Title order={1} className="home-hero__title">
+                Compare caminhos financeiros antes de comprometer seu orçamento.
+              </Title>
+              <Text className="home-hero__lead">
+                O Farol organiza custos, patrimônio e viabilidade para você analisar compra de
+                imóvel, aluguel e investimento com premissas claras — sem transformar projeções em
+                promessas.
+              </Text>
+              <Group className="home-hero__actions" gap="sm">
+                <Button
+                  component={Link}
+                  to="/comparacao"
+                  size="lg"
+                  rightSection={<IconArrowRight size={18} />}
+                >
+                  Comparar compra e aluguel
+                </Button>
+                <Button
+                  component={Link}
+                  to="/docs/quickstart"
+                  size="lg"
+                  variant="default"
+                  leftSection={<IconBook2 size={18} />}
+                >
+                  Entender como funciona
+                </Button>
+              </Group>
+              <Text className="home-hero__note">
+                Sem cadastro para começar • os resultados dependem dos dados que você informar
+              </Text>
+            </Stack>
+
+            <Paper className="surface-card strategy-panel" aria-label="Estratégias comparadas">
+              <Box className="strategy-panel__header">
+                <Text className="eyebrow" mb={6}>
+                  Uma decisão, três caminhos
+                </Text>
+                <Title order={2} size="h3">
+                  O que entra na comparação
+                </Title>
+              </Box>
+
+              {strategies.map((strategy, index) => (
+                <Box className="strategy-row" key={strategy.title}>
+                  <span className="strategy-row__number" aria-hidden="true">
+                    {index + 1}
+                  </span>
+                  <Box>
+                    <Group gap="xs" mb={4} wrap="nowrap">
+                      <strategy.icon size={18} aria-hidden="true" />
+                      <Text fw={650}>{strategy.title}</Text>
+                    </Group>
+                    <Text size="sm" c="dimmed" lh={1.55}>
+                      {strategy.description}
+                    </Text>
+                  </Box>
+                </Box>
+              ))}
+
+              <Text size="xs" c="dimmed" lh={1.5} mt="md">
+                O ranking só é apresentado quando os cenários têm recursos comparáveis e ao menos
+                uma estratégia é viável.
+              </Text>
+            </Paper>
+          </Box>
+        </Container>
+      </Box>
+
+      <Box component="section" className="home-proof-bar" aria-label="Como o Farol apresenta a análise">
+        <Container size="xl">
+          <Box className="home-proof-grid">
+            {proofPoints.map((point) => (
+              <Box className="home-proof-item" key={point.title}>
+                <Box className="icon-tile" aria-hidden="true">
+                  <point.icon size={20} stroke={1.8} />
+                </Box>
+                <Box>
+                  <Text fw={650} size="sm">
+                    {point.title}
+                  </Text>
+                  <Text size="xs" c="dimmed" lh={1.5} mt={3}>
+                    {point.description}
+                  </Text>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Container>
+      </Box>
+
+      <Container component="section" size="xl" className="home-section">
+        <Stack gap="xl">
+          <Box className="section-heading">
+            <Text className="eyebrow" mb="xs">
+              Decisão principal
             </Text>
-            <Group justify="center" gap="md">
+            <Title order={2} className="section-title" mb="sm">
+              Veja a decisão completa — não apenas o valor da parcela
+            </Title>
+            <Text className="section-description">
+              Uma comparação útil precisa considerar o capital inicial, o orçamento mensal e o que
+              acontece com o patrimônio ao longo do tempo.
+            </Text>
+          </Box>
+
+          <Paper className="surface-card transparency-panel">
+            <Stack gap="md">
+              <Box className="icon-tile" aria-hidden="true">
+                <IconScale size={22} stroke={1.8} />
+              </Box>
+              <Title order={3}>Comprar vs Alugar</Title>
+              <Text c="dimmed" lh={1.65}>
+                Monte uma análise exploratória rapidamente ou informe poupança e renda para validar
+                a viabilidade e habilitar uma comparação autoritativa.
+              </Text>
               <Button
                 component={Link}
                 to="/comparacao"
-                size="lg"
-                radius="xl"
-                rightSection={<IconArrowRight size={18} />}
-                color="ocean"
-                styles={{
-                  root: {
-                    boxShadow: '0 4px 14px rgba(44, 112, 163, 0.25)',
-                  },
-                }}
+                variant="light"
+                rightSection={<IconArrowRight size={17} />}
+                style={{ alignSelf: 'flex-start' }}
               >
-                Comprar vs Alugar
+                Abrir comparação
               </Button>
-              <Button
-                component={Link}
-                to="/docs/quickstart"
-                size="lg"
-                radius="xl"
-                variant="outline"
-                color="ocean"
-              >
-                Como funciona
-              </Button>
-            </Group>
+            </Stack>
+
+            <Stack gap="sm" aria-label="Itens considerados na comparação">
+              {comparisonCoverage.map((item) => (
+                <Group key={item} gap="sm" align="flex-start" wrap="nowrap">
+                  <Box className="icon-tile" style={{ width: 32, height: 32 }} aria-hidden="true">
+                    <IconCheck size={17} stroke={2} />
+                  </Box>
+                  <Text size="sm" lh={1.55} pt={4}>
+                    {item}
+                  </Text>
+                </Group>
+              ))}
+            </Stack>
+          </Paper>
+        </Stack>
+      </Container>
+
+      <Box component="section" className="home-section home-section--muted">
+        <Container size="xl">
+          <Box className="section-heading" mb="xl">
+            <Text className="eyebrow" mb="xs">
+              Ferramentas e referências
+            </Text>
+            <Title order={2} className="section-title" mb="sm">
+              Aprofunde a análise sem perder o contexto
+            </Title>
+            <Text className="section-description">
+              Use calculadoras específicas para outras decisões e consulte a metodologia sempre que
+              um resultado precisar de explicação.
+            </Text>
           </Box>
+          <FeaturesGrid />
         </Container>
       </Box>
 
-      {/* Stats Section - Quick Visual Overview */}
-      <Container size="lg" mt={-40} style={{ position: 'relative', zIndex: 2 }}>
-        <Box
-          p={{ base: 'lg', md: 'xl' }}
-          style={{
-            borderRadius: rem(24),
-            background: 'var(--glass-bg-elevated)',
-            backdropFilter: 'blur(var(--glass-blur-heavy))',
-            WebkitBackdropFilter: 'blur(var(--glass-blur-heavy))',
-            boxShadow: 'var(--glass-shadow-lg), var(--glass-shadow-glow)',
-          }}
-        >
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xl">
-            <Group gap="lg" wrap="nowrap">
-              <RingProgress
-                size={70}
-                thickness={6}
-                roundCaps
-                sections={[{ value: 100, color: 'ocean.5' }]}
-                label={
-                  <Center>
-                    <IconBuildingBank size={24} color="var(--mantine-color-ocean-6)" />
-                  </Center>
-                }
-              />
-              <Box>
-                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">Comprar</Text>
-                <Text size="sm" c="dimmed">Financiamento SAC ou PRICE</Text>
-              </Box>
-            </Group>
-            <Group gap="lg" wrap="nowrap">
-              <RingProgress
-                size={70}
-                thickness={6}
-                roundCaps
-                sections={[{ value: 100, color: 'teal.5' }]}
-                label={
-                  <Center>
-                    <IconChartLine size={24} color="var(--mantine-color-teal-6)" />
-                  </Center>
-                }
-              />
-              <Box>
-                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">Alugar</Text>
-                <Text size="sm" c="dimmed">Investir a diferença</Text>
-              </Box>
-            </Group>
-            <Group gap="lg" wrap="nowrap">
-              <RingProgress
-                size={70}
-                thickness={6}
-                roundCaps
-                sections={[{ value: 100, color: 'violet.5' }]}
-                label={
-                  <Center>
-                    <IconPigMoney size={24} color="var(--mantine-color-violet-6)" />
-                  </Center>
-                }
-              />
-              <Box>
-                <Text size="xl" fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">Investir</Text>
-                <Text size="sm" c="dimmed">Juntar e comprar à vista</Text>
-              </Box>
-            </Group>
-          </SimpleGrid>
-        </Box>
-      </Container>
-
-      {/* Features Section */}
-      <Container size="lg" py={{ base: 60, md: 100 }}>
-        <Box ta="center" mb={60}>
-          <Badge variant="light" color="ocean" size="lg" radius="xl" mb="sm">
-            Funcionalidades
-          </Badge>
-          <Title order={2} fw={600} mb="sm">
-            Tudo que você precisa para decidir
+      <Container component="section" size="xl" className="home-section">
+        <Box className="section-heading" mb="xl">
+          <Text className="eyebrow" mb="xs">
+            Fluxo de uso
+          </Text>
+          <Title order={2} className="section-title" mb="sm">
+            Da premissa ao resultado em três etapas
           </Title>
-          <Text size="md" c="dimmed" maw={520} mx="auto">
-            Ferramentas completas para analisar cada aspecto da sua decisão imobiliária
+          <Text className="section-description">
+            Comece simples, refine apenas o necessário e trate o resultado como apoio para pensar.
           </Text>
         </Box>
 
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg">
-          <FeatureCard
-            icon={<IconBuildingBank size={24} />}
-            title="Financiamento SAC e PRICE"
-            description="Simule financiamentos com sistemas SAC ou PRICE, incluindo amortizações extras."
-            link="/comparacao"
-            color="ocean"
-          />
-          <FeatureCard
-            icon={<IconScale size={24} />}
-            title="Comprar vs Alugar"
-            description="Compare três estratégias: comprar financiado, alugar e investir, ou investir para comprar à vista."
-            link="/comparacao"
-            color="ocean"
-          />
-          <FeatureCard
-            icon={<IconChartLine size={24} />}
-            title="Projeções Detalhadas"
-            description="Visualize a evolução do seu patrimônio mês a mês, com gráficos e tabelas."
-            color="ocean"
-          />
-          <FeatureCard
-            icon={<IconCoin size={24} />}
-            title="Custos Adicionais"
-            description="Inclua ITBI, escritura, condomínio, IPTU e outros custos na sua análise."
-            color="ocean"
-          />
-          <FeatureCard
-            icon={<IconPigMoney size={24} />}
-            title="Retornos Variáveis"
-            description="Configure diferentes taxas de retorno para investimentos ao longo do tempo."
-            color="ocean"
-          />
-          <FeatureCard
-            icon={<IconShieldCheck size={24} />}
-            title="FGTS e Inflação"
-            description="Considere o uso do FGTS e ajuste valores pela inflação para resultados realistas."
-            color="ocean"
-          />
-        </SimpleGrid>
+        <Box className="process-grid">
+          {processSteps.map((step, index) => (
+            <Paper key={step.title} className="surface-card process-step">
+              <Text className="process-step__number" mb="md">
+                Etapa {index + 1}
+              </Text>
+              <Title order={3} size="h4" mb="sm">
+                {step.title}
+              </Title>
+              <Text size="sm" c="dimmed" lh={1.65}>
+                {step.description}
+              </Text>
+            </Paper>
+          ))}
+        </Box>
       </Container>
 
-      {/* How it Works Section */}
-      <Box
-        py={{ base: 60, md: 100 }}
-        style={{
-          background: 'light-dark(linear-gradient(180deg, rgba(240, 247, 255, 0.5) 0%, rgba(248, 250, 252, 0.3) 100%), linear-gradient(180deg, rgba(30, 41, 59, 0.3) 0%, rgba(15, 23, 42, 0.2) 100%))',
-        }}
-      >
-        <Container size="lg">
-          <SimpleGrid cols={{ base: 1, md: 2 }} spacing={60} style={{ alignItems: 'center' }}>
-            <Box>
-              <Badge variant="light" color="ocean" size="lg" radius="xl" mb="sm">
-                Como Funciona
-              </Badge>
-              <Title order={2} fw={600} mb="md">
-                Simples e intuitivo
-              </Title>
-              <Text size="md" c="dimmed" mb="xl" lh={1.7}>
-                Em poucos passos, você terá uma visão clara de qual estratégia é mais vantajosa
-                para o seu perfil e objetivos.
-              </Text>
-              
-              {/* Timeline steps */}
-              <Timeline active={2} bulletSize={40} lineWidth={3} color="ocean">
-                <Timeline.Item
-                  bullet={
-                    <ThemeIcon size={40} radius="xl" color="ocean" variant="filled">
-                      <IconClipboardList size={18} />
-                    </ThemeIcon>
-                  }
-                  title={
-                    <Text
-                      fw={600}
-                      size="md"
-                      c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))"
-                    >
-                      Informe os dados
-                    </Text>
-                  }
-                >
-                  <Text c="dimmed" size="sm" mt={4}>
-                    Valor do imóvel, entrada, prazo e taxas de juros.
-                  </Text>
-                </Timeline.Item>
-
-                <Timeline.Item
-                  bullet={
-                    <ThemeIcon size={40} radius="xl" color="ocean" variant="filled">
-                      <IconSettings size={18} />
-                    </ThemeIcon>
-                  }
-                  title={
-                    <Text
-                      fw={600}
-                      size="md"
-                      c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))"
-                    >
-                      Configure cenários
-                    </Text>
-                  }
-                >
-                  <Text c="dimmed" size="sm" mt={4}>
-                    Defina aluguel, retorno do investimento e inflação.
-                  </Text>
-                </Timeline.Item>
-
-                <Timeline.Item
-                  bullet={
-                    <ThemeIcon size={40} radius="xl" color="ocean" variant="filled">
-                      <IconChartBar size={18} />
-                    </ThemeIcon>
-                  }
-                  title={
-                    <Text
-                      fw={600}
-                      size="md"
-                      c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))"
-                    >
-                      Compare resultados
-                    </Text>
-                  }
-                >
-                  <Text c="dimmed" size="sm" mt={4}>
-                    Visualize patrimônio, custos e ROI de cada estratégia.
-                  </Text>
-                </Timeline.Item>
-              </Timeline>
-            </Box>
-
-            <Box>
-              <Box
-                p="xl"
-                style={{
-                  background: 'var(--glass-bg-elevated)',
-                  backdropFilter: 'blur(var(--glass-blur-heavy))',
-                  WebkitBackdropFilter: 'blur(var(--glass-blur-heavy))',
-                  boxShadow: 'var(--glass-shadow-lg), var(--glass-shadow-glow)',
-                  borderRadius: rem(24),
-                }}
-              >
-                <Group gap="md" mb="lg">
-                  <ThemeIcon size={52} radius="xl" color="ocean" variant="light">
-                    <IconChartLine size={26} />
-                  </ThemeIcon>
-                  <Box>
-                    <Text fw={600} size="lg" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-ocean-2))">
-                      Exemplo de Análise
-                    </Text>
-                    <Text size="sm" c="dimmed">
-                      Imóvel de R$ 500 mil em 30 anos
-                    </Text>
-                  </Box>
-                </Group>
-
-                <SimpleGrid cols={2} spacing="md" mb="lg">
-                  <Box
-                    p="md"
-                    style={{
-                      background: 'light-dark(linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(255, 255, 255, 0.5) 100%), linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 41, 59, 0.8) 100%))',
-                      borderRadius: rem(16),
-                    }}
-                  >
-                    <Group gap="xs" mb={4}>
-                      <IconTrendingUp size={16} color="var(--mantine-color-ocean-5)" />
-                      <Text size="xs" c="ocean.5" tt="uppercase" fw={600}>
-                        Patrimônio Final
-                      </Text>
-                    </Group>
-                    <Text fw={700} size="xl" c="ocean.6">
-                      R$ 820k
-                    </Text>
-                  </Box>
-                  <Box
-                    p="md"
-                    style={{
-                      background: 'light-dark(linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(255, 255, 255, 0.5) 100%), linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(30, 41, 59, 0.8) 100%))',
-                      borderRadius: rem(16),
-                    }}
-                  >
-                    <Group gap="xs" mb={4}>
-                      <IconPercentage size={16} color="var(--mantine-color-emerald-5)" />
-                      <Text size="xs" c="emerald.5" tt="uppercase" fw={600}>
-                        ROI Total
-                      </Text>
-                    </Group>
-                    <Text fw={700} size="xl" c="emerald.6">
-                      58%
-                    </Text>
-                  </Box>
-                </SimpleGrid>
-
-                {/* Visual Bar Chart */}
-                <Box
-                  style={{
-                    height: rem(120),
-                    background: 'light-dark(rgba(0, 0, 0, 0.03), rgba(255, 255, 255, 0.03))',
-                    borderRadius: rem(16),
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    justifyContent: 'space-around',
-                    padding: rem(16),
-                  }}
-                >
-                  {[
-                    { h: 50, label: 'Mês 1' },
-                    { h: 62, label: 'Ano 5' },
-                    { h: 70, label: 'Ano 10' },
-                    { h: 80, label: 'Ano 20' },
-                    { h: 95, label: 'Ano 30' },
-                  ].map((bar, i) => (
-                    <Box key={i} style={{ textAlign: 'center' }}>
-                      <Box
-                        style={{
-                          width: rem(32),
-                          height: `${bar.h}px`,
-                          background: i === 4 
-                            ? 'linear-gradient(180deg, var(--mantine-color-ocean-5) 0%, var(--mantine-color-ocean-7) 100%)'
-                            : 'var(--mantine-color-ocean-3)',
-                          borderRadius: rem(6),
-                          transition: 'all 200ms ease',
-                          marginBottom: rem(6),
-                        }}
-                      />
-                      <Text size="xs" c="dimmed">{bar.label}</Text>
-                    </Box>
-                  ))}
-                </Box>
+      <Box component="section" className="home-section home-section--muted">
+        <Container size="xl">
+          <Paper className="surface-card transparency-panel">
+            <Stack gap="md">
+              <Box className="icon-tile" aria-hidden="true">
+                <IconFileDescription size={22} stroke={1.8} />
               </Box>
+              <Text className="eyebrow">Transparência antes da conclusão</Text>
+              <Title order={2} className="section-title">
+                Projeção não é previsão
+              </Title>
+              <Text c="dimmed" lh={1.7}>
+                Taxas, renda, inflação e valorização podem mudar. O papel do simulador é tornar o
+                raciocínio auditável e ajudar você a testar cenários — não decidir por você.
+              </Text>
+              <Group gap="sm">
+                <Button component={Link} to="/docs/calculos" variant="default">
+                  Ver metodologia
+                </Button>
+                <Button component={Link} to="/sobre" variant="subtle">
+                  Limites e propósito
+                </Button>
+              </Group>
+            </Stack>
+
+            <Box className="transparency-list">
+              {[
+                'Premissas incompletas geram uma análise exploratória, sem vencedor declarado.',
+                'Déficits de caixa e recursos não financiados reduzem o patrimônio e ficam visíveis.',
+                'Cálculos, termos e simplificações do modelo estão documentados para consulta.',
+              ].map((item) => (
+                <Box className="transparency-list__item" key={item}>
+                  <Box className="icon-tile" style={{ width: 32, height: 32 }} aria-hidden="true">
+                    <IconCheck size={17} />
+                  </Box>
+                  <Text size="sm" lh={1.65} pt={3}>
+                    {item}
+                  </Text>
+                </Box>
+              ))}
             </Box>
-          </SimpleGrid>
+          </Paper>
         </Container>
       </Box>
 
-      {/* Benefits Section */}
-      <Container size="lg" py={{ base: 60, md: 80 }}>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="lg">
-          {[
-            { icon: IconCheck, title: 'Gratuito', desc: 'Sem custos ou cadastro', color: 'ocean' },
-            { icon: IconShieldCheck, title: 'Sem dados pessoais', desc: 'Privacidade total', color: 'teal' },
-            { icon: IconTarget, title: 'Cálculos precisos', desc: 'Metodologia transparente', color: 'violet' },
-            { icon: IconSparkles, title: 'Atualizado', desc: 'Melhores práticas do mercado', color: 'ocean' },
-          ].map((benefit, i) => (
-            <Box
-              key={i}
-              className="card-hover"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: rem(20),
-                padding: rem(24),
-                textAlign: 'center',
-                transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
-              }}
-            >
-              <ThemeIcon 
-                size={56} 
-                radius="xl" 
-                variant="light" 
-                color={benefit.color} 
-                mb="md" 
-                mx="auto"
-                style={{
-                  background: `light-dark(
-                    linear-gradient(135deg, var(--mantine-color-${benefit.color}-1) 0%, var(--mantine-color-${benefit.color}-0) 100%),
-                    linear-gradient(135deg, var(--mantine-color-${benefit.color}-8) 0%, var(--mantine-color-${benefit.color}-9) 100%)
-                  )`,
-                  boxShadow: `0 4px 12px -4px var(--mantine-color-${benefit.color}-4)`,
-                }}
-              >
-                <benefit.icon size={24} />
-              </ThemeIcon>
-              <Text fw={600} size="lg" c="bright" mb={4}>{benefit.title}</Text>
-              <Text size="sm" c="dimmed">{benefit.desc}</Text>
-            </Box>
-          ))})
-        </SimpleGrid>
-      </Container>
-
-      {/* CTA Section */}
-      <Container size="md" py={{ base: 60, md: 80 }}>
-        <Box
-          p={{ base: 'xl', md: 50 }}
-          style={{
-            background: 'linear-gradient(135deg, var(--mantine-color-ocean-6) 0%, var(--mantine-color-ocean-7) 100%)',
-            borderRadius: rem(28),
-            textAlign: 'center',
-            position: 'relative',
-            overflow: 'hidden',
-            boxShadow: '0 16px 48px -12px rgba(59, 130, 246, 0.35)',
-          }}
-        >
-          {/* Decorative elements */}
-          <Box
-            style={{
-              position: 'absolute',
-              top: -60,
-              right: -60,
-              width: 200,
-              height: 200,
-              borderRadius: '50%',
-              border: '1px solid rgba(255,255,255,0.1)',
-              pointerEvents: 'none',
-            }}
-          />
-          <Box
-            style={{
-              position: 'absolute',
-              bottom: -40,
-              left: -40,
-              width: 150,
-              height: 150,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(255,255,255,0.05)',
-              pointerEvents: 'none',
-            }}
-          />
-          
-          <Box style={{ position: 'relative', zIndex: 1 }}>
-            <ThemeIcon size={70} radius="xl" mb="lg" mx="auto" color="slate" variant="filled">
-              <IconHome size={32} />
-            </ThemeIcon>
-            <Title order={2} c="white" fw={600} mb="sm">
-              Pronto para começar?
-            </Title>
-            <Text c="slate.3" size="lg" maw={400} mx="auto" mb="xl">
-              Compare os cenários e descubra qual estratégia é a melhor para você.
+      <Container component="section" size="lg" className="home-section">
+        <Box className="home-cta">
+          <Box>
+            <Text className="eyebrow" mb="xs">
+              Comece com sua realidade
             </Text>
-            <Button
-              component={Link}
-              to="/comparacao"
-              size="lg"
-              radius="xl"
-              rightSection={<IconArrowRight size={18} />}
-              color="white"
-              c="ocean.7"
-              styles={{
-                root: {
-                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
-                },
-              }}
-            >
-              Iniciar Simulação
-            </Button>
+            <Title order={2} className="section-title" mb={6}>
+              Compare, ajuste e volte às premissas
+            </Title>
+            <Text c="dimmed" lh={1.6}>
+              Você pode iniciar com os campos essenciais e aprofundar a simulação depois.
+            </Text>
           </Box>
+          <Button
+            component={Link}
+            to="/comparacao"
+            size="lg"
+            rightSection={<IconArrowRight size={18} />}
+          >
+            Iniciar comparação
+          </Button>
         </Box>
       </Container>
     </Box>

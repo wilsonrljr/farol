@@ -11,7 +11,7 @@ the Free Software Foundation, either version 3 of the License, or
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from ..core.amortization import expand_amortization_to_months, preprocess_amortizations
+from ..core.amortization import preprocess_amortizations
 from ..core.inflation import apply_property_appreciation
 from ..core.investment import InvestmentAccount
 from ..core.protocols import (
@@ -23,10 +23,14 @@ from ..core.protocols import (
 from ..domain.mappers import comparison_scenario_to_api
 from ..domain.models import (
     ComparisonScenario as DomainComparisonScenario,
+)
+from ..domain.models import (
     FGTSUsageSummary,
     FGTSWithdrawalRecord,
-    MonthlyRecord as DomainMonthlyRecord,
     PurchaseBreakdown,
+)
+from ..domain.models import (
+    MonthlyRecord as DomainMonthlyRecord,
 )
 from ..loans import LoanSimulator, PriceLoanSimulator, SACLoanSimulator
 from ..models import (
@@ -82,12 +86,29 @@ class BuyScenarioSimulator(ScenarioSimulator):
     _13_salario_amortizations: Sequence[AmortizationLike] | None = field(
         init=False, default=None
     )
-    _bonus_by_month: dict[int, float] = field(init=False, default_factory=dict)
-    _13_salario_by_month: dict[int, float] = field(init=False, default_factory=dict)
+    _cash_extra_fixed_by_month: dict[int, float] = field(
+        init=False, default_factory=dict
+    )
+    _cash_extra_percent_by_month: dict[int, list[float]] = field(
+        init=False, default_factory=dict
+    )
+    _bonus_fixed_by_month: dict[int, float] = field(init=False, default_factory=dict)
+    _bonus_percent_by_month: dict[int, list[float]] = field(
+        init=False, default_factory=dict
+    )
+    _13_salario_fixed_by_month: dict[int, float] = field(
+        init=False, default_factory=dict
+    )
+    _13_salario_percent_by_month: dict[int, list[float]] = field(
+        init=False, default_factory=dict
+    )
     _loan_value: float = field(init=False, default=0.0)
     _total_upfront_costs: float = field(init=False, default=0.0)
     _total_monthly_additional_costs: float = field(init=False, default=0.0)
     _investment_account: InvestmentAccount | None = field(init=False, default=None)
+    _initial_investment_tracker: InvestmentAccount | None = field(
+        init=False, default=None
+    )
     _fixed_contrib_by_month: dict[int, float] = field(init=False, default_factory=dict)
     _percent_contrib_by_month: dict[int, list[float]] = field(
         init=False, default_factory=dict
@@ -111,12 +132,7 @@ class BuyScenarioSimulator(ScenarioSimulator):
 
         # Check if we need investment tracking (for opportunity cost or contributions)
         has_contributions = bool(self.contributions)
-        has_income_surplus = bool(
-            self.monthly_net_income and self.monthly_net_income > 0
-        )
-        needs_investment_tracking = (
-            self.initial_investment > 0 or has_contributions or has_income_surplus
-        )
+        needs_investment_tracking = self.initial_investment > 0 or has_contributions
 
         # Initialize investment tracking for opportunity cost and/or contributions.
         # We use the same InvestmentAccount engine used by the other scenarios.
@@ -129,6 +145,18 @@ class BuyScenarioSimulator(ScenarioSimulator):
             )
         else:
             self._investment_account = None
+
+        # Keep the initial-capital cohort separate for the opportunity-gain
+        # metric. The aggregate account also receives later contributions, so
+        # ``aggregate balance - initial capital`` would mislabel contribution
+        # principal as investment return.
+        if self.initial_investment > 0:
+            self._initial_investment_tracker = InvestmentAccount(
+                investment_returns=list(self.investment_returns or []),
+                investment_tax=self.investment_tax,
+                balance=self.initial_investment,
+                principal=self.initial_investment,
+            )
 
     def _preprocess_contributions(self) -> None:
         """Preprocess scheduled contributions (aportes)."""
@@ -203,10 +231,12 @@ class BuyScenarioSimulator(ScenarioSimulator):
             self.monthly_net_income_adjust_inflation,
         )
 
-        if effective_income is not None and effective_income > 0:
-            income_cover = min(housing_due, effective_income)
-            income_surplus_available = max(0.0, effective_income - income_cover)
+        if effective_income is not None:
+            income = max(0.0, float(effective_income))
+            income_cover = min(housing_due, income)
+            income_surplus_available = max(0.0, income - income_cover)
             actual_housing_paid = income_cover
+            effective_income = income
 
         housing_shortfall = max(0.0, housing_due - actual_housing_paid)
 
@@ -301,13 +331,92 @@ class BuyScenarioSimulator(ScenarioSimulator):
         self._bonus_amortizations = bonus or None
         self._13_salario_amortizations = decimo_terceiro or None
 
-        # Expand bonus and 13_salario to per-month values for tracking
-        self._bonus_by_month = expand_amortization_to_months(
-            bonus, self.term_months, self.inflation_rate
-        )
-        self._13_salario_by_month = expand_amortization_to_months(
+        # Keep the requested amount by source, including percentage schedules.
+        # The loan simulator may cap the combined request at the outstanding
+        # balance, so reporting the raw schedule here would overstate one source
+        # and understate the regular installment. Actual amounts are allocated in
+        # ``_allocate_applied_cash_extra`` below.
+        (
+            self._cash_extra_fixed_by_month,
+            self._cash_extra_percent_by_month,
+        ) = preprocess_amortizations(cash, self.term_months, self.inflation_rate)
+        (
+            self._bonus_fixed_by_month,
+            self._bonus_percent_by_month,
+        ) = preprocess_amortizations(bonus, self.term_months, self.inflation_rate)
+        (
+            self._13_salario_fixed_by_month,
+            self._13_salario_percent_by_month,
+        ) = preprocess_amortizations(
             decimo_terceiro, self.term_months, self.inflation_rate
         )
+
+    @staticmethod
+    def _requested_extra_amount(
+        *,
+        month: int,
+        starting_balance: float,
+        fixed_by_month: dict[int, float],
+        percent_by_month: dict[int, list[float]],
+    ) -> float:
+        """Return the source's requested extra amortization for one month."""
+
+        fixed = fixed_by_month.get(month, 0.0)
+        percentage = sum(percent_by_month.get(month, []))
+        return max(0.0, fixed + starting_balance * percentage / 100.0)
+
+    def _allocate_applied_cash_extra(
+        self,
+        *,
+        month: int,
+        starting_balance: float,
+        applied_cash_extra: float,
+    ) -> tuple[float, float, float]:
+        """Split the *applied* cash-backed extra across its funding sources.
+
+        All cash-backed schedules are combined by the loan engine before being
+        capped at the remaining principal. When the cap binds, there is no
+        business priority between cash, bonus and 13th salary, so the applied
+        amount is allocated proportionally to each source's request. The
+        returned values always sum to ``applied_cash_extra``.
+        """
+
+        applied = max(0.0, applied_cash_extra)
+        if applied <= 0:
+            return 0.0, 0.0, 0.0
+
+        total_requested = self._requested_extra_amount(
+            month=month,
+            starting_balance=starting_balance,
+            fixed_by_month=self._cash_extra_fixed_by_month,
+            percent_by_month=self._cash_extra_percent_by_month,
+        )
+        bonus_requested = self._requested_extra_amount(
+            month=month,
+            starting_balance=starting_balance,
+            fixed_by_month=self._bonus_fixed_by_month,
+            percent_by_month=self._bonus_percent_by_month,
+        )
+        thirteenth_requested = self._requested_extra_amount(
+            month=month,
+            starting_balance=starting_balance,
+            fixed_by_month=self._13_salario_fixed_by_month,
+            percent_by_month=self._13_salario_percent_by_month,
+        )
+
+        if total_requested <= 0:
+            # Defensive fallback for non-API callers: the loan result is the
+            # source of truth even if an unknown schedule shape was supplied.
+            return applied, 0.0, 0.0
+
+        allocation_ratio = min(1.0, applied / total_requested)
+        bonus_applied = min(applied, bonus_requested * allocation_ratio)
+        thirteenth_applied = min(
+            applied - bonus_applied,
+            thirteenth_requested * allocation_ratio,
+        )
+        cash_applied = max(0.0, applied - bonus_applied - thirteenth_applied)
+        return cash_applied, bonus_applied, thirteenth_applied
 
     def _simulate_loan(self) -> None:
         """Simulate the loan using appropriate method."""
@@ -409,19 +518,15 @@ class BuyScenarioSimulator(ScenarioSimulator):
             )
             outstanding_balance = inst.outstanding_balance if inst is not None else 0.0
 
-            # Get bonus and 13_salario values for this month (for affordability tracking)
-            # These are tracked separately for UI display but are INCLUDED in extra_amortization_cash_raw
-            # from the loan simulator (because they were added to the cash amortizations list).
-            # To avoid double-counting, we subtract them from the raw cash value.
-            extra_amortization_bonus = self._bonus_by_month.get(month, 0.0)
-            extra_amortization_13_salario = self._13_salario_by_month.get(month, 0.0)
-
-            # Pure cash extra amortization (excluding bonus and 13_salario which are shown separately)
-            extra_amortization_cash = max(
-                0.0,
-                extra_amortization_cash_raw
-                - extra_amortization_bonus
-                - extra_amortization_13_salario,
+            starting_balance = outstanding_balance + amortization_value
+            (
+                extra_amortization_cash,
+                extra_amortization_bonus,
+                extra_amortization_13_salario,
+            ) = self._allocate_applied_cash_extra(
+                month=month,
+                starting_balance=starting_balance,
+                applied_cash_extra=extra_amortization_cash_raw,
             )
 
             extra_total = (
@@ -455,6 +560,8 @@ class BuyScenarioSimulator(ScenarioSimulator):
             # Apply investment returns for opportunity cost tracking
             if self._investment_account is not None:
                 self._investment_account.apply_monthly_return(month)
+            if self._initial_investment_tracker is not None:
+                self._initial_investment_tracker.apply_monthly_return(month)
 
             record = self._create_monthly_record(
                 month,
@@ -706,9 +813,9 @@ class BuyScenarioSimulator(ScenarioSimulator):
         # and include investment balance in final equity for fair comparison
         opportunity_cost: float | None = None
         if self._investment_account is not None:
-            if self.initial_investment > 0:
+            if self._initial_investment_tracker is not None:
                 opportunity_cost = (
-                    self._investment_account.balance - self.initial_investment
+                    self._initial_investment_tracker.balance - self.initial_investment
                 )
             # Include investment balance in final equity for fair comparison
             # This applies both for initial investment tracking AND for contributions

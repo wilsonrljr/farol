@@ -41,7 +41,8 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
     When monthly_net_income is provided:
     - Housing costs (rent + additional costs) are paid from income
-    - Any surplus is automatically invested
+    - Any surplus is retained as non-yielding cash
+    - Retained cash participates in the outright-purchase target
     - Any shortfall is tracked as housing_shortfall
     """
 
@@ -77,6 +78,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     _total_monthly_additional_costs: float = field(init=False, default=0.0)
     _purchase_month: int | None = field(init=False, default=None)
     _last_progress_bucket: int = field(init=False, default=0)
+    _cash_reserve: float = field(init=False, default=0.0)
 
     @property
     def scenario_name(self) -> str:
@@ -167,20 +169,31 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         current_rent = rent_result["current_rent"]
         total_rent_cost = rent_result["total_rent_cost"]
 
-        # 2) Apply rent cashflows (income covers housing, surplus tracked but not auto-invested).
+        # 2) Apply rent cashflows (income covers housing, surplus is held as cash).
         cashflow_result = self._process_rent_cashflows(total_rent_cost, month)
         housing_due = total_rent_cost
-        housing_paid = cashflow_result["actual_housing_paid"]
-        housing_shortfall = cashflow_result["housing_shortfall"]
-        rent_paid = min(current_rent, housing_paid)
-        rent_shortfall = max(0.0, current_rent - rent_paid)
-
-        self._total_rent_paid += rent_paid
 
         # 3) Apply scheduled contributions BEFORE returns.
         contrib_fixed, contrib_pct, contrib_total = self._apply_scheduled_contributions(
             month
         )
+
+        # Keep the non-yielding cash policy executable inside this strategy, not
+        # merely as a post-hoc reporting adjustment. Prior cash can cover a
+        # later expensive month and any balance left after housing/contributions
+        # can fund the outright purchase.
+        cashflow_result.update(
+            self._reconcile_cash_reserve(
+                month=month,
+                housing_due=housing_due,
+                contribution=contrib_total,
+            )
+        )
+        housing_paid = cashflow_result["actual_housing_paid"]
+        housing_shortfall = cashflow_result["housing_shortfall"]
+        rent_paid = min(current_rent, housing_paid)
+        rent_shortfall = max(0.0, current_rent - rent_paid)
+        self._total_rent_paid += rent_paid
 
         # NOTE: income surplus is no longer auto-invested. Only explicit contributions count.
         # additional_investment is now just the explicit contributions
@@ -217,6 +230,50 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             housing_shortfall=housing_shortfall,
         )
         self._monthly_data.append(record)
+
+    def _reconcile_cash_reserve(
+        self,
+        *,
+        month: int,
+        housing_due: float,
+        contribution: float,
+    ) -> dict[str, float]:
+        """Reconcile recurring income into a non-yielding cash reserve.
+
+        The canonical comparison ledger performs the same reconciliation for
+        every strategy. This local mirror is needed because the invest-then-buy
+        engine must see accumulated cash while deciding whether it can buy.
+        """
+
+        effective_income = self.get_effective_monthly_net_income(
+            month,
+            self.monthly_net_income,
+            self.monthly_net_income_adjust_inflation,
+        )
+        if effective_income is None:
+            # Legacy/exploratory mode has no auditable recurring resource pool.
+            return {}
+
+        income = max(0.0, float(effective_income))
+        available = self._cash_reserve + income
+        housing_paid = min(max(0.0, housing_due), available)
+        available -= housing_paid
+
+        # Contributions are lower priority than housing. The investment engine
+        # still records the requested amount; an unfunded part is exposed as a
+        # liability by the canonical ledger and makes the scenario infeasible.
+        contribution_funded = min(max(0.0, contribution), available)
+        available -= contribution_funded
+        self._cash_reserve = max(0.0, available)
+
+        return {
+            "income_cover": min(max(0.0, housing_due), income),
+            "external_cover": min(max(0.0, housing_due), income),
+            "income_surplus_available": max(0.0, income - housing_due),
+            "actual_housing_paid": housing_paid,
+            "housing_shortfall": max(0.0, housing_due - housing_paid),
+            "effective_income": income,
+        }
 
     def _apply_scheduled_contributions(self, month: int) -> tuple[float, float, float]:
         """Apply scheduled contributions (aportes)."""
@@ -295,11 +352,12 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             self.monthly_net_income_adjust_inflation,
         )
 
-        if effective_income is not None and effective_income > 0:
+        if effective_income is not None:
             # Income-based model: pay housing from income
             # Surplus is calculated but NOT automatically invested
-            income_cover = min(housing_due, effective_income)
-            surplus = effective_income - income_cover
+            income = max(0.0, float(effective_income))
+            income_cover = min(housing_due, income)
+            surplus = income - income_cover
 
             if surplus > 0:
                 # Track the available surplus for budget validation
@@ -308,6 +366,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
             remaining_before_return = self._account.balance
             actual_housing_paid = income_cover
+            effective_income = income
         else:
             # Legacy model: housing assumed paid externally
             actual_housing_paid = housing_due
@@ -328,7 +387,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             "housing_shortfall": housing_shortfall,
             # Legacy compatibility keys
             "external_cover": income_cover,
-            "external_surplus_invested": income_surplus_available,
+            # Deprecated: budget surplus is retained as non-yielding cash and
+            # must never be reported as an automatic investment contribution.
+            "external_surplus_invested": 0.0,
             "effective_income": (
                 effective_income if effective_income is not None else 0.0
             ),
@@ -340,7 +401,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         total_purchase_cost: float,
     ) -> tuple[float, float, bool]:
         """Update progress tracking."""
-        total_available = self._account.liquidation_net_value()
+        total_available = self._account.liquidation_net_value() + self._cash_reserve
         if self._fgts_manager and self._fgts_manager.use_at_purchase:
             total_available += self.fgts_balance
 
@@ -389,6 +450,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     ) -> DomainMonthlyRecord:
         """Check for purchase and create monthly record."""
         fgts_used_this_month = 0.0
+        cash_reserve_used_for_purchase = 0.0
         status = "Aguardando compra"
         equity = 0.0
         monthly_hoa = rent_result["monthly_hoa"]
@@ -396,6 +458,7 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         monthly_additional = rent_result["monthly_additional"]
 
         investment_available = self._account.liquidation_net_value()
+        liquid_available = investment_available + self._cash_reserve
         withdrawable_fgts = 0.0
         if self._fgts_manager and self._fgts_manager.use_at_purchase:
             withdrawable_fgts = min(self.fgts_balance, current_property_value)
@@ -411,10 +474,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
         # transaction costs like ITBI/escritura. Those must be covered by cash
         # (investment liquidation here).
         purchase_upfront = max(0.0, total_purchase_cost - current_property_value)
-        shortfall_for_fgts = max(0.0, total_purchase_cost - investment_available)
+        shortfall_for_fgts = max(0.0, total_purchase_cost - liquid_available)
 
-        can_cover_total = (investment_available + fgts_available) >= total_purchase_cost
-        can_cover_upfront = investment_available >= purchase_upfront
+        can_cover_total = (liquid_available + fgts_available) >= total_purchase_cost
+        can_cover_upfront = liquid_available >= purchase_upfront
 
         if can_cover_total and can_cover_upfront:
             # Purchase!
@@ -427,6 +490,10 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                         fgts_needed, month=month
                     )
                     remaining_needed -= fgts_used_this_month
+
+            cash_reserve_used_for_purchase = min(self._cash_reserve, remaining_needed)
+            self._cash_reserve -= cash_reserve_used_for_purchase
+            remaining_needed -= cash_reserve_used_for_purchase
 
             purchase_withdrawal = self._account.withdraw_net(remaining_needed)
             self._purchase_month = month
@@ -540,6 +607,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             ),
             # effective_income is the inflation-adjusted income for the month
             effective_income=(cashflow_result.get("effective_income") or None),
+            cash_reserve_used_for_purchase=(
+                cash_reserve_used_for_purchase
+                if cash_reserve_used_for_purchase > 0
+                else None
+            ),
             sustainable_withdrawal_ratio=sustainable_withdrawal_ratio,
             burn_month=burn_month,
             investment_withdrawal_gross=cashflow_result.get(
@@ -582,6 +654,12 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
                 self._apply_scheduled_contributions(month)
             )
 
+        cashflow_result = self._reconcile_cash_reserve(
+            month=month,
+            housing_due=monthly_additional,
+            contribution=contrib_total,
+        )
+
         # Apply investment returns
         investment_result: InvestmentResult = self._account.apply_monthly_return(month)
 
@@ -597,6 +675,9 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             equity=current_property_value,
             status="Imóvel comprado",
             monthly_additional_costs=monthly_additional,
+            housing_due=monthly_additional,
+            housing_paid=cashflow_result.get("actual_housing_paid", monthly_additional),
+            housing_shortfall=cashflow_result.get("housing_shortfall", 0.0),
             total_monthly_cost=total_monthly_cost,
             property_value=current_property_value,
             investment_return_gross=investment_result.gross_return,
@@ -611,6 +692,11 @@ class InvestThenBuyScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             shortfall=0.0,
             is_milestone=True,
             phase="post_purchase",
+            external_cover=(cashflow_result.get("external_cover") or None),
+            income_surplus_available=(
+                cashflow_result.get("income_surplus_available") or None
+            ),
+            effective_income=(cashflow_result.get("effective_income") or None),
             fgts_balance=self.fgts_balance if self.fgts else None,
             fgts_used=0.0,
         )

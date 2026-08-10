@@ -101,6 +101,12 @@ class LoanSimulator(ABC):
 
         Template method that defines the simulation algorithm.
         """
+        # A fully cash-funded purchase has no loan schedule. Emitting a zeroed
+        # installment would falsely report a one-month financing contract and
+        # artificial "months saved" metadata.
+        if self._outstanding_balance <= 0:
+            return self._build_result()
+
         for month in range(1, self.term_months + 1):
             if self.fgts_manager:
                 # Accrue FGTS before using it for amortization in the same month.
@@ -209,11 +215,11 @@ class LoanSimulator(ABC):
 
     def _build_result(self) -> LoanSimulationResult:
         """Build the final simulation result."""
-        actual_term = (
-            self._installments[-1].month if self._installments else self.term_months
-        )
+        actual_term = self._installments[-1].month if self._installments else 0
         months_saved = (
-            self.term_months - actual_term if actual_term < self.term_months else 0
+            self.term_months - actual_term
+            if self.loan_value > 0 and actual_term < self.term_months
+            else 0
         )
 
         return LoanSimulationResult(

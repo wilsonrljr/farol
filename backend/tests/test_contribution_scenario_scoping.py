@@ -5,28 +5,28 @@ from app.scenarios.comparison import compare_scenarios
 
 
 def _base_args():
-    return dict(
-        property_value=500_000,
-        down_payment=100_000,
-        loan_term_years=30,
-        monthly_interest_rate=0.8,  # percent/month (approx)
-        loan_type="PRICE",
-        rent_value=2_000,
-        investment_returns=[
+    return {
+        "property_value": 500_000,
+        "down_payment": 100_000,
+        "loan_term_years": 30,
+        "monthly_interest_rate": 0.8,  # percent/month (approx)
+        "loan_type": "PRICE",
+        "rent_value": 2_000,
+        "investment_returns": [
             InvestmentReturnInput(start_month=1, end_month=None, annual_rate=8.0)
         ],
-        amortizations=None,
-        additional_costs=None,
-        inflation_rate=0.0,
-        rent_inflation_rate=0.0,
-        property_appreciation_rate=0.0,
-        monthly_net_income=None,
-        monthly_net_income_adjust_inflation=False,
-        investment_tax=None,
-        fgts=None,
-        total_savings=None,
-        continue_contributions_after_purchase=True,
-    )
+        "amortizations": None,
+        "additional_costs": None,
+        "inflation_rate": 0.0,
+        "rent_inflation_rate": 0.0,
+        "property_appreciation_rate": 0.0,
+        "monthly_net_income": None,
+        "monthly_net_income_adjust_inflation": False,
+        "investment_tax": None,
+        "fgts": None,
+        "total_savings": None,
+        "continue_contributions_after_purchase": True,
+    }
 
 
 def test_contribution_applies_only_to_selected_scenario():

@@ -16,8 +16,8 @@ import unittest
 # Add the parent directory to the path so we can import the app modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from app.models import AdditionalCostsInput, ContributionInput, InvestmentReturnInput
 from app.scenarios.comparison import compare_scenarios
-from app.models import InvestmentReturnInput, ContributionInput, AdditionalCostsInput
 
 
 class TestSurplusNotAutoInvested(unittest.TestCase):
@@ -64,15 +64,12 @@ class TestSurplusNotAutoInvested(unittest.TestCase):
         # - initial_investment = total_savings - down_payment = 30k
         # Total initial = 130k
 
-        # Get first few months data
-        month_1 = rent_scenario.monthly_data[0]
+        # Get the end of the first year.
         month_12 = rent_scenario.monthly_data[11]
 
         # With 10% annual return (≈ 0.8% monthly)
         # After 12 months: 130000 * (1 + 0.1)^(1) ≈ 143,000
         # (Compound monthly rate)
-
-        initial_capital = 130000  # down_payment + initial_investment for rent scenario
 
         # If surplus was being auto-invested (old buggy behavior):
         # With income 20k and housing ~4k, surplus would be ~16k/month

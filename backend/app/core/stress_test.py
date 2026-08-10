@@ -19,8 +19,13 @@ def run_stress_test(input_data: StressTestInput) -> StressTestResult:
     Rules:
     - Expenses can be inflated from month 1 using annual_inflation_rate.
     - Emergency fund can yield monthly returns based on annual_emergency_fund_yield_rate.
+    - The income drop is active only inside the inclusive configured shock
+      window. A zero duration disables the shock entirely.
     - Monthly net cashflow is added to/subtracted from the emergency fund.
     - Once the fund hits zero, deficits become uncovered_deficit.
+
+    ``months_survived`` retains its existing meaning: complete months survived
+    from the beginning of the simulation, not months elapsed since shock_start.
 
     Returns:
         StressTestResult with monthly series and summary fields.
@@ -50,7 +55,11 @@ def run_stress_test(input_data: StressTestInput) -> StressTestResult:
         if fund_balance > 0 and monthly_yield_multiplier != 1.0:
             fund_balance *= monthly_yield_multiplier
 
-        in_shock = shock_start <= month <= shock_end
+        # Keep this explicit: income_drop_percentage by itself does not imply an
+        # active shock, and both start and end months are inclusive.
+        in_shock = (
+            input_data.shock_duration_months > 0 and shock_start <= month <= shock_end
+        )
         income = input_data.monthly_income
         if in_shock and input_data.income_drop_percentage > 0:
             income *= 1.0 - (input_data.income_drop_percentage / 100.0)
@@ -85,6 +94,9 @@ def run_stress_test(input_data: StressTestInput) -> StressTestResult:
         months.append(
             StressTestMonth(
                 month=month,
+                in_shock=in_shock,
+                baseline_income=float(input_data.monthly_income),
+                income_reduction=float(input_data.monthly_income - income),
                 income=float(income),
                 expenses=float(expenses),
                 net_cash_flow=float(net),

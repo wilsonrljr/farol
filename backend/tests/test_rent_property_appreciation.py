@@ -3,8 +3,8 @@
 This value is used for comparisons/UI (e.g., showing how the target property price evolves).
 """
 
-from backend.app.scenarios.rent_and_invest import RentAndInvestScenarioSimulator
 from backend.app.models import InvestmentReturnInput
+from backend.app.scenarios.rent_and_invest import RentAndInvestScenarioSimulator
 
 
 def test_rent_and_invest_property_value_appreciates_when_configured():
@@ -21,5 +21,6 @@ def test_rent_and_invest_property_value_appreciates_when_configured():
     first = result.monthly_data[0].property_value
     last = result.monthly_data[-1].property_value
 
-    assert first is not None and last is not None
+    assert first is not None
+    assert last is not None
     assert last > first

@@ -13,8 +13,6 @@ an annual depreciation rate.
 
 from __future__ import annotations
 
-from .inflation import apply_inflation
-from .rates import convert_interest_rate
 from ..loans import PriceLoanSimulator, SACLoanSimulator
 from ..models import (
     VehicleComparisonInput,
@@ -22,6 +20,8 @@ from ..models import (
     VehicleComparisonResult,
     VehicleComparisonScenario,
 )
+from .inflation import apply_inflation
+from .rates import convert_interest_rate
 
 
 def _monthly_depreciation_factor(annual_depreciation_rate: float | None) -> float:
@@ -59,15 +59,29 @@ def _ownership_costs(input_data: VehicleComparisonInput, month: int) -> float:
     return float(insurance + maintenance + fuel)
 
 
+def _fuel_cost(input_data: VehicleComparisonInput, month: int) -> float:
+    """Return fuel cost for modalities whose fee covers other running costs."""
+    return float(
+        apply_inflation(
+            input_data.monthly_fuel,
+            month=month,
+            base_month=1,
+            annual_inflation_rate=input_data.annual_inflation_rate,
+        )
+    )
+
+
 def _build_scenario(
     name: str,
     month_cashflows: list[float],
     month_asset_values: list[float],
+    month_liabilities: list[float] | None = None,
 ) -> VehicleComparisonScenario:
+    liabilities = month_liabilities or [0.0] * len(month_cashflows)
     cumulative = 0.0
     months: list[VehicleComparisonMonth] = []
-    for i, (cf, av) in enumerate(
-        zip(month_cashflows, month_asset_values, strict=False), start=1
+    for i, (cf, av, liability) in enumerate(
+        zip(month_cashflows, month_asset_values, liabilities, strict=False), start=1
     ):
         cumulative += cf
         months.append(
@@ -76,17 +90,20 @@ def _build_scenario(
                 cash_flow=float(cf),
                 cumulative_outflow=float(cumulative),
                 asset_value=float(av),
-                net_position=float(av - cumulative),
+                outstanding_liability=float(liability),
+                net_position=float(av - liability - cumulative),
             )
         )
 
     total_outflows = float(sum(month_cashflows))
     final_asset_value = float(month_asset_values[-1]) if month_asset_values else 0.0
+    final_liability = float(liabilities[-1]) if liabilities else 0.0
     return VehicleComparisonScenario(
         name=name,
         total_outflows=total_outflows,
         final_asset_value=final_asset_value,
-        net_cost=float(total_outflows - final_asset_value),
+        final_outstanding_liability=final_liability,
+        net_cost=float(total_outflows + final_liability - final_asset_value),
         monthly_data=months,
     )
 
@@ -101,7 +118,7 @@ def compare_vehicle_options(
     # Base "owned" asset value timeline if bought at month 1.
     owned_asset: list[float] = []
     v = float(input_data.vehicle_price)
-    for month in range(1, horizon + 1):
+    for _ in range(horizon):
         # End-of-month value after depreciation.
         owned_asset.append(float(v))
         v *= dep_factor
@@ -157,9 +174,13 @@ def compare_vehicle_options(
         installment_by_month = {
             inst.month: inst.installment for inst in sim.installments
         }
+        outstanding_by_month = {
+            inst.month: inst.outstanding_balance for inst in sim.installments
+        }
 
         cashflows = []
         assets = []
+        liabilities = []
         for month in range(1, horizon + 1):
             cf = 0.0
             if month == 1:
@@ -177,8 +198,15 @@ def compare_vehicle_options(
 
             cashflows.append(float(cf))
             assets.append(float(owned_asset[month - 1]))
+            liabilities.append(
+                float(outstanding_by_month.get(month, 0.0))
+                if month <= fin.term_months
+                else 0.0
+            )
 
-        scenarios.append(_build_scenario("Financiamento", cashflows, assets))
+        scenarios.append(
+            _build_scenario("Financiamento", cashflows, assets, liabilities)
+        )
 
     # --- Consortium ---
     if input_data.consortium is not None and input_data.consortium.enabled:
@@ -191,6 +219,7 @@ def compare_vehicle_options(
 
         cashflows = []
         assets = []
+        liabilities = []
 
         # Asset value only exists after contemplation month.
         asset_after: list[float] = []
@@ -218,8 +247,11 @@ def compare_vehicle_options(
 
             cashflows.append(float(cf))
             assets.append(float(asset_after[month - 1]))
+            liabilities.append(
+                float(monthly_payment * max(0, cons.term_months - month))
+            )
 
-        scenarios.append(_build_scenario("Consórcio", cashflows, assets))
+        scenarios.append(_build_scenario("Consórcio", cashflows, assets, liabilities))
 
     # --- Subscription ---
     if input_data.subscription is not None and input_data.subscription.enabled:
@@ -233,7 +265,9 @@ def compare_vehicle_options(
                 base_month=1,
                 annual_inflation_rate=input_data.annual_inflation_rate,
             )
-            cashflows.append(float(fee))
+            # Subscription fees normally include insurance, maintenance and
+            # vehicle taxes, but fuel remains a user-funded running cost.
+            cashflows.append(float(fee + _fuel_cost(input_data, month)))
             assets.append(0.0)
         scenarios.append(_build_scenario("Assinatura", cashflows, assets))
 

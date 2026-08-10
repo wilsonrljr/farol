@@ -1,5 +1,6 @@
+import { useId } from 'react';
 import type { ReactNode } from '../../types/react';
-import { Box, Text, Group, rem } from '@mantine/core';
+import { Box, Group, Paper, Text } from '@mantine/core';
 
 interface ChartContainerProps {
   title: string;
@@ -16,31 +17,32 @@ export function ChartContainer({
   children,
   height = 300,
 }: ChartContainerProps) {
+  const titleId = useId();
+
   return (
-    <Box
-      p="lg"
-      style={{
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-        borderRadius: rem(20),
-      }}
+    <Paper
+      component="section"
+      aria-labelledby={titleId}
+      p={{ base: 'md', sm: 'lg' }}
+      radius="lg"
+      shadow="none"
+      withBorder
+      style={{ background: 'var(--farol-surface-raised)', overflow: 'hidden' }}
     >
-      <Group justify="space-between" align="flex-start" mb="lg">
-        <Box>
-          <Text fw={600} size="lg" c="bright">
+      <Group justify="space-between" align="flex-start" mb="lg" wrap="wrap" gap="sm">
+        <Box style={{ minWidth: 0 }}>
+          <Text id={titleId} component="h3" fw={650} size="lg" c="bright">
             {title}
           </Text>
           {subtitle && (
-            <Text size="sm" c="dimmed" mt={2}>
+            <Text size="sm" c="dimmed" mt={2} lh={1.45}>
               {subtitle}
             </Text>
           )}
         </Box>
-        {action}
+        {action && <Box>{action}</Box>}
       </Group>
-      <Box style={{ height }}>{children}</Box>
-    </Box>
+      <Box style={{ height, minHeight: 240, width: '100%', minWidth: 0 }}>{children}</Box>
+    </Paper>
   );
 }

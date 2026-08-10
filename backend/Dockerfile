@@ -1,55 +1,62 @@
-## syntax=docker/dockerfile:1.7
-# Multi-stage Dockerfile installing deps from pyproject (PEP 621) – avoids drift.
-# Stages:
-# 1. builder (instala deps + extras de dev)
-# 2. test (roda pytest)
-# 3. runtime (imagem final enxuta só com deps necessários em produção)
+# syntax=docker/dockerfile:1.7
 
-ARG PYTHON_VERSION=3.13-slim
+ARG PYTHON_VERSION=3.13-slim-trixie
+ARG UV_VERSION=0.11.32
 
-FROM python:${PYTHON_VERSION} AS uv-base
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-bin
+
+# Development target used by docker-compose.yml. The project is editable so a
+# bind-mounted backend directory is picked up immediately by uvicorn --reload.
+FROM python:${PYTHON_VERSION} AS development
+COPY --from=uv-bin /uv /uvx /bin/
 ENV PYTHONDONTWRITEBYTECODE=1 \
-        PYTHONUNBUFFERED=1 \
-        UV_SYSTEM_PYTHON=1 \
-        UV_LINK_MODE=copy \
-        UV_NO_PROGRESS=1
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_PROGRESS=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
-
-# Instala uv (gerenciador rápido com lock)
-RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir uv
-
-# Copiamos manifestos primeiro para cache de resolução
-COPY pyproject.toml ./
-COPY uv.lock ./
-
-# Cria ambiente (usa system python por simplicidade) e sincroniza deps + extras dev
-RUN uv sync --no-install-project --extra dev
-
-# Copia código e instala o pacote editável (sem reinstalar deps já resolvidas)
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --extra dev
 COPY backend ./backend
-RUN uv pip install -e .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --extra dev
 
-FROM uv-base AS test
-ENV PYTHONPATH=/app
-RUN uv run pytest -q || (echo "Tests failed during image build" && exit 1)
+FROM development AS test
+RUN pytest -q
 
-# Runtime enxuto: somente deps de produção
+# Build a non-editable production environment. uv is intentionally absent from
+# the final image; the locked virtualenv is the only Python installation layer.
+FROM python:${PYTHON_VERSION} AS production-builder
+COPY --from=uv-bin /uv /uvx /bin/
+ENV UV_LINK_MODE=copy \
+    UV_NO_PROGRESS=1 \
+    UV_PYTHON_DOWNLOADS=never
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project --no-dev --no-editable
+COPY backend ./backend
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
+
 FROM python:${PYTHON_VERSION} AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
-        PYTHONUNBUFFERED=1 \
-        UV_SYSTEM_PYTHON=1 \
-        UV_NO_PROGRESS=1
+    PYTHONUNBUFFERED=1 \
+    PATH="/app/.venv/bin:$PATH" \
+    API_HOST=0.0.0.0 \
+    API_PORT=8000
 WORKDIR /app
-RUN pip install --no-cache-dir uv
-COPY pyproject.toml ./
-COPY uv.lock ./
-RUN uv sync --no-install-project
-COPY backend ./backend
-RUN uv pip install .
+RUN groupadd --system --gid 10001 farol \
+    && useradd --system --uid 10001 --gid farol --no-create-home \
+        --home-dir /nonexistent --shell /usr/sbin/nologin farol
+COPY --from=production-builder --chown=farol:farol /app/.venv /app/.venv
 
-ENV PYTHONPATH=/app
+USER farol
+
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import socket,sys,os;import time;import errno;import contextlib;import socket as sck;port=int(os.environ.get('PORT',8000));s=sck.socket();code=0\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\ntry: s.connect(('127.0.0.1',port)); s.close()\nexcept Exception: code=1\nsys.exit(code)" || exit 1
+    CMD ["python", "-c", "import os,urllib.request; port=os.environ.get('API_PORT', os.environ.get('PORT', '8000')); urllib.request.urlopen(f'http://127.0.0.1:{port}/readyz', timeout=3).read()"]
 
-CMD ["uv", "run", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "backend.app.main"]

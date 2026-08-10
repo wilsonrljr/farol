@@ -1,423 +1,318 @@
 import {
-  Container,
-  Title,
-  Text,
-  ThemeIcon,
-  Group,
-  Stack,
-  SimpleGrid,
-  Anchor,
-  Badge,
   ActionIcon,
-  Tooltip,
+  Anchor,
   Box,
-  rem,
+  Button,
+  Container,
+  Group,
+  List,
+  Paper,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
 } from '@mantine/core';
 import {
+  IconBrandGithub,
+  IconBrandLinkedin,
   IconBrandPython,
   IconBrandReact,
-  IconServerBolt,
-  IconLayersLinked,
-  IconCode,
-  IconUser,
-  IconBrandGithub,
-  IconLockOpen,
-  IconInfoCircle,
-  IconBrandLinkedin,
   IconBrandX,
-  IconId,
   IconBulb,
-  IconTarget,
+  IconCode,
+  IconExternalLink,
+  IconId,
+  IconInfoCircle,
+  IconLayersLinked,
   IconShieldCheck,
+  IconTarget,
+  IconUser,
 } from '@tabler/icons-react';
 
-// Feature Card Component
-function FeatureCard({
-  icon: Icon,
-  title,
-  description,
-  highlight = false,
-}: {
+interface InfoCardProps {
   icon: React.ElementType;
   title: string;
   description: string;
-  highlight?: boolean;
-}) {
+}
+
+function InfoCard({ icon: Icon, title, description }: InfoCardProps) {
   return (
-    <Box
-      p="lg"
-      style={{
-        background: highlight
-          ? `light-dark(
-              linear-gradient(145deg, var(--mantine-color-ocean-0) 0%, rgba(255, 255, 255, 0.85) 100%),
-              linear-gradient(145deg, var(--mantine-color-ocean-9) 0%, rgba(30, 41, 59, 0.9) 100%)
-            )`
-          : 'var(--glass-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: highlight 
-          ? 'var(--glass-shadow-lg), 0 0 0 1px var(--mantine-color-ocean-2) inset' 
-          : 'var(--glass-shadow), var(--glass-shadow-glow)',
-        borderRadius: rem(16),
-      }}
-    >
-      <Group gap="md" wrap="nowrap" align="flex-start">
-        <ThemeIcon
-          size={48}
-          radius="xl"
-          variant={highlight ? 'filled' : 'light'}
-          color="ocean"
-          style={{
-            boxShadow: highlight ? '0 4px 12px -2px var(--mantine-color-ocean-5)' : 'none',
-          }}
-        >
-          <Icon size={22} />
-        </ThemeIcon>
-        <div>
-          <Text fw={600} c="bright" mb={4}>
-            {title}
-          </Text>
-          <Text size="sm" c="dimmed" style={{ lineHeight: 1.5 }}>
-            {description}
-          </Text>
-        </div>
-      </Group>
-    </Box>
+    <Paper className="surface-card principle-card">
+      <Box className="icon-tile" aria-hidden="true" mb="md">
+        <Icon size={22} stroke={1.8} />
+      </Box>
+      <Title order={3} size="h4" mb="xs">
+        {title}
+      </Title>
+      <Text size="sm" c="dimmed" lh={1.65}>
+        {description}
+      </Text>
+    </Paper>
   );
 }
 
-// Tech Card Component
-function TechCard({
-  icon: Icon,
-  title,
-  items,
-}: {
+interface TechCardProps {
   icon: React.ElementType;
   title: string;
   items: string[];
-}) {
+}
+
+function TechCard({ icon: Icon, title, items }: TechCardProps) {
   return (
-    <Box
-      p="lg"
-      style={{
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-        borderRadius: rem(16),
-      }}
-    >
-      <Group gap="md" wrap="nowrap" align="flex-start">
-        <ThemeIcon size={44} radius="xl" variant="light" color="ocean">
-          <Icon size={20} />
-        </ThemeIcon>
-        <div>
-          <Text fw={600} c="bright" mb="xs">
-            {title}
-          </Text>
-          <Stack gap={4}>
-            {items.map((item) => (
-              <Text key={item} size="sm" c="dimmed">
-                • {item}
-              </Text>
-            ))}
-          </Stack>
-        </div>
+    <Paper className="surface-card tech-card">
+      <Group gap="sm" wrap="nowrap" mb="md">
+        <Box className="icon-tile" aria-hidden="true">
+          <Icon size={22} stroke={1.8} />
+        </Box>
+        <Title order={3} size="h4">
+          {title}
+        </Title>
       </Group>
-    </Box>
+      <List size="sm" c="dimmed" spacing="xs" withPadding>
+        {items.map((item) => (
+          <List.Item key={item}>{item}</List.Item>
+        ))}
+      </List>
+    </Paper>
   );
 }
 
 export default function About() {
   return (
     <Box>
-      {/* Header Section */}
-      <Box
-        py={{ base: 40, md: 60 }}
-        style={{
-          background: 'light-dark(linear-gradient(180deg, rgba(240, 247, 255, 0.5) 0%, rgba(248, 250, 252, 0.3) 100%), linear-gradient(180deg, rgba(30, 41, 59, 0.3) 0%, rgba(15, 23, 42, 0.2) 100%))',
-        }}
-      >
-        <Container size="lg">
-          <Stack gap="md" align="center" ta="center">
-            <ThemeIcon 
-              size={64} 
-              radius="xl" 
-              color="ocean"
-              style={{
-                boxShadow: '0 4px 16px -4px var(--mantine-color-ocean-5)',
-              }}
-            >
-              <IconInfoCircle size={30} />
-            </ThemeIcon>
-            <Title order={1} fw={700}>
-              Sobre o Farol
+      <Box component="header" className="page-hero">
+        <Container size="lg" className="page-hero__content">
+          <Stack gap="md">
+            <Group gap="xs" wrap="nowrap">
+              <IconInfoCircle
+                size={20}
+                color="var(--mantine-color-ocean-6)"
+                aria-hidden="true"
+              />
+              <Text className="eyebrow">Sobre o projeto</Text>
+            </Group>
+            <Title order={1} className="page-hero__title">
+              Clareza para decisões financeiras importantes
             </Title>
-            <Text size="lg" c="ocean.5" maw={600}>
-              Uma ferramenta educativa para ajudar você a entender melhor as opções de aquisição
-              imobiliária no Brasil.
+            <Text className="page-hero__description">
+              O Farol é uma ferramenta educativa e de código aberto para explorar decisões
+              imobiliárias e de planejamento financeiro com premissas explícitas.
             </Text>
           </Stack>
         </Container>
       </Box>
 
-      {/* Purpose Section */}
-      <Container size="lg" py={{ base: 40, md: 60 }}>
-        <Stack gap="xl">
-          <div>
-            <Text size="sm" fw={600} c="ocean.6" tt="uppercase" mb="xs">
-              Propósito
-            </Text>
-            <Title order={2} fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))" mb="md">
-              Por que criamos o Farol?
-            </Title>
-          </div>
+      <Container size="lg" className="home-section">
+        <Stack gap={56}>
+          <Box component="section" aria-labelledby="purpose-title">
+            <Box className="section-heading" mb="xl">
+              <Text className="eyebrow" mb="xs">
+                Propósito
+              </Text>
+              <Title id="purpose-title" order={2} className="section-title" mb="sm">
+                Ajudar a pensar, não escolher por você
+              </Title>
+              <Text className="section-description">
+                Decisões de longo prazo dependem de hipóteses incertas. O produto existe para
+                organizar essas hipóteses e tornar as consequências mais fáceis de inspecionar.
+              </Text>
+            </Box>
 
-          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
-            <FeatureCard
-              icon={IconTarget}
-              title="Comparar Estratégias"
-              description="Responder a pergunta: vale a pena financiar agora ou investir e comprar depois?"
-              highlight
-            />
-            <FeatureCard
-              icon={IconBulb}
-              title="Trazer Clareza"
-              description="Entender o impacto real de juros compostos, inflação e valorização imobiliária."
-            />
-            <FeatureCard
-              icon={IconShieldCheck}
-              title="Decisão Informada"
-              description="Tomar decisões financeiras importantes com base em números, não em achismo."
-            />
-          </SimpleGrid>
+            <Box className="principles-grid">
+              <InfoCard
+                icon={IconTarget}
+                title="Comparar estratégias"
+                description="Colocar financiamento, aluguel e investimento no mesmo horizonte e com recursos equivalentes."
+              />
+              <InfoCard
+                icon={IconBulb}
+                title="Explicar o resultado"
+                description="Mostrar custos, patrimônio, viabilidade e avisos em vez de reduzir a análise a um único número."
+              />
+              <InfoCard
+                icon={IconShieldCheck}
+                title="Assumir os limites"
+                description="Diferenciar cenários exploratórios de comparações válidas e documentar simplificações do modelo."
+              />
+            </Box>
+          </Box>
 
-          {/* Technologies */}
-          <Box mt="xl">
-            <Text size="sm" fw={600} c="ocean.6" tt="uppercase" mb="xs">
-              Tecnologias
-            </Text>
-            <Title order={2} fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))" mb="md">
-              Como foi construído
-            </Title>
+          <Box component="section" aria-labelledby="architecture-title">
+            <Box className="section-heading" mb="xl">
+              <Text className="eyebrow" mb="xs">
+                Implementação
+              </Text>
+              <Title id="architecture-title" order={2} className="section-title" mb="sm">
+                Como o Farol é construído
+              </Title>
+              <Text className="section-description">
+                A interface coleta premissas estruturadas; o motor calcula séries mensais e devolve
+                métricas, avisos e estados de comparabilidade.
+              </Text>
+            </Box>
 
-            <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+            <Box className="tech-grid">
               <TechCard
                 icon={IconBrandPython}
-                title="Backend (Python)"
-                items={['FastAPI + Pydantic', 'Conversão de taxas', 'Cálculo determinístico']}
+                title="Motor de cálculo"
+                items={['Python, FastAPI e Pydantic', 'Regras financeiras determinísticas', 'Validação de contratos de entrada e saída']}
               />
               <TechCard
                 icon={IconBrandReact}
-                title="Frontend (React)"
-                items={['React + TypeScript', 'Mantine UI/Charts', 'Vite para build']}
+                title="Experiência web"
+                items={['React e TypeScript', 'Componentes Mantine', 'Gráficos e tabelas responsivos']}
               />
               <TechCard
                 icon={IconLayersLinked}
-                title="Arquitetura"
-                items={['Inputs estruturados', 'Série temporal', 'Métricas agregadas']}
+                title="Modelo de análise"
+                items={['Fluxos mensais reconciliados', 'Métricas agregadas e alertas', 'Documentação da metodologia']}
               />
-            </SimpleGrid>
+            </Box>
           </Box>
 
-          {/* Author */}
-          <Box
-            p="xl"
-            mt="xl"
-            style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-              borderRadius: rem(20),
-            }}
-          >
-            <Group align="flex-start" gap="lg" wrap="nowrap">
-              <ThemeIcon 
-                size={56} 
-                radius="xl" 
-                variant="light" 
-                color="ocean"
-                style={{
-                  background: 'light-dark(linear-gradient(135deg, var(--mantine-color-ocean-1) 0%, var(--mantine-color-ocean-0) 100%), linear-gradient(135deg, var(--mantine-color-ocean-8) 0%, var(--mantine-color-ocean-9) 100%))',
-                  boxShadow: '0 4px 12px -4px var(--mantine-color-ocean-4)',
-                }}
-              >
-                <IconUser size={24} />
-              </ThemeIcon>
-              <Stack gap="sm" style={{ flex: 1 }}>
-                <div>
-                  <Text fw={600} size="lg" c="bright">
-                    Autor
+          <Box component="section" aria-labelledby="author-title">
+            <Paper className="surface-card profile-card">
+              <Stack gap="md">
+                <Box className="icon-tile" aria-hidden="true">
+                  <IconUser size={22} stroke={1.8} />
+                </Box>
+                <Box>
+                  <Text className="eyebrow" mb="xs">
+                    Autor e manutenção
                   </Text>
-                  <Text size="sm" c="dimmed">
+                  <Title id="author-title" order={2} size="h3" mb="xs">
                     Wilson Rocha Lacerda Junior
+                  </Title>
+                  <Text size="sm" c="dimmed">
+                    Desenvolvedor de software e criador da biblioteca científica{' '}
+                    <Anchor
+                      href="https://github.com/wilsonrljr/sysidentpy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      SysIdentPy
+                    </Anchor>
+                    .
                   </Text>
-                </div>
-                <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
-                  Criei a{' '}
-                  <Anchor
-                    href="https://github.com/wilsonrljr/sysidentpy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    c="ocean.6"
-                  >
-                    SysIdentPy
-                  </Anchor>
-                  , mas aqui sou só mais uma pessoa tentando responder (com números) a dúvida
-                  existencial imobiliária brasileira: vale chutar o balde e comprar logo ou é melhor
-                  respirar fundo, investir e esperar? Se der certo, ótimo. Se der errado, bom...
-                  espero que tenha uma reserva de emergência.
-                </Text>
+                </Box>
+
                 <Group gap="xs">
-                  <Badge size="sm" variant="light" color="ocean">
-                    Software
-                  </Badge>
-                  <Badge size="sm" variant="light" color="ocean">
-                    Finanças
-                  </Badge>
-                  <Badge size="sm" variant="light" color="rose">
-                    Open Source
-                  </Badge>
-                </Group>
-                <Group gap="xs" mt="xs">
-                  <Tooltip label="GitHub" withArrow>
+                  <Tooltip label="GitHub">
                     <ActionIcon
-                      size="md"
-                      variant="light"
-                      color="ocean"
+                      className="social-link"
+                      size={44}
+                      variant="default"
                       component="a"
                       href="https://github.com/wilsonrljr"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="GitHub"
-                      radius="lg"
+                      aria-label="Perfil de Wilson no GitHub"
                     >
-                      <IconBrandGithub size={18} />
+                      <IconBrandGithub size={19} />
                     </ActionIcon>
                   </Tooltip>
-                  <Tooltip label="LinkedIn" withArrow>
+                  <Tooltip label="LinkedIn">
                     <ActionIcon
-                      size="md"
-                      variant="light"
-                      color="ocean"
+                      className="social-link"
+                      size={44}
+                      variant="default"
                       component="a"
                       href="https://www.linkedin.com/in/wilsonrljr"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="LinkedIn"
-                      radius="lg"
+                      aria-label="Perfil de Wilson no LinkedIn"
                     >
-                      <IconBrandLinkedin size={18} />
+                      <IconBrandLinkedin size={19} />
                     </ActionIcon>
                   </Tooltip>
-                  <Tooltip label="Twitter / X" withArrow>
+                  <Tooltip label="X / Twitter">
                     <ActionIcon
-                      size="md"
-                      variant="light"
-                      color="ocean"
+                      className="social-link"
+                      size={44}
+                      variant="default"
                       component="a"
                       href="https://twitter.com/wilsonrljr"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="Twitter"
-                      radius="lg"
+                      aria-label="Perfil de Wilson no X"
                     >
-                      <IconBrandX size={18} />
+                      <IconBrandX size={19} />
                     </ActionIcon>
                   </Tooltip>
-                  <Tooltip label="ORCID" withArrow>
+                  <Tooltip label="ORCID">
                     <ActionIcon
-                      size="md"
-                      variant="light"
-                      color="ocean"
+                      className="social-link"
+                      size={44}
+                      variant="default"
                       component="a"
                       href="https://orcid.org/0000-0002-3263-1152"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="ORCID"
-                      radius="lg"
+                      aria-label="Perfil ORCID de Wilson"
                     >
-                      <IconId size={18} />
+                      <IconId size={19} />
                     </ActionIcon>
                   </Tooltip>
                 </Group>
               </Stack>
-            </Group>
-          </Box>
 
-          {/* AI Notice */}
-          <Box
-            p="lg"
-            style={{
-              background: `light-dark(
-                linear-gradient(145deg, var(--mantine-color-ocean-0) 0%, rgba(255, 255, 255, 0.85) 100%),
-                linear-gradient(145deg, var(--mantine-color-ocean-9) 0%, rgba(30, 41, 59, 0.9) 100%)
-              )`,
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), 0 0 0 1px var(--mantine-color-ocean-2) inset',
-              borderRadius: rem(16),
-            }}
-          >
-            <Group align="flex-start" gap="md" wrap="nowrap">
-              <ThemeIcon size={44} radius="xl" variant="light" color="ocean">
-                <IconCode size={20} />
-              </ThemeIcon>
-              <Stack gap="xs">
-                <Text fw={600} c="bright">
-                  Uso de IA
+              <Stack gap="md" justify="center">
+                <Text c="dimmed" lh={1.7}>
+                  O projeto nasceu de uma dúvida comum: financiar agora ou preservar capital e
+                  comprar depois? Tornar o código e a metodologia públicos permite que outras
+                  pessoas revisem premissas, apontem falhas e proponham melhorias.
                 </Text>
-                <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
-                  Grande parte desta aplicação foi desenvolvida com o auxílio de ferramentas de
-                  Inteligência Artificial. Todo o conteúdo foi revisado e adaptado. Por isso, nada
-                  mais justo do que torná-la open source, permitindo que a comunidade colabore e
-                  identifique possíveis melhorias.
-                </Text>
+                <Button
+                  component="a"
+                  href="https://github.com/wilsonrljr/farol"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="default"
+                  leftSection={<IconBrandGithub size={18} />}
+                  rightSection={<IconExternalLink size={16} />}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  Ver código-fonte
+                </Button>
               </Stack>
-            </Group>
+            </Paper>
           </Box>
 
-          {/* Disclaimer */}
-          <Box
-            p="lg"
-            style={{
-              background: `light-dark(
-                linear-gradient(145deg, var(--mantine-color-amber-0) 0%, rgba(255, 255, 255, 0.85) 100%),
-                linear-gradient(145deg, var(--mantine-color-amber-9) 0%, rgba(30, 41, 59, 0.9) 100%)
-              )`,
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), 0 0 0 1px var(--mantine-color-amber-2) inset',
-              borderRadius: rem(16),
-            }}
-          >
-            <Group align="flex-start" gap="md" wrap="nowrap">
-              <ThemeIcon size={44} radius="xl" variant="light" color="amber">
-                <IconShieldCheck size={20} />
-              </ThemeIcon>
-              <Stack gap="xs">
-                <Text fw={600} c="bright">
-                  Disclaimer
-                </Text>
-                <Text size="sm" c="dimmed" style={{ lineHeight: 1.6 }}>
-                  Isto é uma simulação educativa. Nada aqui é recomendação de compra, venda,
-                  financiamento ou de como você deve investir seu dinheiro. Os resultados dependem
-                  totalmente das premissas inseridas e podem divergir da vida real. Faça sempre sua
-                  própria análise e, se necessário, consulte um profissional qualificado.
-                </Text>
-                <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
-                  Resumindo: é uma calculadora para reduzir achismo, não um oráculo financeiro.
-                </Text>
-              </Stack>
-            </Group>
-          </Box>
+          <Box component="section" className="about-grid" aria-label="Transparência e limites">
+            <Paper className="surface-card notice-card">
+              <Group align="flex-start" gap="md" wrap="nowrap">
+                <Box className="icon-tile" aria-hidden="true">
+                  <IconCode size={21} />
+                </Box>
+                <Box>
+                  <Title order={2} size="h4" mb="xs">
+                    Uso de inteligência artificial
+                  </Title>
+                  <Text size="sm" c="dimmed" lh={1.65}>
+                    Ferramentas de IA auxiliaram parte do desenvolvimento. O repositório aberto
+                    possibilita revisão técnica e contribuições da comunidade.
+                  </Text>
+                </Box>
+              </Group>
+            </Paper>
 
-          {/* Footer */}
-          <Text size="xs" c="dimmed" ta="center" mt="xl">
-            Frontend: React + Vite + Mantine · Backend: FastAPI (Python) · ©{' '}
-            {new Date().getFullYear()}
-          </Text>
+            <Paper className="surface-card notice-card notice-card--warning">
+              <Group align="flex-start" gap="md" wrap="nowrap">
+                <Box className="icon-tile" aria-hidden="true">
+                  <IconShieldCheck size={21} />
+                </Box>
+                <Box>
+                  <Title order={2} size="h4" mb="xs">
+                    Limite de responsabilidade
+                  </Title>
+                  <Text size="sm" c="dimmed" lh={1.65}>
+                    Esta é uma simulação educativa, não uma recomendação de compra, financiamento ou
+                    investimento. Resultados dependem das premissas e podem divergir da realidade.
+                  </Text>
+                </Box>
+              </Group>
+            </Paper>
+          </Box>
         </Stack>
       </Container>
     </Box>

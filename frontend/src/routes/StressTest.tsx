@@ -1,55 +1,40 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  Alert,
+  Badge,
   Box,
   Button,
-  Container,
   Group,
   NumberInput,
   Paper,
   SimpleGrid,
-  Stack,
   Text,
-  TextInput,
-  Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { LineChart } from '@mantine/charts';
+import { IconAdjustments, IconBolt, IconChartLine } from '@tabler/icons-react';
 import { runStressTest } from '../api/toolsApi';
 import type { StressTestInput } from '../api/types';
-import type { StressTestResult } from '../api/types';
 import { money, moneyCompact, percent, formatMonthsYears } from '../utils/format';
-
-type StressTestPreset = {
-  id: string;
-  name: string;
-  createdAt: number;
-  input: StressTestInput;
-};
+import { toApiError } from '../api/client';
+import { usePresets } from '../hooks/usePresets';
+import { useToolSimulation } from '../hooks/useToolSimulation';
+import {
+  firstInputError,
+  isStressTestInput,
+  validateStressTestInput,
+} from '../utils/toolInputs';
+import { MAX_PRESET_NAME_LENGTH } from '../utils/presets';
+import {
+  ToolMetricCard,
+  ToolPageShell,
+  ToolPanel,
+  ToolPresetsPanel,
+  ToolResults,
+} from '../components/ToolPageShell';
 
 const PRESETS_STORAGE_KEY = 'farol.tools.stressTest.presets.v1';
-
-function safeLoadPresets(): StressTestPreset[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(PRESETS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as StressTestPreset[];
-  } catch {
-    return [];
-  }
-}
-
-function safeSavePresets(presets: StressTestPreset[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
-}
-
-function newId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
 
 export default function StressTest() {
   const [monthlyIncome, setMonthlyIncome] = useState<number>(8000);
@@ -64,11 +49,25 @@ export default function StressTest() {
   const [annualInflation, setAnnualInflation] = useState<number | undefined>(4);
   const [annualFundYield, setAnnualFundYield] = useState<number | undefined>(10);
 
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<StressTestResult | null>(null);
-
   const [presetName, setPresetName] = useState('');
-  const [presets, setPresets] = useState<StressTestPreset[]>(() => safeLoadPresets());
+  const presetsManager = usePresets<StressTestInput>({
+    storageKey: PRESETS_STORAGE_KEY,
+    validateInput: isStressTestInput,
+  });
+  const currentInputValue = currentInput();
+  const { result, loading, lastInput, simulate } = useToolSimulation(
+    currentInputValue,
+    runStressTest
+  );
+
+  useEffect(() => {
+    if (!presetsManager.storageError) return;
+    notifications.show({
+      color: 'red',
+      title: 'Presets não puderam ser persistidos',
+      message: presetsManager.storageError,
+    });
+  }, [presetsManager.storageError]);
 
   const chartData = useMemo(() => {
     if (!result) return [];
@@ -76,32 +75,26 @@ export default function StressTest() {
       month: m.month,
       balance: m.emergency_fund_balance,
       uncovered: m.uncovered_deficit,
+      income: m.income,
+      baselineIncome: m.baseline_income ?? m.income,
     }));
   }, [result]);
 
   async function onSimulate() {
-    setLoading(true);
+    const validationError = firstInputError(validateStressTestInput(currentInputValue));
+    if (validationError) {
+      notifications.show({ color: 'red', title: 'Revise os dados', message: validationError });
+      return;
+    }
     try {
-      const data = await runStressTest({
-        monthly_income: monthlyIncome,
-        monthly_expenses: monthlyExpenses,
-        initial_emergency_fund: initialEmergencyFund,
-        horizon_months: horizonMonths,
-        income_drop_percentage: incomeDrop,
-        shock_duration_months: shockDuration,
-        shock_start_month: shockStartMonth,
-        annual_inflation_rate: annualInflation ?? null,
-        annual_emergency_fund_yield_rate: annualFundYield ?? null,
-      });
-      setResult(data);
-    } catch (e: any) {
+      await simulate();
+    } catch (caught: unknown) {
+      const error = await toApiError(caught);
       notifications.show({
         color: 'red',
         title: 'Erro ao simular',
-        message: String(e),
+        message: error.message,
       });
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -125,23 +118,18 @@ export default function StressTest() {
       notifications.show({ color: 'yellow', title: 'Nome obrigatório', message: 'Informe um nome para o preset.' });
       return;
     }
+    const validationError = firstInputError(validateStressTestInput(currentInputValue));
+    if (validationError) {
+      notifications.show({ color: 'red', title: 'Preset inválido', message: validationError });
+      return;
+    }
 
-    const next: StressTestPreset[] = [
-      {
-        id: newId(),
-        name,
-        createdAt: Date.now(),
-        input: currentInput(),
-      },
-      ...presets,
-    ];
-    setPresets(next);
-    safeSavePresets(next);
+    if (!presetsManager.addPreset(name, currentInputValue)) return;
     setPresetName('');
     notifications.show({ color: 'green', title: 'Preset salvo', message: `“${name}”` });
   }
 
-  function onLoadPreset(p: StressTestPreset) {
+  function onLoadPreset(p: (typeof presetsManager.presets)[number]) {
     const i = p.input;
     setMonthlyIncome(i.monthly_income);
     setMonthlyExpenses(i.monthly_expenses);
@@ -158,42 +146,29 @@ export default function StressTest() {
   }
 
   function onDeletePreset(id: string) {
-    const next = presets.filter((p) => p.id !== id);
-    setPresets(next);
-    safeSavePresets(next);
+    presetsManager.removePreset(id);
   }
 
   function onClearPresets() {
-    const next: StressTestPreset[] = [];
-    setPresets(next);
-    safeSavePresets(next);
+    if (!presetsManager.clearAllPresets()) return;
     notifications.show({ color: 'green', title: 'Presets removidos', message: 'Todos os presets foram apagados.' });
   }
 
   return (
-    <Container size="lg" py="xl">
-      <Box mb="lg">
-        <Title order={2} fw={700} mb={6}>
-          Teste de estresse
-        </Title>
-        <Text c="dimmed">
-          Simule um choque de renda e veja por quanto tempo sua reserva cobre o déficit.
-        </Text>
-      </Box>
-
-      <Box
-        p="xl"
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-          borderRadius: 'var(--mantine-radius-xl)',
-        }}
+    <ToolPageShell
+      title="Teste de estresse"
+      description="Simule uma queda temporária de renda e entenda quando sua reserva absorve o impacto — e quando o orçamento passa a ficar descoberto."
+      icon={<IconBolt size={24} />}
+    >
+      <ToolPanel
+        title="Desenhe o choque"
+        description="Informe sua base financeira e depois defina intensidade, início e duração do evento."
       >
-        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+        <Text fw={650} mb="sm">Sua base hoje</Text>
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
           <NumberInput
             label="Renda mensal (líquida)"
+            description="Renda antes do choque"
             value={monthlyIncome}
             onChange={(v) => setMonthlyIncome(Number(v) || 0)}
             min={0}
@@ -203,6 +178,7 @@ export default function StressTest() {
           />
           <NumberInput
             label="Gastos mensais"
+            description="Despesas cobertas todo mês"
             value={monthlyExpenses}
             onChange={(v) => setMonthlyExpenses(Number(v) || 0)}
             min={0}
@@ -212,6 +188,7 @@ export default function StressTest() {
           />
           <NumberInput
             label="Reserva atual"
+            description="Saldo disponível no início"
             value={initialEmergencyFund}
             onChange={(v) => setInitialEmergencyFund(Number(v) || 0)}
             min={0}
@@ -220,195 +197,190 @@ export default function StressTest() {
             prefix="R$ "
           />
 
+        </SimpleGrid>
+
+        <Text fw={650} mt="xl" mb="sm">Cenário de queda de renda</Text>
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
           <NumberInput
-            label="Queda de renda (%)"
+            label="Queda da renda"
+            description="Percentual reduzido durante o choque"
             value={incomeDrop}
             onChange={(v) => setIncomeDrop(Number(v) || 0)}
             min={0}
             max={100}
             step={1}
+            suffix="%"
           />
           <NumberInput
-            label="Duração do choque (meses)"
+            label="Duração"
+            description="Use zero para desativar o choque"
             value={shockDuration}
             onChange={(v) => setShockDuration(Number(v) || 0)}
             min={0}
-            max={600}
+            max={Math.max(0, horizonMonths - shockStartMonth + 1)}
             step={1}
+            suffix=" meses"
           />
           <NumberInput
-            label="Início do choque (mês)"
+            label="Mês de início"
+            description="Primeiro mês com renda reduzida"
             value={shockStartMonth}
             onChange={(v) => setShockStartMonth(Number(v) || 1)}
             min={1}
             max={horizonMonths}
             step={1}
           />
-
           <NumberInput
-            label="Inflação anual (gastos)"
-            value={annualInflation}
-            onChange={(v) => setAnnualInflation(v === '' || v == null ? undefined : Number(v))}
-            step={0.5}
-            suffix="% a.a."
-          />
-          <NumberInput
-            label="Rendimento anual (reserva)"
-            value={annualFundYield}
-            onChange={(v) => setAnnualFundYield(v === '' || v == null ? undefined : Number(v))}
-            step={0.5}
-            suffix="% a.a."
-          />
-          <NumberInput
-            label="Horizonte (meses)"
+            label="Horizonte"
+            description="Período total analisado"
             value={horizonMonths}
             onChange={(v) => setHorizonMonths(Number(v) || 1)}
             min={1}
             max={600}
             step={1}
+            suffix=" meses"
           />
         </SimpleGrid>
 
-        <Group justify="flex-end" mt="lg">
-          <Button color="ocean" radius="xl" loading={loading} onClick={onSimulate}>
-            Simular
+        <Accordion variant="separated" radius="lg" mt="lg">
+          <Accordion.Item value="advanced">
+            <Accordion.Control icon={<IconAdjustments size={18} />}>
+              <Text fw={650}>Premissas avançadas</Text>
+              <Text size="sm" c="dimmed">Inflação dos gastos e rendimento da reserva</Text>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+                <NumberInput
+                  label="Inflação anual dos gastos"
+                  description="Reajusta as despesas durante a projeção"
+                  value={annualInflation}
+                  onChange={(v) => setAnnualInflation(v === '' || v == null ? undefined : Number(v))}
+                  min={-100}
+                  max={1000}
+                  step={0.5}
+                  suffix="% a.a."
+                />
+                <NumberInput
+                  label="Rendimento anual da reserva"
+                  description="Retorno estimado do saldo disponível"
+                  value={annualFundYield}
+                  onChange={(v) => setAnnualFundYield(v === '' || v == null ? undefined : Number(v))}
+                  min={-99.99}
+                  max={1000}
+                  step={0.5}
+                  suffix="% a.a."
+                />
+              </SimpleGrid>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+
+        <Group justify="flex-end" mt="xl">
+          <Button
+            color="ocean"
+            size="md"
+            mih={44}
+            w={{ base: '100%', sm: 'auto' }}
+            loading={loading}
+            onClick={onSimulate}
+            leftSection={<IconChartLine size={18} />}
+          >
+            Simular impacto
           </Button>
         </Group>
+      </ToolPanel>
 
-        <Box mt="lg">
-          <Text fw={600} mb="xs">Presets</Text>
-          <Group align="flex-end" wrap="wrap">
-            <TextInput
-              label="Nome do preset"
-              placeholder="Ex.: Queda de renda 40% por 6 meses"
-              value={presetName}
-              onChange={(e) => setPresetName(e.currentTarget.value)}
-              style={{ flex: 1, minWidth: 260 }}
-            />
-            <Button variant="light" color="ocean" radius="xl" onClick={onSavePreset}>
-              Salvar preset
-            </Button>
-            <Button
-              variant="subtle"
-              color="red"
-              radius="xl"
-              disabled={presets.length === 0}
-              onClick={onClearPresets}
-            >
-              Limpar todos
-            </Button>
-          </Group>
-
-          {presets.length > 0 && (
-            <Stack gap="xs" mt="sm">
-              {presets.map((p) => (
-                <Box
-                  key={p.id}
-                  p="sm"
-                  style={{
-                    background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-                    borderRadius: 'var(--mantine-radius-lg)',
-                    boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-                  }}
-                >
-                  <Group justify="space-between" wrap="wrap">
-                    <Box>
-                      <Text fw={600}>{p.name}</Text>
-                      <Text size="xs" c="dimmed">
-                        Renda: {money(p.input.monthly_income)} · Gastos: {money(p.input.monthly_expenses)} · Reserva: {money(p.input.initial_emergency_fund)}
-                      </Text>
-                    </Box>
-                    <Group gap="xs">
-                      <Button size="xs" radius="xl" variant="light" color="ocean" onClick={() => onLoadPreset(p)}>
-                        Carregar
-                      </Button>
-                      <Button size="xs" radius="xl" variant="subtle" color="red" onClick={() => onDeletePreset(p.id)}>
-                        Excluir
-                      </Button>
-                    </Group>
-                  </Group>
-                </Box>
-              ))}
-            </Stack>
-          )}
-        </Box>
-      </Box>
+      <ToolPresetsPanel
+        presets={presetsManager.presets}
+        name={presetName}
+        onNameChange={setPresetName}
+        onSave={onSavePreset}
+        onLoad={onLoadPreset}
+        onDelete={onDeletePreset}
+        onClear={onClearPresets}
+        placeholder="Ex.: Queda de 40% por 6 meses"
+        maxNameLength={MAX_PRESET_NAME_LENGTH}
+        renderSummary={(preset) => (
+          <>
+            Renda: {money(preset.input.monthly_income)} · Gastos:{' '}
+            {money(preset.input.monthly_expenses)} · Reserva:{' '}
+            {money(preset.input.initial_emergency_fund)}
+          </>
+        )}
+      />
 
       {result && (
-        <Box mt="xl">
-          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mb="lg">
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Sobrevive por</Text>
-              <Text fw={700} size="xl">{formatMonthsYears(result.months_survived)}</Text>
-            </Box>
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Depleta no mês</Text>
-              <Text fw={700} size="xl">{result.depleted_at_month ?? '—'}</Text>
-            </Box>
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Déficit não coberto</Text>
-              <Text fw={700} size="xl">{money(result.total_uncovered_deficit)}</Text>
-            </Box>
+        <ToolResults
+          title="Entenda sua margem de segurança"
+          description="Os indicadores separam a duração da cobertura do valor que ficaria sem fonte de pagamento."
+        >
+          <Alert
+            color={result.total_uncovered_deficit > 0 ? 'orange' : 'teal'}
+            variant="light"
+            title="Janela de choque simulada"
+          >
+            {(lastInput?.shock_duration_months ?? 0) > 0 ? (
+              <Group gap="xs" wrap="wrap">
+                <Badge color="blue" variant="light">
+                  mês {lastInput?.shock_start_month} ao{' '}
+                  {(lastInput?.shock_start_month ?? 1) + (lastInput?.shock_duration_months ?? 0) - 1}
+                </Badge>
+                <Text size="sm">
+                  Queda de {percent(lastInput?.income_drop_percentage ?? 0, 0)} aplicada apenas nesse intervalo inclusivo.
+                </Text>
+              </Group>
+            ) : (
+              <Text size="sm">Choque desativado: duração igual a zero.</Text>
+            )}
+          </Alert>
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+            <ToolMetricCard
+              label="Cobertura completa"
+              value={formatMonthsYears(result.months_survived)}
+              detail="Meses fechados sem a reserva ficar negativa."
+              tone={result.depleted_at_month == null ? 'positive' : 'warning'}
+            />
+            <ToolMetricCard
+              label="Reserva se esgota no mês"
+              value={result.depleted_at_month ?? 'Não se esgota'}
+              detail="Primeiro mês em que o saldo não cobre todo o déficit."
+              tone={result.depleted_at_month == null ? 'positive' : 'danger'}
+            />
+            <ToolMetricCard
+              label="Déficit sem cobertura"
+              value={money(result.total_uncovered_deficit)}
+              detail="Soma do valor que faltaria após o esgotamento da reserva."
+              tone={result.total_uncovered_deficit > 0 ? 'danger' : 'positive'}
+            />
           </SimpleGrid>
 
-          <Box
-            p="xl"
-            style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-              borderRadius: 'var(--mantine-radius-xl)',
-            }}
-          >
-            <Text fw={600} size="lg" mb="sm">
-              Evolução da reserva
+          <Paper withBorder radius="xl" p={{ base: 'md', sm: 'xl' }}>
+            <Text fw={650} size="lg">Evolução da reserva</Text>
+            <Text size="sm" c="dimmed" mt={4} mb="lg">
+              Compare a renda normal à renda sob choque e acompanhe o saldo disponível mês a mês.
             </Text>
-            <LineChart
-              h={320}
-              data={chartData}
-              dataKey="month"
-              series={[
-                { name: 'balance', color: 'ocean.6', label: 'Reserva' },
-                { name: 'uncovered', color: 'rose.5', label: 'Déficit não coberto' },
-              ]}
-              curveType="monotone"
-              gridAxis="xy"
-              withLegend
-              valueFormatter={(value) => money(value)}
-              xAxisProps={{ tickMargin: 10 }}
-              yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
-              tooltipAnimationDuration={150}
-            />
+            <Box role="img" aria-label="Gráfico da evolução da reserva durante o choque de renda">
+              <LineChart
+                h={320}
+                data={chartData}
+                dataKey="month"
+                series={[
+                  { name: 'balance', color: 'ocean.6', label: 'Reserva' },
+                  { name: 'uncovered', color: 'rose.5', label: 'Déficit não coberto' },
+                  { name: 'income', color: 'teal.5', label: 'Renda efetiva' },
+                  { name: 'baselineIncome', color: 'gray.5', label: 'Renda sem choque' },
+                ]}
+                curveType="monotone"
+                gridAxis="xy"
+                withLegend
+                valueFormatter={(value) => money(value)}
+                xAxisProps={{ tickMargin: 10 }}
+                yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
+                tooltipAnimationDuration={150}
+              />
+            </Box>
             <Text size="xs" c="dimmed" mt="sm">
-              Dica: ajuste a queda e duração do choque para simular cenários.
+              A queda de renda é aplicada somente na janela destacada pelos valores acima; fora dela, a renda retorna ao patamar informado.
             </Text>
             <Group justify="space-between" mt="md" gap="xs">
               <Text size="sm" c="dimmed">
@@ -418,12 +390,12 @@ export default function StressTest() {
                 Mínimo: <Text component="span" fw={600} c="bright">{money(result.min_emergency_fund_balance)}</Text>
               </Text>
               <Text size="sm" c="dimmed">
-                Queda configurada: <Text component="span" fw={600} c="bright">{percent(incomeDrop, 0)}</Text>
+                Queda simulada: <Text component="span" fw={600} c="bright">{percent(lastInput?.income_drop_percentage ?? 0, 0)}</Text>
               </Text>
             </Group>
-          </Box>
-        </Box>
+          </Paper>
+        </ToolResults>
       )}
-    </Container>
+    </ToolPageShell>
   );
 }

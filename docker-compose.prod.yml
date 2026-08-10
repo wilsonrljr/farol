@@ -3,26 +3,43 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: farol_backend
     environment:
-      PYTHONPATH: /app
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
+      # Production traffic is same-origin through nginx. Override with an
+      # explicit JSON allowlist only when a separate browser origin is needed.
+      CORS_ALLOW_ORIGINS: "[]"
     expose:
       - "8000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-      args:
-        VITE_API_BASE: http://backend:8000
-    container_name: farol_frontend
     ports:
-      - "8080:80"
+      - "8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
-
-networks:
-  default:
-    name: farol_net

@@ -9,9 +9,9 @@ And, importantly, total_monthly_cost should always include rent_due so scenarios
 aren't artificially improved when rent can't be fully covered.
 """
 
+from backend.app.models import InvestmentReturnInput
 from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.scenarios.rent_and_invest import RentAndInvestScenarioSimulator
-from backend.app.models import InvestmentReturnInput
 
 
 def test_rent_and_invest_shortfall_with_no_income():
@@ -63,6 +63,23 @@ def test_rent_and_invest_shortfall_with_insufficient_income():
     assert m1.rent_due == 1_000.0
     # Shortfall should be rent - income = 500
     assert m1.housing_shortfall == 500.0
+
+
+def test_explicit_zero_income_is_not_treated_as_unmodeled_external_funding():
+    result = RentAndInvestScenarioSimulator(
+        property_value=300_000,
+        down_payment=0.0,
+        term_months=1,
+        rent_value=1_000.0,
+        investment_returns=[InvestmentReturnInput(start_month=1, annual_rate=0.0)],
+        monthly_net_income=0.0,
+    ).simulate()
+
+    month_1 = result.monthly_data[0]
+    assert month_1.rent_paid == 0.0
+    assert month_1.rent_shortfall == 1_000.0
+    assert month_1.housing_paid == 0.0
+    assert month_1.housing_shortfall == 1_000.0
 
 
 def test_invest_then_buy_with_income():

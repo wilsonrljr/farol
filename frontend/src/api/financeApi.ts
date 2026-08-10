@@ -20,7 +20,14 @@ export async function compareScenariosBatch(input: BatchComparisonInput): Promis
   return data;
 }
 
-export async function runSensitivityAnalysis(input: SensitivityAnalysisInput): Promise<SensitivityAnalysisResult> {
-  const { data } = await api.post<SensitivityAnalysisResult>('/api/sensitivity-analysis', input);
+export async function runSensitivityAnalysis(
+  input: SensitivityAnalysisInput,
+  signal?: AbortSignal
+): Promise<SensitivityAnalysisResult> {
+  const { data } = await api.post<SensitivityAnalysisResult>(
+    '/api/sensitivity-analysis',
+    input,
+    { signal }
+  );
   return data;
 }

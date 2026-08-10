@@ -3,6 +3,15 @@
 export type LoanType = 'SAC' | 'PRICE';
 
 export type ComparisonScenarioType = 'buy' | 'rent_invest' | 'invest_buy';
+export type ComparisonStatus =
+  | 'comparable'
+  | 'exploratory'
+  | 'incomparable'
+  | 'no_feasible_scenario';
+export type AggregateComparisonStatus =
+  | 'ranked'
+  | 'partial'
+  | 'no_authoritative_result';
 
 export interface AmortizationInput {
   month?: number; // single event month
@@ -17,7 +26,7 @@ export interface AmortizationInput {
 
 // Mirrors backend ContributionInput (same recurrence fields as AmortizationInput,
 // but semantics differ: percentage is over investment balance, not loan balance).
-export interface ContributionInput extends AmortizationInput {
+export interface ContributionInput extends Omit<AmortizationInput, 'funding_source'> {
   applies_to?: ComparisonScenarioType[] | null;
 }
 
@@ -99,8 +108,9 @@ export interface ComparisonInput {
   inflation_rate?: number | null;
   rent_inflation_rate?: number | null;
   property_appreciation_rate?: number | null;
-  monthly_net_income?: number | null; // Monthly net income - housing costs paid from this, surplus invested
-  monthly_net_income_adjust_inflation?: boolean; // If true, income is adjusted by inflation
+  /** Budget left after living expenses, available for housing and configured contributions. */
+  monthly_net_income?: number | null;
+  monthly_net_income_adjust_inflation?: boolean;
 
   investment_tax?: InvestmentTaxInput | null;
   fgts?: FGTSInput | null;
@@ -172,12 +182,19 @@ export interface MonthlyRecord {
   rent_withdrawal_from_investment?: number;
   remaining_investment_before_return?: number;
   external_cover?: number;
+  /** @deprecated Always omitted by current responses; retained for OpenAPI compatibility. */
   external_surplus_invested?: number;
-  // NEW: income_surplus_available shows how much is left from income after housing costs
-  // This is calculated with inflation-adjusted income
+  // Informational monthly budget left after housing; it remains as residual cash.
   income_surplus_available?: number;
-  // NEW: effective_income shows the inflation-adjusted income for the month
+  // Inflation-adjusted budget for the month, when enabled.
   effective_income?: number;
+  required_cash_outflow?: number;
+  funded_from_resources?: number;
+  residual_cash_balance?: number;
+  /** Non-yielding cash reserve consumed by an outright purchase event. */
+  cash_reserve_used_for_purchase?: number;
+  unfunded_amount?: number;
+  cumulative_unfunded_amount?: number;
   sustainable_withdrawal_ratio?: number;
   burn_month?: boolean;
 
@@ -202,6 +219,8 @@ export interface MonthlyRecord {
 
 export interface ComparisonScenario {
   name: string;
+  /** Stable scenario identity. Labels are presentation-only and may change. */
+  scenario_type: ComparisonScenarioType;
   total_cost: number;
   final_equity: number;
   // Wealth reporting (added to avoid mixing cashflow vs wealth semantics)
@@ -209,6 +228,13 @@ export interface ComparisonScenario {
   final_wealth?: number | null;
   net_worth_change?: number | null;
   total_consumption?: number | null;
+  final_assets?: number | null;
+  final_liabilities?: number | null;
+  residual_cash_balance?: number | null;
+  is_feasible?: boolean | null;
+  first_unfunded_month?: number | null;
+  total_unfunded_amount?: number | null;
+  comparison_warnings?: string[];
   total_outflows?: number;
   net_cost?: number;
   opportunity_cost?: number | null; // Investment gains from initial capital kept invested
@@ -218,15 +244,19 @@ export interface ComparisonScenario {
 }
 
 export interface ComparisonResult {
-  best_scenario: string;
+  best_scenario?: string | null;
+  best_scenario_type?: ComparisonScenarioType | null;
+  comparison_status?: ComparisonStatus;
+  calculation_version?: string;
+  warnings?: string[];
   scenarios: ComparisonScenario[];
 }
 
 export interface ComparisonMetrics {
   total_cost_difference: number;
-  total_cost_percentage_difference: number | null;
-  break_even_month: number | null;
-  roi_percentage: number;
+  total_cost_percentage_difference?: number | null;
+  break_even_month?: number | null;
+  roi_percentage?: number | null;
   roi_including_withdrawals_percentage?: number | null;
   average_monthly_cost: number;
   total_interest_or_rent_paid: number;
@@ -241,7 +271,11 @@ export interface EnhancedComparisonScenario extends ComparisonScenario {
 }
 
 export interface EnhancedComparisonResult {
-  best_scenario: string;
+  best_scenario?: string | null;
+  best_scenario_type?: ComparisonScenarioType | null;
+  comparison_status?: ComparisonStatus;
+  calculation_version?: string;
+  warnings?: string[];
   scenarios: EnhancedComparisonScenario[];
   comparative_summary: Record<string, any>;
 }
@@ -264,6 +298,9 @@ export interface StressTestInput {
 
 export interface StressTestMonth {
   month: number;
+  in_shock?: boolean;
+  baseline_income?: number;
+  income_reduction?: number;
   income: number;
   expenses: number;
   net_cash_flow: number;
@@ -303,6 +340,8 @@ export interface EmergencyFundPlanMonth {
 }
 
 export interface EmergencyFundPlanResult {
+  /** True when the opening balance already satisfies the month-zero target. */
+  currently_achieved?: boolean;
   achieved_at_month?: number | null;
   months_to_goal?: number | null;
   final_emergency_fund_balance: number;
@@ -351,6 +390,7 @@ export interface VehicleComparisonMonth {
   cash_flow: number;
   cumulative_outflow: number;
   asset_value: number;
+  outstanding_liability?: number;
   net_position: number;
 }
 
@@ -358,6 +398,7 @@ export interface VehicleComparisonScenario {
   name: string;
   total_outflows: number;
   final_asset_value: number;
+  final_outstanding_liability?: number;
   net_cost: number;
   monthly_data: VehicleComparisonMonth[];
 }
@@ -395,6 +436,7 @@ export interface FIREPlanMonth {
   contribution: number;
   investment_return: number;
   fire_number: number;
+  coast_fire_number?: number | null;
   progress_percent: number;
   monthly_passive_income: number;
   years_of_expenses_covered: number;
@@ -441,21 +483,28 @@ export interface BatchComparisonRanking {
   preset_id: string;
   preset_name: string;
   scenario_name: string;
+  scenario_type: ComparisonScenarioType;
   final_wealth: number;
   net_worth_change: number;
   total_cost: number;
-  roi_percentage: number;
+  roi_percentage?: number | null;
 }
 
 export interface BatchComparisonResult {
   results: BatchComparisonResultItem[];
-  global_best: {
+  global_best?: {
     preset_id: string;
     preset_name: string;
     scenario_name: string;
     final_wealth: number;
-  };
+    scenario_type: ComparisonScenarioType;
+    net_worth_change: number;
+    total_cost: number;
+    roi_percentage?: number | null;
+  } | null;
   ranking: BatchComparisonRanking[];
+  comparison_status?: AggregateComparisonStatus;
+  warnings?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -486,15 +535,20 @@ export interface SensitivityAnalysisInput {
 
 export interface SensitivityScenarioResult {
   name: string;
+  scenario_type: ComparisonScenarioType;
+  is_feasible?: boolean | null;
   final_wealth: number;
   total_cost: number;
-  roi_percentage: number;
+  roi_percentage?: number | null;
   net_worth_change: number;
 }
 
 export interface SensitivityDataPoint {
   parameter_value: number;
-  best_scenario: string;
+  best_scenario?: string | null;
+  best_scenario_type?: ComparisonScenarioType | null;
+  comparison_status?: ComparisonStatus;
+  warnings?: string[];
   scenarios: Record<string, SensitivityScenarioResult>;
 }
 
@@ -510,5 +564,7 @@ export interface SensitivityAnalysisResult {
   base_value: number;
   data_points: SensitivityDataPoint[];
   breakeven_points: SensitivityBreakeven[];
-  best_overall: SensitivityDataPoint;
+  best_overall?: SensitivityDataPoint | null;
+  comparison_status?: AggregateComparisonStatus;
+  warnings?: string[];
 }

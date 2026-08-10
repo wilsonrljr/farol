@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from typing import TYPE_CHECKING
 
 from .. import models as api
-from . import models as domain
+
+if TYPE_CHECKING:
+    from . import models as domain
 
 
 def monthly_record_to_api(record: domain.MonthlyRecord) -> api.MonthlyRecord:
@@ -38,6 +41,10 @@ def enhanced_comparison_scenario_to_api(
 def comparison_result_to_api(result: domain.ComparisonResult) -> api.ComparisonResult:
     return api.ComparisonResult(
         best_scenario=result.best_scenario,
+        best_scenario_type=result.best_scenario_type,
+        comparison_status=result.comparison_status,
+        calculation_version=result.calculation_version,
+        warnings=result.warnings,
         scenarios=[comparison_scenario_to_api(s) for s in result.scenarios],
     )
 
@@ -47,6 +54,10 @@ def enhanced_comparison_result_to_api(
 ) -> api.EnhancedComparisonResult:
     return api.EnhancedComparisonResult(
         best_scenario=result.best_scenario,
+        best_scenario_type=result.best_scenario_type,
+        comparison_status=result.comparison_status,
+        calculation_version=result.calculation_version,
+        warnings=result.warnings,
         scenarios=[enhanced_comparison_scenario_to_api(s) for s in result.scenarios],
         comparative_summary=result.comparative_summary,
     )

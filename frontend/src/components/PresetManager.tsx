@@ -42,20 +42,27 @@ import {
   IconScale,
   IconTag,
 } from '@tabler/icons-react';
-import { Preset, PresetTag, PresetTagType, createTag } from '../utils/presets';
+import {
+  MAX_PRESET_DESCRIPTION_LENGTH,
+  MAX_PRESET_NAME_LENGTH,
+  Preset,
+  PresetTag,
+  PresetTagType,
+  createTag,
+} from '../utils/presets';
 import { PresetTagList, TagSelector, TagFilter } from './PresetTagSelector';
 
 interface PresetManagerProps<T> {
   presets: Preset<T>[];
-  onSave: (name: string, description?: string, tags?: PresetTag[]) => void;
+  onSave: (name: string, description?: string, tags?: PresetTag[]) => boolean | void;
   onLoad: (preset: Preset<T>) => void;
-  onDelete: (id: string) => void;
-  onDuplicate: (id: string) => void;
-  onEdit: (id: string, updates: { name?: string; description?: string; tags?: PresetTag[] }) => void;
+  onDelete: (id: string) => boolean | void;
+  onDuplicate: (id: string) => Preset<T> | boolean | null | void;
+  onEdit: (id: string, updates: { name?: string; description?: string; tags?: PresetTag[] }) => boolean | void;
   onExportAll: () => void;
   onExportSelected: (ids: string[]) => void;
-  onImport: (file: File) => Promise<{ success: boolean; error?: string; duplicatesSkipped?: number; presets: Preset<T>[] }>;
-  onClearAll: () => void;
+  onImport: (file: File) => Promise<{ success: boolean; error?: string; duplicatesSkipped?: number; invalidSkipped?: number; presets: Preset<T>[] }>;
+  onClearAll: () => boolean | void;
   // Quick Compare
   onCompare?: (selectedPresets: Preset<T>[]) => void;
   isCompareLoading?: boolean;
@@ -154,7 +161,8 @@ export function PresetManager<T>({
       });
       return;
     }
-    onSave(saveName.trim(), saveDescription.trim() || undefined, saveTags.length > 0 ? saveTags : undefined);
+    const saved = onSave(saveName.trim(), saveDescription.trim() || undefined, saveTags.length > 0 ? saveTags : undefined);
+    if (saved === false) return;
     setSaveName('');
     setSaveDescription('');
     setSaveTags([]);
@@ -188,11 +196,12 @@ export function PresetManager<T>({
 
   const handleEditSave = () => {
     if (!editingPreset || !editName.trim()) return;
-    onEdit(editingPreset.id, {
+    const updated = onEdit(editingPreset.id, {
       name: editName.trim(),
       description: editDescription.trim() || undefined,
       tags: editTags.length > 0 ? editTags : undefined,
     });
+    if (updated === false) return;
     closeEditModal();
     setEditingPreset(null);
     setEditTags([]);
@@ -211,7 +220,8 @@ export function PresetManager<T>({
 
   const handleDeleteConfirm = () => {
     if (deletingPresetId) {
-      onDelete(deletingPresetId);
+      const deleted = onDelete(deletingPresetId);
+      if (deleted === false) return;
       closeDeleteConfirm();
       setDeletingPresetId(null);
       notifications.show({
@@ -224,7 +234,8 @@ export function PresetManager<T>({
   };
 
   const handleDuplicate = (id: string) => {
-    onDuplicate(id);
+    const duplicated = onDuplicate(id);
+    if (duplicated === false || duplicated === null) return;
     notifications.show({
       title: 'Preset duplicado',
       message: 'Uma cópia foi criada',
@@ -240,8 +251,12 @@ export function PresetManager<T>({
     resetRef.current?.();
     
     if (result.success) {
-      const message = result.duplicatesSkipped
-        ? `${result.presets.length} preset(s) importado(s). ${result.duplicatesSkipped} duplicado(s) ignorado(s).`
+      const skipped = [
+        result.duplicatesSkipped ? `${result.duplicatesSkipped} duplicado(s)` : null,
+        result.invalidSkipped ? `${result.invalidSkipped} inválido(s)` : null,
+      ].filter(Boolean).join(' e ');
+      const message = skipped
+        ? `${result.presets.length} preset(s) importado(s). ${skipped} ignorado(s).`
         : `${result.presets.length} preset(s) importado(s) com sucesso`;
       notifications.show({
         title: 'Importação concluída',
@@ -280,7 +295,8 @@ export function PresetManager<T>({
   };
 
   const handleClearAll = () => {
-    onClearAll();
+    const cleared = onClearAll();
+    if (cleared === false) return;
     closeClearConfirm();
     setSelectedPresets(new Set());
     notifications.show({
@@ -321,7 +337,8 @@ export function PresetManager<T>({
           <Button
             variant="light"
             color="ocean"
-            size="sm"
+            size="md"
+            mih={44}
             leftSection={<IconDeviceFloppy size={16} />}
             onClick={openSaveModal}
             loading={isLoading}
@@ -333,7 +350,8 @@ export function PresetManager<T>({
           <Button
             variant="subtle"
             color="ocean"
-            size="sm"
+            size="md"
+            mih={44}
             leftSection={<IconFolderOpen size={16} />}
             onClick={open}
             rightSection={
@@ -370,6 +388,7 @@ export function PresetManager<T>({
             placeholder="Ex: Apartamento SP 500k"
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
+            maxLength={MAX_PRESET_NAME_LENGTH}
             required
             data-autofocus
           />
@@ -378,6 +397,7 @@ export function PresetManager<T>({
             placeholder="Breve descrição do cenário..."
             value={saveDescription}
             onChange={(e) => setSaveDescription(e.target.value)}
+            maxLength={MAX_PRESET_DESCRIPTION_LENGTH}
             minRows={2}
             maxRows={4}
           />
@@ -395,13 +415,14 @@ export function PresetManager<T>({
             />
           </Box>
           <Group justify="flex-end" gap="sm">
-            <Button variant="subtle" onClick={closeSaveModal}>
+            <Button variant="default" mih={44} onClick={closeSaveModal}>
               Cancelar
             </Button>
             <Button
               color="ocean"
               leftSection={<IconCheck size={16} />}
               onClick={handleSave}
+              mih={44}
             >
               Salvar
             </Button>
@@ -430,6 +451,7 @@ export function PresetManager<T>({
             label="Nome do preset"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
+            maxLength={MAX_PRESET_NAME_LENGTH}
             required
             data-autofocus
           />
@@ -437,6 +459,7 @@ export function PresetManager<T>({
             label="Descrição (opcional)"
             value={editDescription}
             onChange={(e) => setEditDescription(e.target.value)}
+            maxLength={MAX_PRESET_DESCRIPTION_LENGTH}
             minRows={2}
             maxRows={4}
           />
@@ -454,13 +477,14 @@ export function PresetManager<T>({
             />
           </Box>
           <Group justify="flex-end" gap="sm">
-            <Button variant="subtle" onClick={closeEditModal}>
+            <Button variant="default" mih={44} onClick={closeEditModal}>
               Cancelar
             </Button>
             <Button
               color="ocean"
               leftSection={<IconCheck size={16} />}
               onClick={handleEditSave}
+              mih={44}
             >
               Salvar alterações
             </Button>
@@ -489,10 +513,10 @@ export function PresetManager<T>({
             Tem certeza que deseja excluir este preset? Esta ação não pode ser desfeita.
           </Text>
           <Group justify="flex-end" gap="sm">
-            <Button variant="subtle" onClick={closeDeleteConfirm}>
+            <Button variant="default" mih={44} onClick={closeDeleteConfirm}>
               Cancelar
             </Button>
-            <Button color="red" leftSection={<IconTrash size={16} />} onClick={handleDeleteConfirm}>
+            <Button color="red" mih={44} leftSection={<IconTrash size={16} />} onClick={handleDeleteConfirm}>
               Excluir
             </Button>
           </Group>
@@ -520,10 +544,10 @@ export function PresetManager<T>({
             Esta ação irá excluir todos os {presets.length} presets salvos. Esta ação não pode ser desfeita.
           </Alert>
           <Group justify="flex-end" gap="sm">
-            <Button variant="subtle" onClick={closeClearConfirm}>
+            <Button variant="default" mih={44} onClick={closeClearConfirm}>
               Cancelar
             </Button>
-            <Button color="red" leftSection={<IconTrash size={16} />} onClick={handleClearAll}>
+            <Button color="red" mih={44} leftSection={<IconTrash size={16} />} onClick={handleClearAll}>
               Excluir tudo
             </Button>
           </Group>
@@ -575,7 +599,8 @@ export function PresetManager<T>({
                 {/* Quick Compare Toggle */}
                 {onCompare && presets.length >= minCompareSelection && (
                   <Button
-                    size="xs"
+                    size="sm"
+                    mih={44}
                     variant={compareMode ? 'filled' : 'light'}
                     color="ocean"
                     leftSection={<IconScale size={14} />}
@@ -609,7 +634,8 @@ export function PresetManager<T>({
                       {...props}
                       variant="light"
                       color="ocean"
-                      size="xs"
+                      size="sm"
+                      mih={44}
                       leftSection={<IconUpload size={14} />}
                     >
                       Importar
@@ -621,7 +647,8 @@ export function PresetManager<T>({
                     <Button
                       variant="light"
                       color="ocean"
-                      size="xs"
+                      size="sm"
+                      mih={44}
                       leftSection={<IconDownload size={14} />}
                       onClick={onExportAll}
                     >
@@ -631,7 +658,8 @@ export function PresetManager<T>({
                       <Button
                         variant="filled"
                         color="ocean"
-                        size="xs"
+                        size="sm"
+                        mih={44}
                         leftSection={<IconDownload size={14} />}
                         onClick={handleExportSelected}
                       >
@@ -645,7 +673,8 @@ export function PresetManager<T>({
                 <Button
                   variant="subtle"
                   color="red"
-                  size="xs"
+                  size="sm"
+                  mih={44}
                   leftSection={<IconTrash size={14} />}
                   onClick={openClearConfirm}
                 >
@@ -675,7 +704,8 @@ export function PresetManager<T>({
                   </Text>
                 </Group>
                 <Button
-                  size="xs"
+                  size="sm"
+                  mih={44}
                   color="ocean"
                   leftSection={<IconScale size={14} />}
                   disabled={!canCompare}
@@ -777,6 +807,20 @@ export function PresetManager<T>({
                           toggleSelect(preset.id);
                         }
                       }}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          if (compareMode) {
+                            toggleCompareSelection(preset.id);
+                          } else {
+                            toggleSelect(preset.id);
+                          }
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={isSelected}
                     >
                       <Group justify="space-between" wrap="nowrap">
                         <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
@@ -835,7 +879,8 @@ export function PresetManager<T>({
                               <Button
                                 variant="light"
                                 color="ocean"
-                                size="xs"
+                                size="sm"
+                                mih={44}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleLoad(preset);
@@ -849,7 +894,9 @@ export function PresetManager<T>({
                                 <ActionIcon
                                   variant="subtle"
                                   color="gray"
+                                  size={44}
                                   onClick={(e) => e.stopPropagation()}
+                                  aria-label={`Mais ações para ${preset.name}`}
                                 >
                                   <IconDotsVertical size={16} />
                                 </ActionIcon>

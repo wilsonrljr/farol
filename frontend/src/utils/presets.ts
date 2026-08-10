@@ -1,4 +1,3 @@
-// Predefined tag types with semantic meaning
 export type PresetTagType =
   | 'conservative'
   | 'moderate'
@@ -19,7 +18,6 @@ export interface PresetTag {
   color: string;
 }
 
-// Default tag definitions
 export const DEFAULT_TAGS: Record<PresetTagType, Omit<PresetTag, 'id'>> = {
   conservative: { label: 'Conservador', type: 'conservative', color: 'blue' },
   moderate: { label: 'Moderado', type: 'moderate', color: 'ocean' },
@@ -37,9 +35,9 @@ export const DEFAULT_TAGS: Record<PresetTagType, Omit<PresetTag, 'id'>> = {
 export function createTag(type: PresetTagType, customLabel?: string): PresetTag {
   const base = DEFAULT_TAGS[type];
   return {
-    id: `${type}-${Date.now()}`,
+    id: `${type}-${newPresetId()}`,
     ...base,
-    label: customLabel || base.label,
+    label: customLabel?.trim().slice(0, MAX_PRESET_TAG_LABEL_LENGTH) || base.label,
   };
 }
 
@@ -59,74 +57,20 @@ export interface PresetExport<T> {
   presets: Preset<T>[];
 }
 
-const EXPORT_VERSION = 1;
+export type PresetInputValidator<T> = (input: unknown) => input is T;
 
-export function newPresetId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+export interface PresetStorageResult<T> {
+  presets: Preset<T>[];
+  version: number;
+  migrated: boolean;
+  error?: string;
+  invalidSkipped?: number;
+  duplicatesSkipped?: number;
 }
 
-export function loadPresets<T>(storageKey: string): Preset<T>[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as Preset<T>[];
-  } catch {
-    return [];
-  }
-}
-
-export function savePresets<T>(storageKey: string, presets: Preset<T>[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(storageKey, JSON.stringify(presets));
-}
-
-export function createPreset<T>(name: string, input: T, description?: string, tags?: PresetTag[]): Preset<T> {
-  return {
-    id: newPresetId(),
-    name,
-    description,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    input,
-    tags: tags || [],
-  };
-}
-
-export function updatePreset<T>(preset: Preset<T>, updates: Partial<Pick<Preset<T>, 'name' | 'description' | 'input' | 'tags'>>): Preset<T> {
-  return {
-    ...preset,
-    ...updates,
-    updatedAt: Date.now(),
-  };
-}
-
-export function exportPresetsToJson<T>(presets: Preset<T>[]): string {
-  const exportData: PresetExport<T> = {
-    version: EXPORT_VERSION,
-    exportedAt: Date.now(),
-    presets,
-  };
-  return JSON.stringify(exportData, null, 2);
-}
-
-export function downloadPresetsFile<T>(presets: Preset<T>[], filename = 'farol-presets.json') {
-  const json = exportPresetsToJson(presets);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, 0);
+export interface PresetSaveResult {
+  success: boolean;
+  error?: string;
 }
 
 export interface ImportResult<T> {
@@ -134,75 +78,378 @@ export interface ImportResult<T> {
   presets: Preset<T>[];
   error?: string;
   duplicatesSkipped?: number;
+  invalidSkipped?: number;
 }
 
-export function parsePresetsFromJson<T>(json: string, existingIds: Set<string>): ImportResult<T> {
+export const PRESET_EXPORT_VERSION = 2;
+export const MAX_PRESET_IMPORT_BYTES = 5 * 1024 * 1024;
+export const MAX_PRESETS_PER_FILE = 100;
+export const MAX_PRESET_TAGS = 20;
+export const MAX_PRESET_ID_LENGTH = 128;
+export const MAX_PRESET_NAME_LENGTH = 120;
+export const MAX_PRESET_DESCRIPTION_LENGTH = 1000;
+export const MAX_PRESET_TAG_LABEL_LENGTH = 64;
+
+export function newPresetId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+/** Clone at every persistence boundary so form edits cannot mutate saved presets. */
+export function clonePresetValue<T>(value: T): T {
+  if (typeof globalThis.structuredClone === 'function') {
+    try {
+      return globalThis.structuredClone(value);
+    } catch {
+      // Plain JSON-compatible financial inputs are handled by the fallback.
+    }
+  }
+
+  if (value === undefined || value === null || typeof value !== 'object') return value;
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isFiniteTimestamp(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function isPresetTag(value: unknown): value is PresetTag {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    value.id.trim().length > 0 &&
+    value.id.trim().length <= MAX_PRESET_ID_LENGTH &&
+    typeof value.label === 'string' &&
+    value.label.trim().length > 0 &&
+    value.label.trim().length <= MAX_PRESET_TAG_LABEL_LENGTH &&
+    typeof value.type === 'string' &&
+    value.type in DEFAULT_TAGS &&
+    typeof value.color === 'string' &&
+    value.color.length <= 32
+  );
+}
+
+function normalizePreset<T>(
+  value: unknown,
+  validateInput?: PresetInputValidator<T>
+): Preset<T> | null {
+  if (!isRecord(value)) return null;
+  if (
+    typeof value.id !== 'string' ||
+    value.id.trim().length === 0 ||
+    value.id.trim().length > MAX_PRESET_ID_LENGTH
+  ) return null;
+  if (
+    typeof value.name !== 'string' ||
+    value.name.trim().length === 0 ||
+    value.name.trim().length > MAX_PRESET_NAME_LENGTH
+  ) return null;
+  if (
+    typeof value.description === 'string' &&
+    value.description.trim().length > MAX_PRESET_DESCRIPTION_LENGTH
+  ) return null;
+  if (value.input === undefined || value.input === null) return null;
+  if (validateInput && !validateInput(value.input)) return null;
+  if (value.tags !== undefined && !Array.isArray(value.tags)) return null;
+  if (Array.isArray(value.tags) && value.tags.length > MAX_PRESET_TAGS) return null;
+  if (Array.isArray(value.tags) && !value.tags.every(isPresetTag)) return null;
+
+  const now = Date.now();
+  const tags = Array.isArray(value.tags)
+    ? value.tags.filter(isPresetTag).map((tag) => clonePresetValue(tag))
+    : [];
+
+  return {
+    id: value.id.trim(),
+    name: value.name.trim(),
+    description:
+      typeof value.description === 'string' && value.description.trim()
+        ? value.description.trim()
+        : undefined,
+    createdAt: isFiniteTimestamp(value.createdAt) ? value.createdAt : now,
+    updatedAt: isFiniteTimestamp(value.updatedAt) ? value.updatedAt : now,
+    input: clonePresetValue(value.input as T),
+    tags,
+  };
+}
+
+interface ExtractedPayload {
+  version: number;
+  presets: unknown[];
+  migrated: boolean;
+}
+
+function extractPayload(value: unknown): ExtractedPayload | string {
+  if (Array.isArray(value)) {
+    if (value.length > MAX_PRESETS_PER_FILE) {
+      return `O arquivo pode conter no máximo ${MAX_PRESETS_PER_FILE} presets`;
+    }
+    return { version: 0, presets: value, migrated: true };
+  }
+
+  if (!isRecord(value) || !Array.isArray(value.presets)) {
+    return 'Formato de presets inválido';
+  }
+  if (value.presets.length > MAX_PRESETS_PER_FILE) {
+    return `O arquivo pode conter no máximo ${MAX_PRESETS_PER_FILE} presets`;
+  }
+
+  const version = value.version === undefined ? 1 : Number(value.version);
+  if (!Number.isInteger(version) || version < 0) return 'Versão de presets inválida';
+  if (version > PRESET_EXPORT_VERSION) {
+    return `Versão de presets não suportada (${version}). Atualize o Farol antes de importar.`;
+  }
+
+  return {
+    version,
+    presets: value.presets,
+    migrated: version !== PRESET_EXPORT_VERSION,
+  };
+}
+
+function normalizePayload<T>(
+  payload: ExtractedPayload,
+  existingIds: ReadonlySet<string>,
+  validateInput?: PresetInputValidator<T>
+): PresetStorageResult<T> {
+  const presets: Preset<T>[] = [];
+  const seen = new Set(existingIds);
+  let invalidSkipped = 0;
+  let duplicatesSkipped = 0;
+
+  for (const candidate of payload.presets) {
+    const preset = normalizePreset(candidate, validateInput);
+    if (!preset) {
+      invalidSkipped += 1;
+      continue;
+    }
+    if (seen.has(preset.id)) {
+      duplicatesSkipped += 1;
+      continue;
+    }
+
+    seen.add(preset.id);
+    presets.push(preset);
+  }
+
+  const error =
+    presets.length === 0 && payload.presets.length > 0
+      ? duplicatesSkipped === payload.presets.length
+        ? 'Todos os presets já existem'
+        : 'Nenhum preset válido encontrado'
+      : undefined;
+
+  return {
+    presets,
+    version: payload.version,
+    migrated: payload.migrated,
+    error,
+    invalidSkipped,
+    duplicatesSkipped,
+  };
+}
+
+export function loadPresetsResult<T>(
+  storageKey: string,
+  validateInput?: PresetInputValidator<T>
+): PresetStorageResult<T> {
+  if (typeof window === 'undefined') {
+    return {
+      presets: [],
+      version: PRESET_EXPORT_VERSION,
+      migrated: false,
+      error: 'Armazenamento local indisponível',
+    };
+  }
+
+  let raw: string | null;
   try {
-    const parsed = JSON.parse(json);
-    
-    // Handle both array format (legacy) and object format (new export)
-    let presets: Preset<T>[];
-    
-    if (Array.isArray(parsed)) {
-      presets = parsed;
-    } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.presets)) {
-      presets = parsed.presets;
-    } else {
-      return { success: false, presets: [], error: 'Formato de arquivo inválido' };
+    raw = window.localStorage.getItem(storageKey);
+  } catch {
+    return {
+      presets: [],
+      version: PRESET_EXPORT_VERSION,
+      migrated: false,
+      error: 'Não foi possível acessar os presets salvos neste navegador',
+    };
+  }
+
+  if (!raw) {
+    return { presets: [], version: PRESET_EXPORT_VERSION, migrated: false };
+  }
+
+  try {
+    const extracted = extractPayload(JSON.parse(raw));
+    if (typeof extracted === 'string') {
+      return {
+        presets: [],
+        version: PRESET_EXPORT_VERSION,
+        migrated: false,
+        error: extracted,
+      };
+    }
+    const result = normalizePayload(extracted, new Set(), validateInput);
+    if ((result.invalidSkipped ?? 0) > 0 || (result.duplicatesSkipped ?? 0) > 0) {
+      const details = [
+        result.invalidSkipped ? `${result.invalidSkipped} inválido(s)` : null,
+        result.duplicatesSkipped ? `${result.duplicatesSkipped} duplicado(s)` : null,
+      ].filter(Boolean).join(' e ');
+      return {
+        ...result,
+        error: `Os presets salvos contêm ${details}. O conteúdo original foi preservado para recuperação.`,
+      };
+    }
+    return result;
+  } catch {
+    return {
+      presets: [],
+      version: PRESET_EXPORT_VERSION,
+      migrated: false,
+      error: 'Os presets salvos estão corrompidos e foram preservados para recuperação',
+    };
+  }
+}
+
+export function loadPresets<T>(storageKey: string): Preset<T>[] {
+  return loadPresetsResult<T>(storageKey).presets;
+}
+
+export function savePresets<T>(
+  storageKey: string,
+  presets: readonly Preset<T>[]
+): PresetSaveResult {
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'Armazenamento local indisponível' };
+  }
+
+  try {
+    const envelope: PresetExport<T> = {
+      version: PRESET_EXPORT_VERSION,
+      exportedAt: Date.now(),
+      presets: clonePresetValue([...presets]),
+    };
+    window.localStorage.setItem(storageKey, JSON.stringify(envelope));
+    return { success: true };
+  } catch {
+    return {
+      success: false,
+      error: 'Não foi possível salvar os presets. Verifique o espaço e as permissões do navegador.',
+    };
+  }
+}
+
+export function createPreset<T>(
+  name: string,
+  input: T,
+  description?: string,
+  tags?: PresetTag[]
+): Preset<T> {
+  const now = Date.now();
+  return {
+    id: newPresetId(),
+    name: name.trim().slice(0, MAX_PRESET_NAME_LENGTH),
+    description:
+      description?.trim().slice(0, MAX_PRESET_DESCRIPTION_LENGTH) || undefined,
+    createdAt: now,
+    updatedAt: now,
+    input: clonePresetValue(input),
+    tags: clonePresetValue(tags ?? []),
+  };
+}
+
+export function updatePreset<T>(
+  preset: Preset<T>,
+  updates: Partial<Pick<Preset<T>, 'name' | 'description' | 'input' | 'tags'>>
+): Preset<T> {
+  return {
+    ...clonePresetValue(preset),
+    ...(updates.name !== undefined
+      ? { name: updates.name.trim().slice(0, MAX_PRESET_NAME_LENGTH) }
+      : {}),
+    ...(updates.description !== undefined
+      ? {
+          description:
+            updates.description.trim().slice(0, MAX_PRESET_DESCRIPTION_LENGTH) ||
+            undefined,
+        }
+      : {}),
+    ...(updates.input !== undefined ? { input: clonePresetValue(updates.input) } : {}),
+    ...(updates.tags !== undefined ? { tags: clonePresetValue(updates.tags) } : {}),
+    updatedAt: Date.now(),
+  };
+}
+
+export function exportPresetsToJson<T>(presets: readonly Preset<T>[]): string {
+  const exportData: PresetExport<T> = {
+    version: PRESET_EXPORT_VERSION,
+    exportedAt: Date.now(),
+    presets: clonePresetValue([...presets]),
+  };
+  return JSON.stringify(exportData, null, 2);
+}
+
+export function downloadPresetsFile<T>(
+  presets: readonly Preset<T>[],
+  filename = 'farol-presets.json'
+) {
+  const json = exportPresetsToJson(presets);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  setTimeout(() => {
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
+export function parsePresetsFromJson<T>(
+  json: string,
+  existingIds: ReadonlySet<string>,
+  validateInput?: PresetInputValidator<T>
+): ImportResult<T> {
+  try {
+    const byteLength = new TextEncoder().encode(json).byteLength;
+    if (byteLength > MAX_PRESET_IMPORT_BYTES) {
+      return {
+        success: false,
+        presets: [],
+        error: 'O arquivo de presets excede o limite de 5 MB',
+      };
+    }
+    const extracted = extractPayload(JSON.parse(json));
+    if (typeof extracted === 'string') {
+      return { success: false, presets: [], error: extracted };
     }
 
-    // Validate preset structure
-    const validPresets: Preset<T>[] = [];
-    let duplicatesSkipped = 0;
-
-    for (const preset of presets) {
-      if (!isValidPreset(preset)) {
-        continue; // skip invalid presets
-      }
-      
-      // Skip duplicates by ID
-      if (existingIds.has(preset.id)) {
-        duplicatesSkipped++;
-        continue;
-      }
-
-      validPresets.push({
-        ...preset,
-        // Ensure required fields exist
-        createdAt: preset.createdAt || Date.now(),
-        updatedAt: preset.updatedAt || Date.now(),
-      });
-    }
-
-    if (validPresets.length === 0 && presets.length > 0) {
-      if (duplicatesSkipped === presets.length) {
-        return { success: false, presets: [], error: 'Todos os presets já existem', duplicatesSkipped };
-      }
-      return { success: false, presets: [], error: 'Nenhum preset válido encontrado' };
-    }
-
-    return { success: true, presets: validPresets, duplicatesSkipped };
+    const result = normalizePayload(extracted, existingIds, validateInput);
+    return {
+      success: !result.error,
+      presets: result.presets,
+      error: result.error,
+      duplicatesSkipped: result.duplicatesSkipped,
+      invalidSkipped: result.invalidSkipped,
+    };
   } catch {
     return { success: false, presets: [], error: 'Erro ao analisar arquivo JSON' };
   }
 }
 
-function isValidPreset<T>(obj: unknown): obj is Preset<T> {
-  if (!obj || typeof obj !== 'object') return false;
-  const p = obj as Record<string, unknown>;
-  return (
-    typeof p.id === 'string' &&
-    typeof p.name === 'string' &&
-    p.name.trim().length > 0 &&
-    p.input !== undefined &&
-    p.input !== null
-  );
-}
-
 export function readFileAsText(file: File): Promise<string> {
+  if (file.size > MAX_PRESET_IMPORT_BYTES) {
+    return Promise.reject(new Error('O arquivo de presets excede o limite de 5 MB'));
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = () => resolve(String(reader.result ?? ''));
     reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
     reader.readAsText(file);
   });

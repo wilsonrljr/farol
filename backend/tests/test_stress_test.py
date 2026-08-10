@@ -76,3 +76,41 @@ def test_stress_test_applies_inflation_to_expenses() -> None:
     )
     assert expected_month13 == base_expenses * 1.12  # 12% increase
     assert result.monthly_data[12].expenses == expected_month13  # Month 13
+
+
+def test_stress_test_shock_window_is_inclusive_and_bounded() -> None:
+    result = run_stress_test(
+        StressTestInput(
+            monthly_income=1000.0,
+            monthly_expenses=0.0,
+            initial_emergency_fund=0.0,
+            horizon_months=5,
+            income_drop_percentage=50.0,
+            shock_start_month=2,
+            shock_duration_months=2,
+        )
+    )
+
+    assert [month.income for month in result.monthly_data] == [
+        1000.0,
+        500.0,
+        500.0,
+        1000.0,
+        1000.0,
+    ]
+
+
+def test_stress_test_zero_duration_disables_income_shock() -> None:
+    result = run_stress_test(
+        StressTestInput(
+            monthly_income=1000.0,
+            monthly_expenses=0.0,
+            initial_emergency_fund=0.0,
+            horizon_months=3,
+            income_drop_percentage=100.0,
+            shock_start_month=1,
+            shock_duration_months=0,
+        )
+    )
+
+    assert [month.income for month in result.monthly_data] == [1000.0] * 3

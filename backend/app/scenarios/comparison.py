@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from typing import TypedDict
 
 from ..core.costs import AdditionalCostsCalculator
+from ..core.inflation import apply_inflation
 from ..core.protocols import (
     AdditionalCostsLike,
     AmortizationLike,
@@ -27,6 +28,9 @@ from ..models import ComparisonResult, EnhancedComparisonResult
 from .buy import BuyScenarioSimulator
 from .invest_then_buy import InvestThenBuyScenarioSimulator
 from .rent_and_invest import RentAndInvestScenarioSimulator
+
+_LEDGER_EPSILON = 0.01
+_ALL_SCENARIO_TYPES = {"buy", "rent_invest", "invest_buy"}
 
 
 def _filter_contributions_for_scenario(
@@ -59,6 +63,134 @@ def _filter_contributions_for_scenario(
             filtered.append(c)
 
     return filtered or None
+
+
+def _find_incomparability_reasons(
+    *,
+    contributions: Sequence[ContributionLike] | None,
+    amortizations: Sequence[AmortizationLike] | None,
+) -> list[str]:
+    """Return resource assumptions that are not shared by every scenario.
+
+    Cash amortizations are covered by the canonical monthly ledger: alternative
+    scenarios retain the same unused income as cash. Bonus and 13th-salary
+    events, however, currently exist only inside the buy simulator and therefore
+    cannot support a fair cross-scenario ranking.
+    """
+
+    reasons: list[str] = []
+    for contribution in contributions or []:
+        applies_to = getattr(contribution, "applies_to", None)
+        if applies_to is not None and set(applies_to) != _ALL_SCENARIO_TYPES:
+            reasons.append(
+                "Há aportes exclusivos de alguns cenários; o fluxo de recursos não é comum a todas as alternativas."
+            )
+            break
+
+    for amortization in amortizations or []:
+        source = getattr(amortization, "funding_source", "cash") or "cash"
+        if source in {"bonus", "13_salario"}:
+            reasons.append(
+                "Bônus ou 13º salário foram alocados apenas à compra; falta modelar o mesmo recurso nas alternativas."
+            )
+            break
+
+    return reasons
+
+
+def _assess_resource_ledger(
+    scenario: domain.ComparisonScenario,
+    *,
+    monthly_net_income: float | None,
+    monthly_net_income_adjust_inflation: bool,
+    inflation_rate: float | None,
+    initial_wealth: float,
+) -> None:
+    """Attach an auditable recurring-resource ledger to one scenario.
+
+    The simulators keep their detailed asset mechanics. This reconciliation
+    layer prevents an unfunded installment or contribution from becoming
+    terminal wealth: modeled income is consumed first, prior residual income can
+    cover later months, and any remaining deficit becomes an explicit liability.
+    """
+
+    scenario.initial_wealth = initial_wealth
+    scenario.final_assets = float(scenario.final_equity)
+
+    if monthly_net_income is None:
+        scenario.final_liabilities = None
+        scenario.residual_cash_balance = None
+        scenario.is_feasible = None
+        scenario.first_unfunded_month = None
+        scenario.total_unfunded_amount = None
+        scenario.final_wealth = float(scenario.final_equity)
+        scenario.net_worth_change = scenario.final_wealth - initial_wealth
+        return
+
+    residual_cash = 0.0
+    cumulative_unfunded = 0.0
+    cumulative_rent_paid = 0.0
+    first_unfunded_month: int | None = None
+
+    for row in sorted(scenario.monthly_data, key=lambda item: item.month):
+        effective_income = float(monthly_net_income)
+        if monthly_net_income_adjust_inflation and inflation_rate is not None:
+            effective_income = apply_inflation(
+                float(monthly_net_income), row.month, 1, inflation_rate
+            )
+
+        if row.housing_due is not None:
+            housing_due = max(0.0, float(row.housing_due))
+        else:
+            housing_due = max(0.0, float(row.rent_due or 0.0)) + max(
+                0.0, float(row.monthly_additional_costs or 0.0)
+            )
+        contribution = max(0.0, float(row.extra_contribution_total or 0.0))
+        cash_purchase = max(0.0, float(row.cash_reserve_used_for_purchase or 0.0))
+        required = housing_due + contribution + cash_purchase
+
+        available = residual_cash + effective_income
+        funded = min(required, available)
+        unfunded = max(0.0, required - available)
+        residual_cash = max(0.0, available - required)
+        cumulative_unfunded += unfunded
+
+        if unfunded > _LEDGER_EPSILON and first_unfunded_month is None:
+            first_unfunded_month = row.month
+
+        # Housing has priority over optional investment contributions.
+        housing_paid = min(housing_due, available)
+        row.effective_income = effective_income
+        row.required_cash_outflow = required
+        row.funded_from_resources = funded
+        row.residual_cash_balance = residual_cash
+        row.unfunded_amount = unfunded
+        row.cumulative_unfunded_amount = cumulative_unfunded
+        row.housing_paid = housing_paid
+        row.housing_shortfall = max(0.0, housing_due - housing_paid)
+        if row.rent_due is not None:
+            row.rent_paid = min(float(row.rent_due), housing_paid)
+            row.rent_shortfall = max(0.0, float(row.rent_due) - row.rent_paid)
+            cumulative_rent_paid += row.rent_paid
+            row.cumulative_rent_paid = cumulative_rent_paid
+        elif cumulative_rent_paid > 0:
+            # Preserve the running total after an invest-then-buy scenario
+            # transitions from renting to ownership.
+            row.cumulative_rent_paid = cumulative_rent_paid
+        row.income_surplus_available = max(0.0, effective_income - housing_due)
+
+    scenario.residual_cash_balance = residual_cash
+    scenario.total_unfunded_amount = cumulative_unfunded
+    scenario.final_liabilities = cumulative_unfunded
+    scenario.final_assets = float(scenario.final_equity) + residual_cash
+    scenario.final_wealth = scenario.final_assets - cumulative_unfunded
+    scenario.net_worth_change = scenario.final_wealth - initial_wealth
+    scenario.first_unfunded_month = first_unfunded_month
+    scenario.is_feasible = cumulative_unfunded <= _LEDGER_EPSILON
+    if not scenario.is_feasible:
+        scenario.comparison_warnings.append(
+            "O fluxo configurado não financia todos os custos e aportes; o déficit foi registrado como passivo."
+        )
 
 
 def compare_scenarios(
@@ -215,29 +347,61 @@ def _compare_scenarios_domain(
 
     scenarios = [buy, rent, invest_buy]
 
-    # Attach wealth reporting fields to all scenarios (keeps per-scenario values comparable).
+    # Reconcile every scenario against the same pool of recurring resources.
     for sc in scenarios:
-        sc.initial_wealth = initial_wealth
-        sc.final_wealth = sc.final_equity
-        sc.net_worth_change = sc.final_equity - initial_wealth
+        _assess_resource_ledger(
+            sc,
+            monthly_net_income=monthly_net_income,
+            monthly_net_income_adjust_inflation=monthly_net_income_adjust_inflation,
+            inflation_rate=inflation_rate,
+            initial_wealth=initial_wealth,
+        )
 
-    # Business rule (canonical): best scenario is the one that maximizes final wealth.
-    # We expose this as `best_scenario` to avoid mixing two competing meanings of “best”.
-    #
-    # Important: `total_cost` / `net_cost` are NOT the same as “wealth change”. They include
-    # principal transfers and other flows that can make a scenario look “more expensive” even
-    # when it ends with higher final wealth.
-    best_scenario = max(
-        scenarios,
-        key=lambda x: (
-            float(getattr(x, "net_worth_change", 0.0) or 0.0),
-            float(getattr(x, "final_equity", 0.0) or 0.0),
-        ),
-    ).name
+    incomparability_reasons = _find_incomparability_reasons(
+        contributions=contributions,
+        amortizations=amortizations,
+    )
+    warnings = list(incomparability_reasons)
+    missing_resource_contract = total_savings is None or monthly_net_income is None
+    if total_savings is None:
+        warnings.append(
+            "Informe a reserva total disponível para comparar o patrimônio inicial de forma auditável."
+        )
+    if monthly_net_income is None:
+        warnings.append(
+            "Informe a renda líquida mensal para validar viabilidade e eliminar recursos externos implícitos."
+        )
+
+    feasible = [scenario for scenario in scenarios if scenario.is_feasible is True]
+
+    if monthly_net_income is not None and not feasible:
+        comparison_status: domain.ComparisonStatus = "no_feasible_scenario"
+        warnings.append(
+            "Nenhum cenário cabe nos recursos mensais informados; não há vencedor válido."
+        )
+    elif incomparability_reasons:
+        comparison_status = "incomparable"
+    elif missing_resource_contract:
+        comparison_status = "exploratory"
+    else:
+        comparison_status = "comparable"
+
+    best: domain.ComparisonScenario | None = None
+    if comparison_status == "comparable":
+        best = max(
+            feasible,
+            key=lambda scenario: (
+                float(scenario.net_worth_change or 0.0),
+                float(scenario.final_wealth or 0.0),
+            ),
+        )
 
     return domain.ComparisonResult(
-        best_scenario=best_scenario,
+        best_scenario=best.name if best else None,
+        best_scenario_type=best.scenario_type if best else None,
+        comparison_status=comparison_status,
         scenarios=scenarios,
+        warnings=warnings,
     )
 
 
@@ -331,7 +495,12 @@ def _enhanced_compare_scenarios_domain(
         continue_contributions_after_purchase=continue_contributions_after_purchase,
     )
 
-    best_cost = min(s.total_cost for s in basic.scenarios)
+    feasible_costs = [
+        scenario.total_cost
+        for scenario in basic.scenarios
+        if scenario.is_feasible is not False
+    ]
+    best_cost = min(feasible_costs or [s.total_cost for s in basic.scenarios])
     metrics_calculator = _DomainMetricsCalculator(
         down_payment=down_payment,
         fgts=fgts,
@@ -341,14 +510,23 @@ def _enhanced_compare_scenarios_domain(
     enhanced_scenarios = [
         domain.EnhancedComparisonScenario(
             name=sc.name,
+            scenario_type=sc.scenario_type,
             total_cost=sc.total_cost,
             final_equity=sc.final_equity,
             initial_wealth=sc.initial_wealth,
             final_wealth=sc.final_wealth,
             net_worth_change=sc.net_worth_change,
             total_consumption=sc.total_consumption,
+            final_assets=sc.final_assets,
+            final_liabilities=sc.final_liabilities,
+            residual_cash_balance=sc.residual_cash_balance,
+            is_feasible=sc.is_feasible,
+            first_unfunded_month=sc.first_unfunded_month,
+            total_unfunded_amount=sc.total_unfunded_amount,
+            comparison_warnings=sc.comparison_warnings,
             total_outflows=sc.total_outflows,
             net_cost=sc.net_cost,
+            opportunity_cost=sc.opportunity_cost,
             monthly_data=sc.monthly_data,
             metrics=metrics_calculator.calculate(sc),
             purchase_breakdown=sc.purchase_breakdown,
@@ -366,6 +544,10 @@ def _enhanced_compare_scenarios_domain(
 
     return domain.EnhancedComparisonResult(
         best_scenario=basic.best_scenario,
+        best_scenario_type=basic.best_scenario_type,
+        comparison_status=basic.comparison_status,
+        calculation_version=basic.calculation_version,
+        warnings=basic.warnings,
         scenarios=enhanced_scenarios,
         comparative_summary=comparative_summary,
     )
@@ -440,37 +622,25 @@ class _DomainMetricsCalculator:
             (sum(monthly_costs) / len(monthly_costs)) if monthly_costs else 0.0
         )
 
-        total_outflows = float(scenario.total_outflows or 0.0)
-        roi_pct = self._calculate_roi_from_outflows(
-            final_value=scenario.final_equity,
-            total_outflows=total_outflows,
-        )
-
         total_interest_rent = self._calculate_total_interest_or_rent(scenario)
-        break_even_month = self._calculate_break_even_month(
-            scenario,
-        )
+        # A scenario cannot break even "against itself". Pairwise crossover is
+        # available in the comparative monthly wealth series instead.
+        break_even_month = None
         sustainability = self._calculate_sustainability_metrics(scenario)
 
         total_withdrawn = sustainability["total_withdrawn"]
         avg_ratio = sustainability["avg_ratio"]
         months_with_burn = sustainability["months_with_burn"]
 
-        roi_adjusted = self._calculate_adjusted_roi(
-            scenario.final_equity,
-            total_outflows,
-            total_withdrawn,
-        )
-
         return domain.ComparisonMetrics(
             total_cost_difference=total_cost_diff,
             total_cost_percentage_difference=total_cost_pct_diff,
             break_even_month=break_even_month,
-            roi_percentage=roi_pct,
-            roi_including_withdrawals_percentage=roi_adjusted,
+            roi_percentage=None,
+            roi_including_withdrawals_percentage=None,
             average_monthly_cost=avg_monthly_cost,
             total_interest_or_rent_paid=total_interest_rent,
-            wealth_accumulation=scenario.final_equity,
+            wealth_accumulation=float(scenario.final_wealth or 0.0),
             total_rent_withdrawn_from_investment=(
                 total_withdrawn if total_withdrawn > 0 else None
             ),
@@ -479,22 +649,6 @@ class _DomainMetricsCalculator:
             ),
             average_sustainable_withdrawal_ratio=avg_ratio,
         )
-
-    def _calculate_roi_from_outflows(
-        self,
-        *,
-        final_value: float,
-        total_outflows: float,
-    ) -> float:
-        """Calculate ROI percentage based on total outflows.
-
-        With the updated cost semantics, total_outflows already includes any initial
-        capital allocations (down payment, initial investments, upfront costs) as part
-        of month 1 outflows.
-        """
-        if total_outflows <= 0:
-            return 0.0
-        return (final_value - total_outflows) / total_outflows * 100
 
     def _calculate_total_interest_or_rent(
         self, scenario: domain.ComparisonScenario
@@ -548,18 +702,6 @@ class _DomainMetricsCalculator:
             "avg_ratio": avg_ratio,
             "months_with_burn": months_with_burn,
         }
-
-    def _calculate_adjusted_roi(
-        self,
-        final_value: float,
-        total_outflows: float,
-        total_withdrawn: float,
-    ) -> float | None:
-        """Calculate adjusted ROI including withdrawals."""
-        if total_withdrawn <= 0 or total_outflows <= 0:
-            return None
-        adjusted_final = final_value + total_withdrawn
-        return (adjusted_final - total_outflows) / total_outflows * 100
 
 
 def _build_comparative_summary(
@@ -648,7 +790,7 @@ def _get_value(
 def _get_total_wealth(row: object | None) -> float:
     """Compute total wealth for a month (best-effort).
 
-    Wealth is treated as equity + investment balance + FGTS balance (if present).
+    Wealth is equity + investments + FGTS + residual cash - unfunded obligations.
     """
     if row is None:
         return 0.0
@@ -656,4 +798,6 @@ def _get_total_wealth(row: object | None) -> float:
     equity = _get_value(row, "equity")
     investment_balance = _get_value(row, "investment_balance")
     fgts_balance = _get_value(row, "fgts_balance")
-    return equity + investment_balance + fgts_balance
+    residual_cash = _get_value(row, "residual_cash_balance")
+    unfunded = _get_value(row, "cumulative_unfunded_amount")
+    return equity + investment_balance + fgts_balance + residual_cash - unfunded

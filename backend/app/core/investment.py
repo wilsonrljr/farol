@@ -130,20 +130,23 @@ class InvestmentAccount:
         gain = self.unrealized_gain
         if mode != "on_withdrawal" or tax_rate <= 0 or gain <= 0:
             gross = min(net_cash_needed, self.balance)
-            # Proportional principal reduction (no tax).
+            # Redeeming x% of the account also redeems x% of its cost basis. This
+            # remains true under losses, when principal / balance is greater than
+            # one: part of the loss is realized and the remaining account keeps
+            # the same proportional cost basis.
             principal_fraction = (
                 (self.principal / self.balance) if self.balance > 0 else 0.0
             )
-            # When the account has losses (principal > balance), principal_fraction > 1.
-            # Reducing principal by more than the withdrawn cash would distort cost basis
-            # and could later create artificial gains/taxes.
-            principal_reduction = gross * min(1.0, principal_fraction)
+            principal_reduction = min(self.principal, gross * principal_fraction)
+            # Realized gain/loss is an accounting fact even when no tax is due
+            # (tax disabled or already collected monthly).
+            realized_gain = gross - principal_reduction
             self.balance -= gross
             self.principal = max(0.0, self.principal - principal_reduction)
             return InvestmentWithdrawalResult(
                 gross_withdrawal=gross,
                 net_cash=gross,
-                realized_gain=0.0,
+                realized_gain=realized_gain,
                 tax_paid=0.0,
             )
 

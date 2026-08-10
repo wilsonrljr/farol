@@ -20,37 +20,32 @@ export function FeatureCard({
 }: FeatureCardProps) {
   const content = (
     <Box
-      className="card-hover"
+      className={link ? 'card-hover' : undefined}
       style={{
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-        borderRadius: rem(20),
+        background: 'var(--farol-surface-raised)',
+        border: '1px solid var(--farol-border)',
+        boxShadow: 'none',
+        borderRadius: rem(16),
         padding: rem(24),
         cursor: link ? 'pointer' : 'default',
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
+        transition: 'border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease',
       }}
     >
-      {/* Accent glow on hover */}
       <Box
+        aria-hidden="true"
         style={{
           position: 'absolute',
+          insetInline: rem(20),
           top: 0,
-          left: 0,
-          right: 0,
-          height: rem(80),
-          background: `linear-gradient(180deg, var(--mantine-color-${color}-5) 0%, transparent 100%)`,
-          opacity: 0,
-          transition: 'opacity 300ms ease',
-          pointerEvents: 'none',
+          height: rem(3),
+          borderRadius: `0 0 ${rem(3)} ${rem(3)}`,
+          background: `var(--mantine-color-${color}-5)`,
         }}
-        className="feature-card-accent"
       />
-      
+
       <ThemeIcon 
         size={56} 
         radius="xl" 
@@ -58,16 +53,13 @@ export function FeatureCard({
         color={color} 
         mb="lg"
         style={{
-          background: `light-dark(
-            linear-gradient(135deg, var(--mantine-color-${color}-1) 0%, var(--mantine-color-${color}-0) 100%),
-            linear-gradient(135deg, var(--mantine-color-${color}-8) 0%, var(--mantine-color-${color}-9) 100%)
-          )`,
-          boxShadow: `0 4px 12px -4px var(--mantine-color-${color}-4)`,
+          background: `light-dark(var(--mantine-color-${color}-0), var(--mantine-color-${color}-9))`,
         }}
       >
         {icon}
       </ThemeIcon>
       <Text 
+        component="h3"
         fw={600} 
         size="lg" 
         c="bright" 
@@ -80,10 +72,10 @@ export function FeatureCard({
       </Text>
       {link && (
         <Group gap={6} mt="lg">
-          <Text size="sm" fw={600} c={`${color}.5`}>
+          <Text size="sm" fw={600} c={`light-dark(var(--mantine-color-${color}-7), var(--mantine-color-${color}-3))`}>
             Começar
           </Text>
-          <IconChevronRight size={16} color={`var(--mantine-color-${color}-5)`} />
+          <IconChevronRight size={16} color={`light-dark(var(--mantine-color-${color}-7), var(--mantine-color-${color}-3))`} aria-hidden="true" />
         </Group>
       )}
     </Box>
@@ -91,7 +83,11 @@ export function FeatureCard({
 
   if (link) {
     return (
-      <UnstyledButton component={Link} to={link} style={{ display: 'block', height: '100%' }}>
+      <UnstyledButton
+        component={Link}
+        to={link}
+        style={{ display: 'block', height: '100%', minHeight: rem(44), borderRadius: rem(16) }}
+      >
         {content}
       </UnstyledButton>
     );
@@ -115,11 +111,14 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
         gap: rem(16),
         padding: rem(16),
         borderRadius: rem(16),
-        background: isActive ? 'var(--glass-bg)' : 'transparent',
-        backdropFilter: isActive ? 'blur(12px)' : 'none',
-        WebkitBackdropFilter: isActive ? 'blur(12px)' : 'none',
-        boxShadow: isActive ? 'var(--glass-shadow)' : 'none',
-        transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
+        background: isActive
+          ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))'
+          : 'transparent',
+        border: isActive
+          ? '1px solid var(--mantine-color-ocean-3)'
+          : '1px solid transparent',
+        boxShadow: 'none',
+        transition: 'background-color 180ms ease, border-color 180ms ease',
       }}
     >
       <Box
@@ -128,8 +127,8 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
           height: rem(40),
           borderRadius: rem(12),
           background: isActive
-            ? 'linear-gradient(135deg, var(--mantine-color-ocean-5) 0%, var(--mantine-color-ocean-6) 100%)'
-            : 'light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.06))',
+            ? 'var(--mantine-color-ocean-6)'
+            : 'light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))',
           color: isActive ? 'white' : 'var(--mantine-color-ocean-5)',
           display: 'flex',
           alignItems: 'center',
@@ -137,13 +136,13 @@ export function StepCard({ step, title, description, isActive = false }: StepCar
           fontWeight: 700,
           fontSize: rem(15),
           flexShrink: 0,
-          boxShadow: isActive ? '0 4px 12px -2px var(--mantine-color-ocean-5)' : 'none',
+          boxShadow: 'none',
         }}
       >
         {step}
       </Box>
       <Box>
-        <Text fw={600} size="md" c={isActive ? 'ocean.6' : 'bright'}>
+        <Text fw={600} size="md" c={isActive ? 'var(--farol-chart-1)' : 'bright'}>
           {title}
         </Text>
         <Text size="sm" c="dimmed" lh={1.5} mt={2}>
@@ -181,13 +180,9 @@ export function InfoCard({
   return (
     <Box
       style={{
-        background: `light-dark(
-          linear-gradient(145deg, var(--mantine-color-${color.bg}-0) 0%, rgba(255, 255, 255, 0.85) 100%),
-          linear-gradient(145deg, var(--mantine-color-${color.bg}-9) 0%, rgba(30, 41, 59, 0.9) 100%)
-        )`,
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        background: `light-dark(var(--mantine-color-${color.bg}-0), var(--mantine-color-dark-7))`,
+        border: `1px solid var(--mantine-color-${color.bg}-3)`,
+        boxShadow: 'none',
         borderRadius: rem(16),
         padding: rem(16),
       }}
@@ -197,7 +192,7 @@ export function InfoCard({
           <Text size="xs" c="dimmed" tt="uppercase" fw={600} style={{ letterSpacing: '0.5px' }}>
             {title}
           </Text>
-          <Text fw={700} size="xl" c={`${color.text}.6`} mt={4}>
+          <Text fw={700} size="xl" c={`light-dark(var(--mantine-color-${color.text}-7), var(--mantine-color-${color.text}-3))`} mt={4}>
             {value}
           </Text>
           {subtitle && (
@@ -212,12 +207,7 @@ export function InfoCard({
             radius="xl" 
             variant="light" 
             color={color.bg}
-            style={{
-              background: `light-dark(
-                linear-gradient(135deg, var(--mantine-color-${color.bg}-1) 0%, var(--mantine-color-${color.bg}-0) 100%),
-                linear-gradient(135deg, var(--mantine-color-${color.bg}-8) 0%, var(--mantine-color-${color.bg}-9) 100%)
-              )`,
-            }}
+            style={{ background: `light-dark(var(--mantine-color-${color.bg}-1), var(--mantine-color-${color.bg}-9))` }}
           >
             {icon}
           </ThemeIcon>

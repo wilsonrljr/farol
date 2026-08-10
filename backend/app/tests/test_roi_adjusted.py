@@ -1,5 +1,5 @@
-from backend.app.scenarios.comparison import enhanced_compare_scenarios
 from backend.app.models import InvestmentReturnInput
+from backend.app.scenarios.comparison import enhanced_compare_scenarios
 
 
 def test_roi_basic():
@@ -25,8 +25,10 @@ def test_roi_basic():
     rent_scenario = next(s for s in result.scenarios if s.name == "Alugar e investir")
     metrics = rent_scenario.metrics
 
-    # Should have ROI calculated
-    assert metrics.roi_percentage is not None
+    # Salary/residual cash is an external flow, not investment return. A proper
+    # TWR/XIRR needs dated flows, so the aggregate metric remains unavailable.
+    assert metrics.roi_percentage is None
+    assert metrics.roi_including_withdrawals_percentage is None
 
 
 def test_roi_no_income():
@@ -51,5 +53,5 @@ def test_roi_no_income():
 
     rent_scenario = next(s for s in result.scenarios if s.name == "Alugar e investir")
     metrics = rent_scenario.metrics
-    # ROI should still be calculated
-    assert metrics.roi_percentage is not None
+    assert metrics.roi_percentage is None
+    assert metrics.roi_including_withdrawals_percentage is None

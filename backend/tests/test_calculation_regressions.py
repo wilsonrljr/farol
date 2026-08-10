@@ -52,4 +52,5 @@ def test_buy_net_wealth_consistency():
     data = r.json()
     buy = data["scenarios"][0]
     # Final equity minus total cost is an economic indicator; just ensure field presence
-    assert "final_equity" in buy and buy["final_equity"] >= 0
+    assert "final_equity" in buy
+    assert buy["final_equity"] >= 0

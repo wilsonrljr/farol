@@ -4,8 +4,8 @@ The invest-then-buy scenario should only allow a purchase when the upfront costs
 are covered by liquid cash (investment liquidation), even if FGTS balance is large.
 """
 
-from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 
 
 def test_invest_then_buy_requires_cash_for_upfront_costs_even_with_fgts():

@@ -1,119 +1,52 @@
-import { Container, Title, Text, Box, rem, Stack, Group, ThemeIcon, SimpleGrid, Paper, Badge } from '@mantine/core';
+import { Box, Container, Group, Stack, Text, Title } from '@mantine/core';
+import {
+  IconBuildingBank,
+  IconChartLine,
+  IconPigMoney,
+  IconScale,
+} from '@tabler/icons-react';
 import ComparisonForm from '../components/ComparisonForm';
-import { IconScale, IconBuildingBank, IconChartLine, IconPigMoney } from '@tabler/icons-react';
+
+const strategies = [
+  { label: 'Comprar financiado', icon: IconBuildingBank },
+  { label: 'Alugar e investir', icon: IconChartLine },
+  { label: 'Investir para comprar', icon: IconPigMoney },
+];
 
 export default function ScenarioComparison() {
   return (
     <Box>
-      {/* Header Section */}
-      <Box
-        py={{ base: 40, md: 60 }}
-        style={{
-          background: 'light-dark(linear-gradient(180deg, var(--mantine-color-ocean-0) 0%, var(--mantine-color-slate-0) 100%), linear-gradient(180deg, var(--mantine-color-dark-8) 0%, var(--mantine-color-dark-9) 100%))',
-        }}
-      >
-        <Container size="lg">
-          <Stack gap="md" align="center" ta="center">
-            <Badge size="lg" variant="light" color="ocean" radius="sm">
-              Comprar vs Alugar
-            </Badge>
-            <ThemeIcon 
-              size={64} 
-              radius="xl" 
-              variant="gradient"
-              gradient={{ from: 'ocean.5', to: 'ocean.7', deg: 135 }}
-            >
-              <IconScale size={32} />
-            </ThemeIcon>
-            <Title order={1} fw={700} c="light-dark(var(--mantine-color-ocean-7), var(--mantine-color-text))">
-              Comprar vs Alugar
+      <Box component="header" className="page-hero">
+        <Container size="lg" className="page-hero__content">
+          <Stack gap="md">
+            <Group gap="xs" wrap="nowrap">
+              <IconScale
+                size={20}
+                color="var(--mantine-color-ocean-6)"
+                aria-hidden="true"
+              />
+              <Text className="eyebrow">Simulação imobiliária</Text>
+            </Group>
+            <Title order={1} className="page-hero__title">
+              Comprar ou alugar: compare com as mesmas premissas
             </Title>
-            <Text size="lg" c="dimmed" maw={600}>
-              Analise e compare três estratégias de aquisição imobiliária para descobrir
-              qual é a melhor opção para o seu perfil.
+            <Text className="page-hero__description">
+              Projete custos, patrimônio e viabilidade de três estratégias. Comece pelos dados
+              essenciais e refine a análise somente quando precisar.
             </Text>
+            <Group gap="xs" aria-label="Estratégias incluídas na comparação">
+              {strategies.map((strategy) => (
+                <span className="strategy-chip" key={strategy.label}>
+                  <strategy.icon size={15} aria-hidden="true" />
+                  {strategy.label}
+                </span>
+              ))}
+            </Group>
           </Stack>
-
-          {/* Quick info cards */}
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg" mt="xl">
-            <Box
-              p="md"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Group gap="sm" wrap="nowrap">
-                <ThemeIcon size={40} radius="xl" variant="light" color="ocean">
-                  <IconBuildingBank size={20} />
-                </ThemeIcon>
-                <Box>
-                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
-                    Comprar Financiado
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    Financiamento SAC ou PRICE
-                  </Text>
-                </Box>
-              </Group>
-            </Box>
-            <Box
-              p="md"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Group gap="sm" wrap="nowrap">
-                <ThemeIcon size={40} radius="xl" variant="light" color="teal">
-                  <IconChartLine size={20} />
-                </ThemeIcon>
-                <Box>
-                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-teal-8), var(--mantine-color-text))">
-                    Alugar e Investir
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    Investir a entrada
-                  </Text>
-                </Box>
-              </Group>
-            </Box>
-            <Box
-              p="md"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Group gap="sm" wrap="nowrap">
-                <ThemeIcon size={40} radius="xl" variant="light" color="violet">
-                  <IconPigMoney size={20} />
-                </ThemeIcon>
-                <Box>
-                  <Text fw={600} size="sm" c="light-dark(var(--mantine-color-violet-8), var(--mantine-color-text))">
-                    Investir e Comprar
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    Juntar para comprar à vista
-                  </Text>
-                </Box>
-              </Group>
-            </Box>
-          </SimpleGrid>
         </Container>
       </Box>
 
-      {/* Form Section */}
-      <Container size="lg" py={{ base: 40, md: 60 }}>
+      <Container size="lg" className="comparison-workspace">
         <ComparisonForm />
       </Container>
     </Box>

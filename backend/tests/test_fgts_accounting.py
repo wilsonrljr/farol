@@ -1,8 +1,8 @@
 import pytest
 
+from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
 from backend.app.scenarios.buy import BuyScenarioSimulator
 from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
-from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
 
 
 def test_buy_fgts_withdrawal_counts_as_outflow():

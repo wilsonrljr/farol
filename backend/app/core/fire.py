@@ -19,14 +19,20 @@ from ..models import (
     FIREPlanMonth,
     FIREPlanResult,
 )
-from .inflation import apply_inflation
 from .rates import convert_interest_rate
 
 
 def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
     """Calculate the path to financial independence.
 
-    Uses compound growth model with optional inflation adjustment for expenses.
+    All values are projected in today's money. ``annual_return_rate`` is part of
+    the public contract as a *real* return, so inflating the FIRE target as well
+    would count inflation twice. ``annual_inflation_rate`` remains accepted for
+    backwards compatibility, but it does not change this real-value projection.
+
+    Monthly snapshots represent the end of each projected month. The current
+    state is month zero and is reflected in the summary fields (for example, an
+    already-independent portfolio has ``fi_month == months_to_fi == 0``).
     """
     _, monthly_return_pct = convert_interest_rate(
         annual_rate=input_data.annual_return_rate
@@ -36,7 +42,23 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
     portfolio = float(input_data.current_portfolio)
     swr = input_data.safe_withdrawal_rate / 100.0
 
-    fi_month: int | None = None
+    base_monthly_expenses = float(input_data.monthly_expenses)
+    required_monthly_expenses = base_monthly_expenses
+    if (
+        input_data.fire_mode == "barista"
+        and input_data.barista_monthly_income is not None
+    ):
+        required_monthly_expenses = max(
+            0.0,
+            base_monthly_expenses - float(input_data.barista_monthly_income),
+        )
+
+    annual_expenses = base_monthly_expenses * 12
+    fire_number = required_monthly_expenses * 12 / swr
+
+    # Month zero is the current state. Keep it out of monthly_data so the
+    # response shape and requested horizon remain backwards-compatible.
+    fi_month: int | None = 0 if portfolio >= fire_number else None
     months: list[FIREPlanMonth] = []
     total_contributions = 0.0
     total_investment_returns = 0.0
@@ -46,68 +68,32 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
     coast_fire_achieved: bool | None = None
     stop_contributions_month: int | None = None
 
+    months_until_retirement: int | None = None
+    months_until_coast: int | None = None
+
     if input_data.fire_mode == "coast" and input_data.current_age is not None:
         target_age = input_data.target_retirement_age or 65
         coast_age = input_data.coast_fire_age or target_age
-        months_until_retirement = (target_age - input_data.current_age) * 12
-        months_until_coast = (coast_age - input_data.current_age) * 12
+        months_until_retirement = max(0, (target_age - input_data.current_age) * 12)
+        months_until_coast = max(0, (coast_age - input_data.current_age) * 12)
 
         # Coast FIRE: portfolio that will grow to FIRE number by retirement
         # without additional contributions
         # FV = PV x (1 + r)^n => PV = FV / (1 + r)^n
-        base_expenses = float(input_data.monthly_expenses) * 12
-        target_fire_number = base_expenses / swr
-
-        # Apply inflation to get FIRE number at retirement
-        if input_data.annual_inflation_rate:
-            years_to_retirement = months_until_retirement / 12
-            inflation_factor = (
-                1 + input_data.annual_inflation_rate / 100
-            ) ** years_to_retirement
-            target_fire_number *= inflation_factor
-
-        # Discount back to today
+        # Discount the real FIRE target back to today. The threshold used while
+        # simulating is recalculated below as retirement approaches; comparing a
+        # future portfolio with this frozen month-zero threshold would stop
+        # contributions too early.
         growth_factor = monthly_return_multiplier**months_until_retirement
         coast_fire_number = (
-            target_fire_number / growth_factor
-            if growth_factor > 0
-            else target_fire_number
+            fire_number / growth_factor if growth_factor > 0 else fire_number
         )
-        stop_contributions_month = max(1, months_until_coast)
+        coast_fire_achieved = portfolio >= coast_fire_number
+        stop_contributions_month = months_until_coast
 
     for month in range(1, input_data.horizon_months + 1):
-        # Calculate current monthly expenses (inflation-adjusted)
-        current_expenses = apply_inflation(
-            input_data.monthly_expenses,
-            month=month,
-            base_month=1,
-            annual_inflation_rate=input_data.annual_inflation_rate,
-        )
-        annual_expenses = float(current_expenses) * 12
-
-        # FIRE number: portfolio needed to cover expenses indefinitely
-        fire_number = annual_expenses / swr
-
-        # For Barista FIRE, reduce required portfolio by part-time income coverage
-        if (
-            input_data.fire_mode == "barista"
-            and input_data.barista_monthly_income is not None
-        ):
-            barista_annual = float(input_data.barista_monthly_income) * 12
-            # Apply inflation to barista income too (assume it keeps up)
-            barista_annual = (
-                float(
-                    apply_inflation(
-                        input_data.barista_monthly_income,
-                        month=month,
-                        base_month=1,
-                        annual_inflation_rate=input_data.annual_inflation_rate,
-                    )
-                )
-                * 12
-            )
-            net_annual_expenses = max(0, annual_expenses - barista_annual)
-            fire_number = net_annual_expenses / swr
+        current_expenses = base_monthly_expenses
+        dynamic_coast_number: float | None = None
 
         # Apply investment returns
         investment_return = 0.0
@@ -121,18 +107,39 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
         contribution = float(input_data.monthly_contribution)
 
         if input_data.fire_mode == "coast":
-            # Stop contributions once Coast FIRE is achieved
-            if coast_fire_number is not None and portfolio >= coast_fire_number:
+            if months_until_retirement is not None:
+                remaining_months = max(0, months_until_retirement - month)
+                remaining_growth = monthly_return_multiplier**remaining_months
+                dynamic_coast_number = (
+                    fire_number / remaining_growth
+                    if remaining_growth > 0
+                    else fire_number
+                )
+
+            # Stop when the portfolio can coast from this month to retirement.
+            # A configured coast age remains a hard stop for compatibility, but
+            # it does not falsely mark Coast FIRE as achieved.
+            if dynamic_coast_number is not None and portfolio >= dynamic_coast_number:
                 contribution = 0.0
-                if coast_fire_achieved is None or not coast_fire_achieved:
-                    coast_fire_achieved = True
-            # Or stop at specified coast age
-            if stop_contributions_month and month >= stop_contributions_month:
+                coast_fire_achieved = True
+            if (
+                stop_contributions_month is not None
+                and month > stop_contributions_month
+            ):
                 contribution = 0.0
 
         # Add contribution
         portfolio += contribution
         total_contributions += contribution
+
+        if input_data.fire_mode == "coast" and months_until_retirement is not None:
+            remaining_months = max(0, months_until_retirement - month)
+            remaining_growth = monthly_return_multiplier**remaining_months
+            dynamic_coast_number = (
+                fire_number / remaining_growth if remaining_growth > 0 else fire_number
+            )
+            if portfolio >= dynamic_coast_number:
+                coast_fire_achieved = True
 
         # Calculate metrics
         progress = (portfolio / fire_number * 100) if fire_number > 0 else 100.0
@@ -149,7 +156,7 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
         # Calculate age if provided
         age: float | None = None
         if input_data.current_age is not None:
-            age = input_data.current_age + (month - 1) / 12
+            age = input_data.current_age + month / 12
 
         months.append(
             FIREPlanMonth(
@@ -160,6 +167,11 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
                 contribution=float(contribution),
                 investment_return=float(investment_return),
                 fire_number=float(fire_number),
+                coast_fire_number=(
+                    float(dynamic_coast_number)
+                    if dynamic_coast_number is not None
+                    else None
+                ),
                 progress_percent=float(min(progress, 999.9)),  # Cap at 999.9%
                 monthly_passive_income=float(monthly_passive_income),
                 years_of_expenses_covered=float(min(years_covered, 999.9)),
@@ -168,12 +180,7 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
         )
 
     # Final calculations
-    final_expenses = (
-        months[-1].monthly_expenses if months else input_data.monthly_expenses
-    )
-    final_fire_number = (
-        months[-1].fire_number if months else (final_expenses * 12 / swr)
-    )
+    final_fire_number = months[-1].fire_number if months else fire_number
     final_passive_income = (portfolio * swr) / 12
 
     fi_age: float | None = None
@@ -181,7 +188,7 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
     months_to_fi: int | None = None
 
     if fi_month is not None:
-        months_to_fi = fi_month - 1  # Months from now
+        months_to_fi = fi_month
         years_to_fi = months_to_fi / 12
         if input_data.current_age is not None:
             fi_age = input_data.current_age + years_to_fi
@@ -197,7 +204,9 @@ def plan_fire(input_data: FIREPlanInput) -> FIREPlanResult:
         final_monthly_passive_income=float(final_passive_income),
         total_contributions=float(total_contributions),
         total_investment_returns=float(total_investment_returns),
-        coast_fire_number=float(coast_fire_number) if coast_fire_number else None,
+        coast_fire_number=(
+            float(coast_fire_number) if coast_fire_number is not None else None
+        ),
         coast_fire_achieved=coast_fire_achieved,
         monthly_data=months,
     )

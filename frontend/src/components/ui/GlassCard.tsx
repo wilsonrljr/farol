@@ -5,7 +5,6 @@ interface GlassCardProps {
   children: ReactNode;
   variant?: 'default' | 'elevated' | 'subtle' | 'accent';
   padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
-  interactive?: boolean;
   accentColor?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -23,7 +22,6 @@ export function GlassCard({
   children,
   variant = 'default',
   padding = 'lg',
-  interactive = false,
   accentColor,
   className = '',
   style,
@@ -32,34 +30,27 @@ export function GlassCard({
     switch (variant) {
       case 'elevated':
         return {
-          background: 'var(--glass-bg-elevated)',
-          backdropFilter: 'blur(var(--glass-blur-heavy))',
-          WebkitBackdropFilter: 'blur(var(--glass-blur-heavy))',
-          boxShadow: 'var(--glass-shadow-lg), var(--glass-shadow-glow)',
+          background: 'var(--farol-surface-raised)',
+          border: '1px solid var(--farol-border)',
+          boxShadow: 'var(--mantine-shadow-xs)',
         };
       case 'subtle':
         return {
-          background: 'var(--glass-bg-subtle)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          boxShadow: 'var(--glass-shadow-glow)',
+          background: 'var(--farol-surface-muted)',
+          border: '1px solid var(--farol-border)',
+          boxShadow: 'none',
         };
       case 'accent':
         return {
-          background: `light-dark(
-            linear-gradient(135deg, var(--mantine-color-${accentColor || 'ocean'}-0) 0%, rgba(255, 255, 255, 0.9) 100%),
-            linear-gradient(135deg, var(--mantine-color-${accentColor || 'ocean'}-9) 0%, rgba(30, 41, 59, 0.85) 100%)
-          )`,
-          backdropFilter: 'blur(var(--glass-blur))',
-          WebkitBackdropFilter: 'blur(var(--glass-blur))',
-          boxShadow: `var(--glass-shadow), 0 0 0 1px var(--mantine-color-${accentColor || 'ocean'}-2) inset`,
+          background: `light-dark(var(--mantine-color-${accentColor || 'ocean'}-0), var(--mantine-color-dark-7))`,
+          border: `1px solid var(--mantine-color-${accentColor || 'ocean'}-3)`,
+          boxShadow: 'none',
         };
       default:
         return {
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(var(--glass-blur))',
-          WebkitBackdropFilter: 'blur(var(--glass-blur))',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+          background: 'var(--farol-surface-raised)',
+          border: '1px solid var(--farol-border)',
+          boxShadow: 'none',
         };
     }
   };
@@ -68,12 +59,11 @@ export function GlassCard({
 
   return (
     <Box
-      className={`${interactive ? 'card-hover' : ''} ${className}`}
+      className={className}
       style={{
         padding: paddingMap[padding],
-        borderRadius: rem(20),
-        border: 'none',
-        transition: 'all 250ms cubic-bezier(0.2, 0, 0, 1)',
+        borderRadius: rem(14),
+        transition: 'border-color 180ms ease, box-shadow 180ms ease',
         ...variantStyles,
         ...style,
       }}
@@ -95,10 +85,9 @@ export function GlassSurface({ children, className = '', style }: GlassSurfacePr
     <Box
       className={className}
       style={{
-        background: 'light-dark(rgba(248, 250, 252, 0.6), rgba(15, 23, 42, 0.5))',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        borderRadius: rem(24),
+        background: 'var(--farol-surface-muted)',
+        border: '1px solid var(--farol-border)',
+        borderRadius: rem(16),
         ...style,
       }}
     >
@@ -113,7 +102,7 @@ export function GlassDivider() {
     <Box
       style={{
         height: 1,
-        background: 'light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06))',
+        background: 'var(--farol-border)',
         margin: `${rem(16)} 0`,
       }}
     />

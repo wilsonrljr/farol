@@ -62,7 +62,7 @@ def preprocess_amortizations(
 def _get_amortization_months(
     amort: AmortizationOrContributionLike,
     term_months: int,
-) -> list[int]:
+) -> Sequence[int]:
     """Determine which months an amortization applies to.
 
     Args:
@@ -78,13 +78,13 @@ def _get_amortization_months(
     # Single event
     if amort.month is None:
         return []
-    return [amort.month]
+    return (amort.month,)
 
 
 def _get_recurring_months(
     amort: AmortizationOrContributionLike,
     term_months: int,
-) -> list[int]:
+) -> range:
     """Get months for recurring amortization.
 
     Args:
@@ -97,16 +97,33 @@ def _get_recurring_months(
     start = amort.month or 1
     interval = amort.interval_months or 1
 
+    if start > term_months:
+        return range(0)
+
     if amort.occurrences:
-        return [start + i * interval for i in range(amort.occurrences)]
+        # Only months inside the simulation horizon can affect a result. Clamping
+        # before constructing the range prevents a tiny request with an enormous
+        # ``occurrences`` value from allocating an equally enormous list.
+        relevant_to_horizon = ((term_months - start) // interval) + 1
+        count = min(amort.occurrences, relevant_to_horizon)
+        return range(start, start + count * interval, interval)
 
     end = amort.end_month or term_months
-    return list(range(start, min(end, term_months) + 1, interval))
+    return range(start, min(end, term_months) + 1, interval)
+
+
+def relevant_schedule_months(
+    schedule: AmortizationOrContributionLike,
+    term_months: int,
+) -> Sequence[int]:
+    """Return the bounded schedule months that can affect a simulation."""
+
+    return _get_amortization_months(schedule, term_months)
 
 
 def _distribute_amortization(
     amort: AmortizationOrContributionLike,
-    months: list[int],
+    months: Sequence[int],
     base_month: int,
     term_months: int,
     annual_inflation_rate: float | None,

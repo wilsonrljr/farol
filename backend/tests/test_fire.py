@@ -1,15 +1,9 @@
 """Tests for the FIRE (Financial Independence) calculator."""
 
-import os
-import sys
-
 import pytest
 
-# Add the parent directory to the path so we can import the app modules
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from app.core.fire import plan_fire
-from app.models import FIREPlanInput
+from backend.app.core.fire import plan_fire
+from backend.app.models import FIREPlanInput
 
 
 class TestFIREBasic:
@@ -43,8 +37,25 @@ class TestFIREBasic:
             )
         )
         assert result.fi_achieved is True
-        assert result.fi_month == 1
+        assert result.fi_month == 0
         assert result.months_to_fi == 0
+
+    def test_first_projected_month_is_one_month_from_now(self):
+        """Reaching FI after one contribution must not be reported as immediate."""
+        result = plan_fire(
+            FIREPlanInput(
+                monthly_expenses=100,
+                current_portfolio=9_000,
+                monthly_contribution=1_000,
+                horizon_months=1,
+                annual_return_rate=0,
+                safe_withdrawal_rate=12.0,
+            )
+        )
+
+        assert result.fire_number == 10_000
+        assert result.fi_month == 1
+        assert result.months_to_fi == 1
 
     def test_fi_not_achieved(self):
         """FI not achieved when portfolio never reaches FIRE number."""
@@ -115,22 +126,25 @@ class TestFIREBasic:
 class TestFIREWithInflation:
     """FIRE calculation tests with inflation."""
 
-    def test_fire_number_increases_with_inflation(self):
-        """FIRE number should increase over time with inflation."""
-        result = plan_fire(
-            FIREPlanInput(
-                monthly_expenses=5000,
-                current_portfolio=0,
-                monthly_contribution=0,
-                horizon_months=120,  # 10 years
-                annual_return_rate=0,
-                annual_inflation_rate=5.0,
-                safe_withdrawal_rate=4.0,
-            )
+    def test_real_return_projection_does_not_count_inflation_twice(self):
+        """Real returns and today's-money expenses keep a constant real target."""
+        common = {
+            "monthly_expenses": 5000,
+            "current_portfolio": 100_000,
+            "monthly_contribution": 1_000,
+            "horizon_months": 120,
+            "annual_return_rate": 6.0,
+            "safe_withdrawal_rate": 4.0,
+        }
+        without_inflation = plan_fire(FIREPlanInput(**common))
+        with_inflation = plan_fire(FIREPlanInput(**common, annual_inflation_rate=5.0))
+
+        assert {m.fire_number for m in with_inflation.monthly_data} == {1_500_000}
+        assert with_inflation.fire_number == 1_500_000
+        assert with_inflation.final_portfolio == pytest.approx(
+            without_inflation.final_portfolio
         )
-        first_fire_number = result.monthly_data[0].fire_number
-        last_fire_number = result.monthly_data[-1].fire_number
-        assert last_fire_number > first_fire_number
+        assert with_inflation.months_to_fi == without_inflation.months_to_fi
 
 
 class TestFIREModes:
@@ -182,15 +196,37 @@ class TestFIREModes:
         )
         # Should have coast_fire_number calculated
         assert result.coast_fire_number is not None
-        # Contributions after coast age should be 0
-        # Month 60 = 5 years = age 35
-        month_60_data = result.monthly_data[59]  # 0-indexed
         # Check if coast was achieved
         if result.coast_fire_achieved:
             # Find a month after coast where contribution should be 0
             later_months = [m for m in result.monthly_data if m.month > 60]
             if later_months:
                 assert later_months[0].contribution == 0
+
+    def test_coast_threshold_moves_as_retirement_approaches(self):
+        """A future portfolio must be compared with that month's Coast target."""
+        result = plan_fire(
+            FIREPlanInput(
+                monthly_expenses=100,
+                current_portfolio=10_650,
+                monthly_contribution=500,
+                horizon_months=12,
+                annual_return_rate=12.0,
+                safe_withdrawal_rate=10.0,
+                fire_mode="coast",
+                current_age=30,
+                coast_fire_age=31,
+                target_retirement_age=31,
+            )
+        )
+
+        # The portfolio exceeds the frozen month-zero Coast number after its
+        # first return, but not the higher month-one threshold. It must still
+        # receive the first contribution, then can coast from month two onward.
+        assert result.coast_fire_number is not None
+        assert result.monthly_data[0].contribution == 500
+        assert result.monthly_data[1].contribution == 0
+        assert result.coast_fire_achieved is True
 
 
 class TestFIREAge:
@@ -209,11 +245,10 @@ class TestFIREAge:
                 current_age=30,
             )
         )
-        assert result.monthly_data[0].age == pytest.approx(30.0, rel=0.01)
-        # After 12 months, age should be ~31
-        assert result.monthly_data[11].age == pytest.approx(30.917, rel=0.01)
-        # After 24 months, age should be ~32
-        assert result.monthly_data[23].age == pytest.approx(31.917, rel=0.01)
+        assert result.monthly_data[0].age == pytest.approx(30.083, rel=0.01)
+        # End of month 12 is one full year from the current state.
+        assert result.monthly_data[11].age == pytest.approx(31.0, rel=0.01)
+        assert result.monthly_data[23].age == pytest.approx(32.0, rel=0.01)
 
     def test_fi_age_calculated(self):
         """FI age should be calculated when current_age is provided."""

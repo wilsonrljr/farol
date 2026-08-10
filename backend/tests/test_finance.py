@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.rates import convert_interest_rate, get_monthly_investment_rate
 from app.finance import simulate_price_loan, simulate_sac_loan
-from app.scenarios.comparison import compare_scenarios
 from app.models import AmortizationInput, InvestmentReturnInput
+from app.scenarios.comparison import compare_scenarios
 
 
 class TestFinanceCalculations(unittest.TestCase):
@@ -258,8 +258,11 @@ class TestFinanceCalculations(unittest.TestCase):
         self.assertIn("Alugar e investir", scenario_names)
         self.assertIn("Investir e comprar à vista", scenario_names)
 
-        # Check that best_scenario is one of the scenario names
-        self.assertIn(result.best_scenario, scenario_names)
+        # Without an auditable resource baseline/income this remains an
+        # exploratory comparison and must not manufacture a winner.
+        assert result.best_scenario is None
+        assert result.comparison_status == "exploratory"
+        assert result.warnings
 
 
 if __name__ == "__main__":

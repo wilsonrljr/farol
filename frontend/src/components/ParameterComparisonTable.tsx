@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   Paper,
   Stack,
@@ -10,22 +10,17 @@ import {
   Table,
   ScrollArea,
   Alert,
-  Divider,
   rem,
-  Tooltip,
   SimpleGrid,
   UnstyledButton,
-  Collapse,
   Loader,
 } from '@mantine/core';
 import {
   IconAdjustments,
-  IconArrowRight,
   IconBulb,
   IconChartBar,
   IconEqual,
   IconArrowsExchange,
-  IconTarget,
   IconTrendingUp,
   IconCoin,
   IconPercentage,
@@ -33,22 +28,27 @@ import {
   IconCalendar,
   IconPigMoney,
   IconReceipt,
-  IconScale,
   IconChevronDown,
   IconChevronRight,
   IconChartAreaLine,
 } from '@tabler/icons-react';
 import {
   BatchComparisonResult,
-  BatchComparisonResultItem,
   ComparisonInput,
   SensitivityAnalysisResult,
   SensitivityParameterType,
 } from '../api/types';
 import { runSensitivityAnalysis } from '../api/financeApi';
+import { isRequestCancelled, toApiError } from '../api/client';
 import { money, percent, moneyCompact } from '../utils/format';
-import { Preset } from '../utils/presets';
 import SensitivityChart from './SensitivityChart';
+
+const RESULT_SURFACE_STYLE = {
+  background: 'var(--farol-surface-raised)',
+  border: '1px solid var(--farol-border)',
+  borderRadius: 'var(--mantine-radius-lg)',
+  boxShadow: 'none',
+} as const;
 
 // Define parameter metadata for display
 interface ParameterDefinition {
@@ -99,6 +99,14 @@ const PARAMETER_DEFINITIONS: ParameterDefinition[] = [
     format: 'percent',
     icon: <IconPercentage size={14} />,
     description: 'Taxa anual de juros do financiamento',
+  },
+  {
+    key: 'monthly_interest_rate',
+    label: 'Taxa de Juros (a.m.)',
+    category: 'financing',
+    format: 'percent',
+    icon: <IconPercentage size={14} />,
+    description: 'Taxa mensal informada diretamente no financiamento',
   },
   {
     key: 'loan_type',
@@ -204,9 +212,10 @@ const SENSITIVITY_PARAMETER_MAP: Record<string, SensitivityParameterType> = {
 const SENSITIVITY_ENABLED_PARAMS = new Set(Object.keys(SENSITIVITY_PARAMETER_MAP));
 
 // Default ranges for sensitivity analysis
-function getDefaultRange(
+export function getDefaultRange(
   paramKey: string,
-  currentValue: number
+  currentValue: number,
+  input: ComparisonInput
 ): { min: number; max: number; steps: number } {
   const ranges: Record<string, { minFactor: number; maxFactor: number; steps: number }> = {
     annual_interest_rate: { minFactor: 0.6, maxFactor: 1.4, steps: 7 },
@@ -222,25 +231,113 @@ function getDefaultRange(
   const config = ranges[paramKey] || { minFactor: 0.7, maxFactor: 1.3, steps: 7 };
   
   // Ensure minimum values are sensible
-  let min = currentValue * config.minFactor;
-  let max = currentValue * config.maxFactor;
+  let min = Math.min(
+    currentValue * config.minFactor,
+    currentValue * config.maxFactor
+  );
+  let max = Math.max(
+    currentValue * config.minFactor,
+    currentValue * config.maxFactor
+  );
+  let steps = config.steps;
   
   // Special handling for certain parameters
   if (paramKey === 'loan_term_years') {
-    min = Math.max(5, Math.floor(min));
-    max = Math.min(35, Math.ceil(max));
+    min = Math.max(1, Math.floor(min));
+    max = Math.min(50, Math.ceil(max));
+    const desiredSpan = config.steps - 1;
+    if (max - min < desiredSpan) {
+      max = Math.min(50, min + desiredSpan);
+      min = Math.max(1, max - desiredSpan);
+    }
+    steps = Math.min(config.steps, max - min + 1);
+  } else if (paramKey === 'investment_returns_rate') {
+    min = Math.max(-99.9, min);
+    max = Math.min(1000, max);
+    if (min === max) max = Math.min(1000, min + 5);
   } else if (paramKey.includes('rate')) {
-    min = Math.max(0.5, min);
-    max = Math.min(30, max);
-  } else if (paramKey === 'down_payment' || paramKey === 'property_value' || paramKey === 'rent_value') {
     min = Math.max(0, min);
+    max = Math.min(1000, max);
+    if (min === max) max = Math.min(1000, min + 5);
+  } else if (paramKey === 'down_payment') {
+    min = Math.max(0, min);
+    let availableForDownPayment = input.property_value;
+    if (input.total_savings != null) {
+      const upfrontRate =
+        ((input.additional_costs?.itbi_percentage ?? 2) +
+          (input.additional_costs?.deed_percentage ?? 1)) /
+        100;
+      availableForDownPayment = Math.min(
+        availableForDownPayment,
+        input.total_savings - input.property_value * upfrontRate
+      );
+    }
+    max = Math.min(Math.max(0, availableForDownPayment), max);
+  } else if (paramKey === 'property_value') {
+    min = Math.max(input.down_payment, min, Number.EPSILON);
+    if (input.total_savings != null) {
+      const upfrontRate =
+        ((input.additional_costs?.itbi_percentage ?? 2) +
+          (input.additional_costs?.deed_percentage ?? 1)) /
+        100;
+      if (upfrontRate > 0) {
+        max = Math.min(max, (input.total_savings - input.down_payment) / upfrontRate);
+      }
+    }
+  } else if (paramKey === 'rent_value') {
+    min = Math.max(0, min);
+    if (min === max) max = min + 1000;
   }
 
-  return { min, max, steps: config.steps };
+  if (min >= max) {
+    let upperBound = Infinity;
+    if (paramKey === 'down_payment') {
+      const upfrontRate =
+        ((input.additional_costs?.itbi_percentage ?? 2) +
+          (input.additional_costs?.deed_percentage ?? 1)) /
+        100;
+      upperBound = Math.min(
+        input.property_value,
+        input.total_savings == null
+          ? input.property_value
+          : input.total_savings - input.property_value * upfrontRate
+      );
+    } else if (paramKey === 'property_value' && input.total_savings != null) {
+      const upfrontRate =
+        ((input.additional_costs?.itbi_percentage ?? 2) +
+          (input.additional_costs?.deed_percentage ?? 1)) /
+        100;
+      if (upfrontRate > 0) {
+        upperBound = (input.total_savings - input.down_payment) / upfrontRate;
+      }
+    }
+    upperBound = Math.max(0, upperBound);
+    const lowerBound = paramKey === 'property_value' ? Math.max(input.down_payment, Number.EPSILON) : 0;
+    min = Math.max(lowerBound, Math.min(currentValue, upperBound) * 0.8);
+    max = Math.min(upperBound, Math.max(currentValue + 1, currentValue * 1.2));
+  }
+
+  return { min, max, steps };
 }
 
 // Helper to get value from input (handles nested keys)
 function getParameterValue(input: ComparisonInput, param: ParameterDefinition): unknown {
+  if (param.key === 'annual_interest_rate') {
+    if (input.annual_interest_rate != null) return input.annual_interest_rate;
+    if (input.monthly_interest_rate != null) {
+      return (Math.pow(1 + input.monthly_interest_rate / 100, 12) - 1) * 100;
+    }
+    return null;
+  }
+
+  if (param.key === 'rent_value') {
+    if (input.rent_value != null) return input.rent_value;
+    if (input.rent_percentage != null) {
+      return input.property_value * input.rent_percentage / 100;
+    }
+    return null;
+  }
+
   if (param.key === 'investment_returns_rate') {
     // Special case: get the first investment return rate
     const returns = input.investment_returns;
@@ -261,6 +358,21 @@ function getParameterValue(input: ComparisonInput, param: ParameterDefinition): 
   return (input as unknown as Record<string, unknown>)[param.key];
 }
 
+export function canAnalyzeSensitivity(paramKey: string, input: ComparisonInput | null): boolean {
+  if (!input || !SENSITIVITY_ENABLED_PARAMS.has(paramKey)) return false;
+  if (paramKey === 'investment_returns_rate' && input.investment_returns.length !== 1) {
+    return false;
+  }
+
+  const definition = PARAMETER_DEFINITIONS.find((param) => param.key === paramKey);
+  if (!definition) return false;
+  const currentValue = Number(getParameterValue(input, definition));
+  if (!Number.isFinite(currentValue)) return false;
+
+  const { min, max, steps } = getDefaultRange(paramKey, currentValue, input);
+  return Number.isFinite(min) && Number.isFinite(max) && min < max && steps >= 3;
+}
+
 // Format value for display
 function formatValue(value: unknown, format: ParameterDefinition['format']): string {
   if (value === null || value === undefined) {
@@ -271,7 +383,7 @@ function formatValue(value: unknown, format: ParameterDefinition['format']): str
     case 'money':
       return money(Number(value));
     case 'money_or_null':
-      return value ? money(Number(value)) : '—';
+      return Number.isFinite(Number(value)) ? money(Number(value)) : '—';
     case 'percent':
       return `${Number(value).toFixed(2)}%`;
     case 'years':
@@ -324,105 +436,6 @@ function calculateDelta(
   return { hasDiff, delta, formatted };
 }
 
-// Estimate impact of parameter difference on final wealth
-interface ImpactEstimate {
-  param: ParameterDefinition;
-  delta: number;
-  estimatedImpact: number;
-  impactPercentage: number;
-  description: string;
-}
-
-function estimateParameterImpact(
-  inputs: ComparisonInput[],
-  results: BatchComparisonResultItem[],
-  param: ParameterDefinition
-): ImpactEstimate | null {
-  if (inputs.length !== 2 || results.length !== 2) return null;
-
-  const value1 = getParameterValue(inputs[0], param);
-  const value2 = getParameterValue(inputs[1], param);
-  const deltaInfo = calculateDelta(value1, value2, param.format);
-
-  if (!deltaInfo.hasDiff || deltaInfo.delta === null) return null;
-
-  // Get best wealth from each preset
-  const wealth1 = results[0].result.scenarios.find(
-    (s) => s.name === results[0].result.best_scenario
-  )?.final_wealth ?? 0;
-  const wealth2 = results[1].result.scenarios.find(
-    (s) => s.name === results[1].result.best_scenario
-  )?.final_wealth ?? 0;
-
-  const wealthDiff = wealth2 - wealth1;
-
-  // Simple heuristic: attribute impact proportionally to the delta magnitude
-  // This is a rough estimate - real sensitivity would require running simulations
-  const estimatedImpact = wealthDiff;
-  const impactPercentage = wealth1 !== 0 ? (wealthDiff / wealth1) * 100 : 0;
-
-  return {
-    param,
-    delta: deltaInfo.delta,
-    estimatedImpact,
-    impactPercentage,
-    description: `A variação de ${deltaInfo.formatted} em ${param.label}`,
-  };
-}
-
-// Find the most impactful parameter
-function findMostImpactfulParameter(
-  inputs: ComparisonInput[],
-  results: BatchComparisonResultItem[]
-): { param: ParameterDefinition; impact: ImpactEstimate } | null {
-  if (inputs.length !== 2) return null;
-
-  // Calculate estimated impact for each different parameter
-  const impacts: { param: ParameterDefinition; impact: ImpactEstimate }[] = [];
-
-  for (const param of PARAMETER_DEFINITIONS) {
-    const value1 = getParameterValue(inputs[0], param);
-    const value2 = getParameterValue(inputs[1], param);
-    const deltaInfo = calculateDelta(value1, value2, param.format);
-
-    if (deltaInfo.hasDiff && deltaInfo.delta !== null) {
-      const impact = estimateParameterImpact(inputs, results, param);
-      if (impact) {
-        impacts.push({ param, impact });
-      }
-    }
-  }
-
-  if (impacts.length === 0) return null;
-
-  // For simplicity, we'll prioritize key financial parameters
-  // In reality, this would need actual sensitivity analysis
-  const priorityParams = [
-    'annual_interest_rate',
-    'investment_returns_rate',
-    'down_payment',
-    'property_value',
-    'rent_value',
-    'rent_percentage',
-  ];
-
-  // Sort by priority, then by absolute delta magnitude
-  impacts.sort((a, b) => {
-    const priorityA = priorityParams.indexOf(a.param.key);
-    const priorityB = priorityParams.indexOf(b.param.key);
-
-    if (priorityA !== -1 && priorityB !== -1) {
-      return priorityA - priorityB;
-    }
-    if (priorityA !== -1) return -1;
-    if (priorityB !== -1) return 1;
-
-    return Math.abs(b.impact.delta) - Math.abs(a.impact.delta);
-  });
-
-  return impacts[0];
-}
-
 interface ParameterComparisonTableProps {
   result: BatchComparisonResult;
   presetInputs: ComparisonInput[];
@@ -439,19 +452,51 @@ export default function ParameterComparisonTable({
   const [sensitivityData, setSensitivityData] = useState<Record<string, SensitivityAnalysisResult>>({});
   const [sensitivityLoading, setSensitivityLoading] = useState<string | null>(null);
   const [sensitivityError, setSensitivityError] = useState<string | null>(null);
+  const sensitivityControllerRef = useRef<AbortController | null>(null);
+  const sensitivityRequestIdRef = useRef(0);
 
   // Use first preset input as base for sensitivity analysis
   const baseInput = presetInputs[0] || null;
+  const baseInputSignature = useMemo(() => JSON.stringify(baseInput), [baseInput]);
+
+  useEffect(() => {
+    sensitivityRequestIdRef.current += 1;
+    sensitivityControllerRef.current?.abort();
+    sensitivityControllerRef.current = null;
+    setSensitivityData({});
+    setSensitivityLoading(null);
+    setSensitivityError(null);
+    setExpandedParam(null);
+  }, [baseInputSignature]);
+
+  useEffect(
+    () => () => {
+      sensitivityRequestIdRef.current += 1;
+      sensitivityControllerRef.current?.abort();
+      sensitivityControllerRef.current = null;
+    },
+    []
+  );
 
   // Handle parameter row click for sensitivity analysis
   const handleParamClick = useCallback(
     async (paramKey: string) => {
+      if (!canAnalyzeSensitivity(paramKey, baseInput)) return;
+
       // Toggle if already expanded
       if (expandedParam === paramKey) {
+        sensitivityRequestIdRef.current += 1;
+        sensitivityControllerRef.current?.abort();
+        sensitivityControllerRef.current = null;
+        setSensitivityLoading(null);
         setExpandedParam(null);
         return;
       }
 
+      sensitivityRequestIdRef.current += 1;
+      sensitivityControllerRef.current?.abort();
+      sensitivityControllerRef.current = null;
+      setSensitivityLoading(null);
       setExpandedParam(paramKey);
       setSensitivityError(null);
 
@@ -474,28 +519,47 @@ export default function ParameterComparisonTable({
       if (currentValue === null || currentValue === undefined) return;
 
       const numValue = Number(currentValue);
-      if (isNaN(numValue) || numValue === 0) return;
+      if (!Number.isFinite(numValue)) return;
 
       // Get default range
-      const range = getDefaultRange(paramKey, numValue);
+      const range = getDefaultRange(paramKey, numValue, baseInput);
+      if (!(range.min < range.max)) return;
 
       // Run sensitivity analysis
+      const controller = new AbortController();
+      sensitivityControllerRef.current = controller;
+      const requestId = ++sensitivityRequestIdRef.current;
       setSensitivityLoading(paramKey);
       try {
-        const result = await runSensitivityAnalysis({
-          base_input: baseInput,
-          parameter: sensitivityParam,
-          range: {
-            min_value: range.min,
-            max_value: range.max,
-            steps: range.steps,
+        const result = await runSensitivityAnalysis(
+          {
+            base_input: baseInput,
+            parameter: sensitivityParam,
+            range: {
+              min_value: range.min,
+              max_value: range.max,
+              steps: range.steps,
+            },
           },
-        });
+          controller.signal
+        );
+        if (requestId !== sensitivityRequestIdRef.current || controller.signal.aborted) return;
         setSensitivityData((prev) => ({ ...prev, [paramKey]: result }));
-      } catch (e: any) {
-        setSensitivityError(e.toString());
+      } catch (caught: unknown) {
+        const error = await toApiError(caught);
+        if (
+          requestId !== sensitivityRequestIdRef.current ||
+          controller.signal.aborted ||
+          isRequestCancelled(error)
+        ) return;
+        setSensitivityError(error.message);
       } finally {
-        setSensitivityLoading(null);
+        if (requestId === sensitivityRequestIdRef.current) {
+          setSensitivityLoading(null);
+          if (sensitivityControllerRef.current === controller) {
+            sensitivityControllerRef.current = null;
+          }
+        }
       }
     },
     [expandedParam, sensitivityData, baseInput]
@@ -539,25 +603,29 @@ export default function ParameterComparisonTable({
     return diffs;
   }, [presetInputs]);
 
-  // Calculate most impactful parameter (for 2 presets)
-  const mostImpactful = useMemo(() => {
-    if (presetInputs.length === 2 && results.length === 2) {
-      return findMostImpactfulParameter(presetInputs, results);
-    }
-    return null;
-  }, [presetInputs, results]);
-
-  // Calculate wealth difference
+  // Descriptive spread among authoritative local winners. This deliberately
+  // does not attribute causality when presets differ in multiple parameters.
   const wealthComparison = useMemo(() => {
-    if (results.length < 2) return null;
+    if (
+      results.length < 2 ||
+      results.some(
+        (item) =>
+          item.result.comparison_status !== 'comparable' ||
+          item.result.best_scenario_type == null
+      )
+    ) return null;
 
-    const wealthValues = results.map((r) => {
-      const best = r.result.scenarios.find((s) => s.name === r.result.best_scenario);
+    const wealthValues = results.flatMap((r) => {
+      const best = r.result.scenarios.find(
+        (scenario) => scenario.scenario_type === r.result.best_scenario_type
+      );
+      if (!best) return [];
       return {
         presetName: r.preset_name,
-        wealth: best?.final_wealth ?? 0,
+        wealth: best.final_wealth ?? best.final_equity,
       };
     });
+    if (wealthValues.length !== results.length) return null;
 
     const sorted = [...wealthValues].sort((a, b) => b.wealth - a.wealth);
     const best = sorted[0];
@@ -586,37 +654,33 @@ export default function ParameterComparisonTable({
     <Stack gap="lg">
       {/* Summary Header */}
       <Box
+        component="section"
+        aria-labelledby="parameter-comparison-title"
         p="lg"
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-          borderRadius: 'var(--mantine-radius-xl)',
-        }}
+        style={RESULT_SURFACE_STYLE}
       >
         <Group gap="sm" mb="lg">
           <ThemeIcon
             size="lg"
             radius="md"
-            variant="gradient"
-            gradient={{ from: 'grape.5', to: 'grape.7', deg: 135 }}
+            variant="light"
+            color="violet"
           >
             <IconAdjustments size={20} />
           </ThemeIcon>
           <Box>
-            <Text fw={600} size="lg">
-              Análise de Parâmetros
+            <Text id="parameter-comparison-title" component="h3" fw={600} size="lg">
+              Parâmetros dos presets
             </Text>
             <Text size="xs" c="dimmed">
-              Compare as configurações de cada preset e identifique diferenças-chave
+              Veja o que mudou e, quando disponível, varie uma premissa por vez.
             </Text>
           </Box>
         </Group>
 
         {/* Quick Stats */}
-        <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="md">
-          <Paper p="md" radius="md" withBorder>
+        <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
+          <Paper p="md" radius="md" shadow="none" withBorder>
             <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
               Presets Comparados
             </Text>
@@ -624,7 +688,7 @@ export default function ParameterComparisonTable({
               {results.length}
             </Text>
           </Paper>
-          <Paper p="md" radius="md" withBorder>
+          <Paper p="md" radius="md" shadow="none" withBorder>
             <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
               Parâmetros Diferentes
             </Text>
@@ -633,11 +697,11 @@ export default function ParameterComparisonTable({
             </Text>
           </Paper>
           {wealthComparison && (
-            <Paper p="md" radius="md" withBorder>
+            <Paper p="md" radius="md" shadow="none" withBorder>
               <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
                 Diferença Máxima de Patrimônio
               </Text>
-              <Text size="xl" fw={700} c="ocean.7">
+              <Text size="xl" fw={700} c="var(--farol-chart-1)">
                 {moneyCompact(wealthComparison.diff)}
               </Text>
             </Paper>
@@ -645,119 +709,13 @@ export default function ParameterComparisonTable({
         </SimpleGrid>
       </Box>
 
-      {/* Most Impactful Parameter (for 2 presets) */}
-      {mostImpactful && wealthComparison && (
-        <Paper
-          p="lg"
-          radius="lg"
-          style={{
-            border: '2px solid var(--mantine-color-grape-4)',
-            backgroundColor:
-              'light-dark(var(--mantine-color-grape-0), var(--mantine-color-dark-7))',
-          }}
-        >
-          <Group gap="md" mb="md">
-            <ThemeIcon size="xl" radius="md" variant="light" color="grape">
-              <IconTarget size={24} />
-            </ThemeIcon>
-            <Box>
-              <Text fw={700} size="lg">
-                Parâmetro Mais Impactante
-              </Text>
-              <Text size="sm" c="dimmed">
-                A diferença que mais influencia o resultado final
-              </Text>
-            </Box>
-          </Group>
-
-          <Box
-            p="md"
-            style={{
-              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-              borderRadius: 'var(--mantine-radius-lg)',
-              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            <Group justify="space-between" wrap="wrap" gap="md">
-              <Box>
-                <Group gap="xs" mb={4}>
-                  {mostImpactful.param.icon}
-                  <Text fw={600}>{mostImpactful.param.label}</Text>
-                </Group>
-                <Group gap="xs">
-                  <Badge color="gray" variant="light">
-                    {formatValue(
-                      getParameterValue(presetInputs[0], mostImpactful.param),
-                      mostImpactful.param.format
-                    )}
-                  </Badge>
-                  <IconArrowRight size={14} color="var(--mantine-color-dimmed)" />
-                  <Badge color="grape" variant="light">
-                    {formatValue(
-                      getParameterValue(presetInputs[1], mostImpactful.param),
-                      mostImpactful.param.format
-                    )}
-                  </Badge>
-                </Group>
-              </Box>
-              <Box ta="right">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
-                  Diferença no Patrimônio Final
-                </Text>
-                <Text fw={700} size="xl" c={wealthComparison.diff > 0 ? 'ocean.7' : 'red.6'}>
-                  {money(wealthComparison.diff)}
-                </Text>
-              </Box>
-            </Group>
-          </Box>
-
-          <Alert
-            color="grape"
-            variant="light"
-            icon={<IconBulb size={16} />}
-            mt="md"
-          >
-            <Text size="sm">
-              <Text span fw={600}>Dica:</Text>{' '}
-              {mostImpactful.param.key === 'annual_interest_rate' && (
-                <>
-                  Negociar uma taxa de juros menor pode ter um impacto significativo no seu patrimônio final.
-                  Considere pesquisar diferentes instituições financeiras.
-                </>
-              )}
-              {mostImpactful.param.key === 'investment_returns_rate' && (
-                <>
-                  O retorno dos seus investimentos é crucial. Avalie sua estratégia de investimentos e
-                  considere diversificar para otimizar retornos.
-                </>
-              )}
-              {mostImpactful.param.key === 'down_payment' && (
-                <>
-                  O valor da entrada impacta diretamente o valor financiado e os juros totais.
-                  Uma entrada maior reduz o custo total do financiamento.
-                </>
-              )}
-              {mostImpactful.param.key === 'property_value' && (
-                <>
-                  O valor do imóvel é o principal fator no custo total. Considere avaliar
-                  imóveis em faixas de preço diferentes.
-                </>
-              )}
-              {mostImpactful.param.key === 'rent_value' && (
-                <>
-                  O valor do aluguel afeta diretamente a atratividade do cenário de alugar e investir.
-                  Aluguéis mais baixos tendem a favorecer essa estratégia.
-                </>
-              )}
-              {!['annual_interest_rate', 'investment_returns_rate', 'down_payment', 'property_value', 'rent_value'].includes(mostImpactful.param.key) && (
-                <>
-                  Este parâmetro tem impacto relevante no resultado. Analise cuidadosamente as
-                  opções disponíveis para otimizar sua decisão.
-                </>
-              )}
-            </Text>
-          </Alert>
-        </Paper>
+      {parametersWithDiffs.size > 1 && (
+        <Alert color="grape" variant="light" icon={<IconBulb size={16} />}>
+          <Text size="sm" fw={600}>Diferenças simultâneas não demonstram causalidade</Text>
+          <Text size="xs">
+            Como os presets alteram {parametersWithDiffs.size} parâmetros ao mesmo tempo, a diferença de patrimônio não pode ser atribuída a um único deles. Use a análise de sensibilidade abaixo para variar uma premissa por vez.
+          </Text>
+        </Alert>
       )}
 
       {/* Comparison Table by Category */}
@@ -773,6 +731,7 @@ export default function ParameterComparisonTable({
             'property_value',
             'down_payment',
             'annual_interest_rate',
+            'monthly_interest_rate',
             'loan_type',
             'rent_value',
             'investment_returns_rate',
@@ -787,24 +746,27 @@ export default function ParameterComparisonTable({
         return (
           <Box
             key={category}
-            p="lg"
-            style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-              borderRadius: 'var(--mantine-radius-xl)',
-            }}
+            component="section"
+            aria-labelledby={`parameter-category-${category}`}
+            p={{ base: 'md', sm: 'lg' }}
+            style={RESULT_SURFACE_STYLE}
           >
             <Group gap="sm" mb="md">
               <ThemeIcon size="md" radius="md" variant="light" color="ocean">
                 {categoryInfo.icon}
               </ThemeIcon>
-              <Text fw={600}>{categoryInfo.label}</Text>
+              <Text id={`parameter-category-${category}`} component="h4" fw={600}>
+                {categoryInfo.label}
+              </Text>
             </Group>
 
-            <ScrollArea>
-              <Table striped highlightOnHover>
+            <ScrollArea type="auto" scrollbarSize={8} offsetScrollbars>
+              <Table
+                striped
+                highlightOnHover
+                miw={220 + results.length * 140 + (results.length === 2 ? 110 : 0)}
+                aria-label={`Comparação de parâmetros: ${categoryInfo.label}`}
+              >
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th style={{ minWidth: rem(220) }}>Parâmetro</Table.Th>
@@ -826,7 +788,7 @@ export default function ParameterComparisonTable({
                       getParameterValue(input, param)
                     );
                     const hasDiff = parametersWithDiffs.has(param.key);
-                    const canExpand = SENSITIVITY_ENABLED_PARAMS.has(param.key);
+                    const canExpand = canAnalyzeSensitivity(param.key, baseInput);
                     const isExpanded = expandedParam === param.key;
                     const isLoading = sensitivityLoading === param.key;
 
@@ -835,73 +797,78 @@ export default function ParameterComparisonTable({
                       deltaInfo = calculateDelta(values[0], values[1], param.format);
                     }
 
+                    const parameterContent = (
+                      <Group gap="xs" wrap="nowrap">
+                        {canExpand && (
+                          <ThemeIcon
+                            size="xs"
+                            radius="sm"
+                            variant="subtle"
+                            color={isExpanded ? 'violet' : 'gray'}
+                          >
+                            {isLoading ? (
+                              <Loader size={10} color="violet" />
+                            ) : isExpanded ? (
+                              <IconChevronDown size={12} />
+                            ) : (
+                              <IconChevronRight size={12} />
+                            )}
+                          </ThemeIcon>
+                        )}
+                        {param.icon}
+                        <Box style={{ minWidth: 0 }}>
+                          <Text size="sm" fw={isExpanded ? 600 : undefined}>
+                            {param.label}
+                          </Text>
+                          {param.description && (
+                            <Text size="xs" c="dimmed" lh={1.35}>
+                              {param.description}
+                            </Text>
+                          )}
+                        </Box>
+                        {canExpand && (
+                          <Badge
+                            size="xs"
+                            radius="sm"
+                            variant="light"
+                            color="violet"
+                            leftSection={<IconChartAreaLine size={10} aria-hidden="true" />}
+                          >
+                            Sensibilidade
+                          </Badge>
+                        )}
+                        {hasDiff && (
+                          <Badge size="xs" color="orange" variant="light">
+                            Diferente
+                          </Badge>
+                        )}
+                      </Group>
+                    );
+
                     return (
-                      <>
+                      <Fragment key={param.key}>
                         <Table.Tr
-                          key={param.key}
                           style={{
                             backgroundColor: isExpanded
                               ? 'light-dark(var(--mantine-color-grape-0), var(--mantine-color-dark-6))'
                               : hasDiff
                                 ? 'light-dark(var(--mantine-color-orange-0), var(--mantine-color-dark-6))'
                                 : undefined,
-                            cursor: canExpand ? 'pointer' : undefined,
                           }}
-                          onClick={canExpand ? () => handleParamClick(param.key) : undefined}
                         >
                           <Table.Td>
-                            <Group gap="xs">
-                              {canExpand && (
-                                <ThemeIcon
-                                  size="xs"
-                                  radius="sm"
-                                  variant="subtle"
-                                  color={isExpanded ? 'grape' : 'gray'}
-                                >
-                                  {isLoading ? (
-                                    <Loader size={10} color="grape" />
-                                  ) : isExpanded ? (
-                                    <IconChevronDown size={12} />
-                                  ) : (
-                                    <IconChevronRight size={12} />
-                                  )}
-                                </ThemeIcon>
-                              )}
-                              {param.icon}
-                              <Tooltip
-                                label={
-                                  canExpand
-                                    ? `${param.description || param.label} — Clique para análise de sensibilidade`
-                                    : param.description || param.label
-                                }
-                                withArrow
+                            {canExpand ? (
+                              <UnstyledButton
+                                onClick={() => void handleParamClick(param.key)}
+                                aria-label={`${isExpanded ? 'Fechar' : 'Abrir'} análise de sensibilidade de ${param.label}`}
+                                aria-expanded={isExpanded}
+                                aria-controls={`sensitivity-${param.key}`}
+                                aria-busy={isLoading}
+                                style={{ width: '100%', minHeight: rem(44), textAlign: 'left' }}
                               >
-                                <Text
-                                  size="sm"
-                                  style={{ cursor: canExpand ? 'pointer' : 'help' }}
-                                  fw={isExpanded ? 600 : undefined}
-                                >
-                                  {param.label}
-                                </Text>
-                              </Tooltip>
-                              {canExpand && (
-                                <Tooltip label="Clique para ver análise de sensibilidade">
-                                  <ThemeIcon
-                                    size="xs"
-                                    radius="xl"
-                                    variant="light"
-                                    color="grape"
-                                  >
-                                    <IconChartAreaLine size={10} />
-                                  </ThemeIcon>
-                                </Tooltip>
-                              )}
-                              {hasDiff && (
-                                <Badge size="xs" color="orange" variant="filled">
-                                  Diferente
-                                </Badge>
-                              )}
-                            </Group>
+                                {parameterContent}
+                              </UnstyledButton>
+                            ) : parameterContent}
                           </Table.Td>
                           {values.map((value, idx) => (
                             <Table.Td key={idx} ta="right">
@@ -923,7 +890,7 @@ export default function ParameterComparisonTable({
                                   {deltaInfo.formatted}
                                 </Badge>
                               ) : (
-                                <IconEqual size={14} color="var(--mantine-color-dimmed)" />
+                                <IconEqual size={14} color="var(--mantine-color-dimmed)" aria-hidden="true" />
                               )}
                             </Table.Td>
                           )}
@@ -933,6 +900,7 @@ export default function ParameterComparisonTable({
                         {isExpanded && canExpand && (
                           <Table.Tr key={`${param.key}-sensitivity`}>
                             <Table.Td
+                              id={`sensitivity-${param.key}`}
                               colSpan={results.length + (results.length === 2 ? 2 : 1)}
                               style={{
                                 backgroundColor:
@@ -945,13 +913,13 @@ export default function ParameterComparisonTable({
                                   <ThemeIcon
                                     size="sm"
                                     radius="md"
-                                    variant="gradient"
-                                    gradient={{ from: 'grape.5', to: 'grape.7', deg: 135 }}
+                                    variant="light"
+                                    color="violet"
                                   >
                                     <IconChartAreaLine size={14} />
                                   </ThemeIcon>
                                   <Box>
-                                    <Text size="sm" fw={600}>
+                                    <Text component="h5" size="sm" fw={600}>
                                       Análise de Sensibilidade: {param.label}
                                     </Text>
                                     <Text size="xs" c="dimmed">
@@ -969,7 +937,7 @@ export default function ParameterComparisonTable({
                             </Table.Td>
                           </Table.Tr>
                         )}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </Table.Tbody>
@@ -982,11 +950,11 @@ export default function ParameterComparisonTable({
       {/* Legend / Help */}
       <Alert color="grape" variant="light" icon={<IconChartAreaLine size={16} />}>
         <Text size="sm">
-          <Text span fw={600}>Análise de Sensibilidade:</Text> Clique em qualquer parâmetro com o ícone{' '}
+          <Text span fw={600}>Análise de sensibilidade:</Text> Selecione um parâmetro marcado com{' '}
           <ThemeIcon size="xs" radius="xl" variant="light" color="grape" display="inline-flex" style={{ verticalAlign: 'middle' }}>
-            <IconChartAreaLine size={10} />
+            <IconChartAreaLine size={10} aria-hidden="true" />
           </ThemeIcon>{' '}
-          para ver como os resultados mudam ao variar esse valor. Parâmetros destacados em{' '}
+          para ver como os resultados mudam ao variar esse valor. Parâmetros destacados como{' '}
           <Badge size="xs" color="orange" variant="filled">
             Diferente
           </Badge>{' '}

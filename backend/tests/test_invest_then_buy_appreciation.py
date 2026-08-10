@@ -2,8 +2,8 @@
 Derived from prior verbose script `test_property_appreciation.py`.
 """
 
-from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import InvestmentReturnInput
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 
 
 def test_invest_then_buy_property_follows_inflation():

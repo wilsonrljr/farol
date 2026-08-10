@@ -1,6 +1,17 @@
 import type { ReactNode } from '../../types/react';
-import { Box, Text, Group, rem, Stack, ThemeIcon, Progress, UnstyledButton, Transition } from '@mantine/core';
-import { IconCheck, IconChevronRight, IconChevronLeft } from '@tabler/icons-react';
+import {
+  Box,
+  Button,
+  Group,
+  Paper,
+  Progress,
+  SimpleGrid,
+  Stack,
+  Text,
+  ThemeIcon,
+  UnstyledButton,
+} from '@mantine/core';
+import { IconCheck, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 
 interface WizardStep {
   label: string;
@@ -15,214 +26,153 @@ interface FormWizardProps {
   onStepClick?: (step: number) => void;
 }
 
-function StepIndicator({ 
-  step, 
-  index, 
-  active, 
-  completed, 
-  onClick,
-  isLast 
-}: { 
-  step: WizardStep; 
-  index: number; 
-  active: boolean; 
+interface StepIndicatorProps {
+  step: WizardStep;
+  index: number;
+  active: boolean;
   completed: boolean;
   onClick?: () => void;
-  isLast: boolean;
-}) {
+}
+
+function StepContent({ step, index, active, completed }: Omit<StepIndicatorProps, 'onClick'>) {
   return (
-    <UnstyledButton
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: rem(12),
-        flex: isLast ? 'none' : 1,
-        cursor: onClick ? 'pointer' : 'default',
-        opacity: active ? 1 : completed ? 0.9 : 0.5,
-        transition: 'all 200ms ease',
-      }}
-    >
-      {/* Step Circle */}
-      <Box
-        style={{
-          width: rem(40),
-          height: rem(40),
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: completed 
-            ? 'var(--mantine-color-ocean-6)' 
-            : active 
-              ? 'var(--mantine-color-ocean-7)' 
-              : 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-7))',
-          border: `2px solid ${completed || active ? 'var(--mantine-color-ocean-6)' : 'var(--mantine-color-default-border)'}`,
-          color: completed || active ? 'white' : 'var(--mantine-color-ocean-6)',
-          transition: 'all 250ms ease',
-          flexShrink: 0,
-          boxShadow: active
-            ? '0 0 0 4px light-dark(var(--mantine-color-ocean-1), var(--mantine-color-dark-6))'
-            : 'none',
-        }}
+    <Group gap="sm" wrap="nowrap" align="center">
+      <ThemeIcon
+        size={36}
+        radius="xl"
+        variant={active || completed ? 'filled' : 'light'}
+        color={active || completed ? 'ocean' : 'gray'}
+        aria-hidden="true"
       >
-        {completed ? (
-          <IconCheck size={18} strokeWidth={3} />
-        ) : step.icon ? (
-          step.icon
-        ) : (
-          <Text fw={600} size="sm">{index + 1}</Text>
-        )}
-      </Box>
-      
-      {/* Step Label (visible on larger screens) */}
-      <Box visibleFrom="sm" style={{ minWidth: 0 }}>
-        <Text 
-          fw={active ? 600 : 500} 
-          size="sm" 
-          c={active ? 'bright' : completed ? 'ocean.7' : 'dimmed'}
-          style={{ whiteSpace: 'nowrap' }}
-        >
+        {completed ? <IconCheck size={17} strokeWidth={2.6} /> : step.icon ?? index + 1}
+      </ThemeIcon>
+      <Box style={{ minWidth: 0 }}>
+        <Text size="sm" fw={active ? 700 : 600} c={active ? 'bright' : 'dimmed'}>
           {step.label}
         </Text>
         {step.description && (
-          <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+          <Text size="xs" c="dimmed" lineClamp={1}>
             {step.description}
           </Text>
         )}
       </Box>
-      
-      {/* Connector Line */}
-      {!isLast && (
-        <Box
-          style={{
-            flex: 1,
-            height: rem(2),
-            backgroundColor: completed
-              ? 'var(--mantine-color-ocean-4)'
-              : 'light-dark(var(--mantine-color-slate-3), var(--mantine-color-dark-5))',
-            borderRadius: rem(1),
-            marginLeft: rem(8),
-            marginRight: rem(8),
-            transition: 'background-color 300ms ease',
-          }}
-          visibleFrom="sm"
-        />
-      )}
+    </Group>
+  );
+}
+
+function StepIndicator(props: StepIndicatorProps) {
+  const { onClick, ...contentProps } = props;
+  const commonStyle = {
+    width: '100%',
+    minHeight: 56,
+    padding: 'var(--mantine-spacing-xs)',
+    borderRadius: 'var(--mantine-radius-lg)',
+    background: props.active
+      ? 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-6))'
+      : 'transparent',
+    border: props.active
+      ? '1px solid light-dark(var(--mantine-color-ocean-2), var(--mantine-color-ocean-8))'
+      : '1px solid transparent',
+    textAlign: 'left' as const,
+  };
+
+  if (!onClick) {
+    return (
+      <Box style={commonStyle} aria-current={props.active ? 'step' : undefined}>
+        <StepContent {...contentProps} />
+      </Box>
+    );
+  }
+
+  return (
+    <UnstyledButton
+      onClick={onClick}
+      style={commonStyle}
+      aria-current={props.active ? 'step' : undefined}
+      aria-label={`Ir para a etapa ${props.index + 1}: ${props.step.label}`}
+    >
+      <StepContent {...contentProps} />
     </UnstyledButton>
   );
 }
 
 export function FormWizard({ steps, active, children, onStepClick }: FormWizardProps) {
-  const progress = ((active) / (steps.length - 1)) * 100;
+  const currentStep = Math.min(Math.max(active, 0), Math.max(steps.length - 1, 0));
+  const progress = steps.length > 0 ? ((currentStep + 1) / steps.length) * 100 : 0;
 
   return (
     <Box>
-      {/* Progress Bar (Mobile) */}
-      <Box hiddenFrom="sm" mb="lg">
-        <Group justify="space-between" mb="xs">
-          <Text size="sm" fw={500} c="ocean.7">
-            Passo {active + 1} de {steps.length}
-          </Text>
-          <Text size="sm" c="dimmed">
-            {steps[active].label}
-          </Text>
-        </Group>
-        <Progress 
-          value={progress} 
-          size="md" 
-          radius="xl"
-          color="ocean"
-          styles={{
-            root: {
-              backgroundColor: 'light-dark(var(--mantine-color-slate-2), var(--mantine-color-dark-6))',
-            },
-          }}
-        />
-      </Box>
+      <Paper withBorder radius="xl" p={{ base: 'sm', sm: 'md' }} mb="xl">
+        <Box hiddenFrom="sm">
+          <Group justify="space-between" gap="xs" mb="xs" wrap="nowrap">
+            <Text size="sm" fw={650} c="ocean.7">
+              Etapa {currentStep + 1} de {steps.length}
+            </Text>
+            <Text size="sm" c="dimmed" truncate="end">
+              {steps[currentStep]?.label}
+            </Text>
+          </Group>
+          <Progress
+            value={progress}
+            size="sm"
+            radius="xl"
+            color="ocean"
+            aria-label={`${Math.round(progress)}% do formulário concluído`}
+          />
+        </Box>
 
-      {/* Step Indicators (Desktop) */}
-      <Box 
-        visibleFrom="sm"
-        mb="xl"
-        p="lg"
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-          borderRadius: rem(16),
-        }}
-      >
-        <Group gap="xs" wrap="nowrap">
-          {steps.map((step, index) => (
-            <StepIndicator
-              key={index}
-              step={step}
-              index={index}
-              active={index === active}
-              completed={index < active}
-              onClick={onStepClick ? () => onStepClick(index) : undefined}
-              isLast={index === steps.length - 1}
-            />
-          ))}
-        </Group>
-      </Box>
+        <Box visibleFrom="sm">
+          <Progress
+            value={progress}
+            size={4}
+            radius="xl"
+            color="ocean"
+            mb="sm"
+            aria-label={`${Math.round(progress)}% do formulário concluído`}
+          />
+          <SimpleGrid cols={steps.length} spacing="xs">
+            {steps.map((step, index) => (
+              <StepIndicator
+                key={step.label}
+                step={step}
+                index={index}
+                active={index === currentStep}
+                completed={index < currentStep}
+                onClick={onStepClick ? () => onStepClick(index) : undefined}
+              />
+            ))}
+          </SimpleGrid>
+        </Box>
+      </Paper>
 
-      {/* Content */}
-      <Box>
-        {children}
-      </Box>
+      {children}
 
-      {/* Navigation Buttons */}
-      <Group justify="space-between" mt="xl">
-        <UnstyledButton
-          onClick={() => onStepClick?.(Math.max(0, active - 1))}
-          disabled={active === 0}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: rem(8),
-            padding: `${rem(10)} ${rem(16)}`,
-            borderRadius: rem(12),
-            backgroundColor:
-              active === 0
-                ? 'light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.04))'
-                : 'light-dark(rgba(59, 130, 246, 0.08), rgba(59, 130, 246, 0.12))',
-            color: active === 0 ? 'var(--mantine-color-dimmed)' : 'var(--mantine-color-ocean-6)',
-            fontWeight: 500,
-            fontSize: rem(14),
-            cursor: active === 0 ? 'not-allowed' : 'pointer',
-            transition: 'all 200ms ease',
-          }}
-        >
-          <IconChevronLeft size={18} />
-          Anterior
-        </UnstyledButton>
-
-        {active < steps.length - 1 && (
-          <UnstyledButton
-            onClick={() => onStepClick?.(Math.min(steps.length - 1, active + 1))}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: rem(8),
-              padding: `${rem(10)} ${rem(20)}`,
-              borderRadius: rem(12),
-              background: 'linear-gradient(135deg, var(--mantine-color-ocean-5) 0%, var(--mantine-color-ocean-6) 100%)',
-              color: 'white',
-              fontWeight: 500,
-              fontSize: rem(14),
-              cursor: 'pointer',
-              transition: 'all 200ms ease',
-              boxShadow: '0 4px 12px -2px var(--mantine-color-ocean-5)',
-            }}
+      {onStepClick && (
+        <Group justify="space-between" mt="lg" gap="sm" wrap="wrap">
+          <Button
+            type="button"
+            variant="default"
+            leftSection={<IconChevronLeft size={18} />}
+            onClick={() => onStepClick(Math.max(0, currentStep - 1))}
+            disabled={currentStep === 0}
+            mih={44}
           >
-            Próximo
-            <IconChevronRight size={18} />
-          </UnstyledButton>
-        )}
-      </Group>
+            Anterior
+          </Button>
+
+          {currentStep < steps.length - 1 && (
+            <Button
+              type="button"
+              color="ocean"
+              rightSection={<IconChevronRight size={18} />}
+              onClick={() => onStepClick(Math.min(steps.length - 1, currentStep + 1))}
+              mih={44}
+            >
+              Próxima etapa
+            </Button>
+          )}
+        </Group>
+      )}
     </Box>
   );
 }
@@ -236,44 +186,26 @@ interface FormSectionProps {
 
 export function FormSection({ title, description, children, icon }: FormSectionProps) {
   return (
-    <Box
-      p="xl"
-      style={{
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-        borderRadius: rem(20),
-        marginBottom: rem(24),
-      }}
-    >
-      <Group gap="md" mb="lg" align="flex-start">
+    <Paper withBorder radius="xl" p={{ base: 'md', sm: 'xl' }}>
+      <Group gap="md" mb="lg" align="flex-start" wrap="nowrap">
         {icon && (
-          <ThemeIcon 
-            size={48} 
-            radius="xl" 
-            variant="light" 
-            color="ocean"
-            style={{
-              background: 'light-dark(linear-gradient(135deg, var(--mantine-color-ocean-1) 0%, var(--mantine-color-ocean-0) 100%), linear-gradient(135deg, var(--mantine-color-ocean-8) 0%, var(--mantine-color-ocean-9) 100%))',
-            }}
-          >
+          <ThemeIcon size={40} radius="xl" variant="light" color="ocean" aria-hidden="true">
             {icon}
           </ThemeIcon>
         )}
-        <Box>
-          <Text fw={600} size="lg" c="bright">
+        <Box style={{ minWidth: 0 }}>
+          <Text fw={700} size="lg">
             {title}
           </Text>
           {description && (
-            <Text size="sm" c="dimmed" mt={4}>
+            <Text size="sm" c="dimmed" mt={4} maw={720} lh={1.5}>
               {description}
             </Text>
           )}
         </Box>
       </Group>
-      {children}
-    </Box>
+      <Stack gap="lg">{children}</Stack>
+    </Paper>
   );
 }
 
@@ -284,14 +216,8 @@ interface FormRowProps {
 
 export function FormRow({ children, columns = 2 }: FormRowProps) {
   return (
-    <Box
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${columns}, 1fr)`,
-        gap: rem(16),
-      }}
-    >
+    <SimpleGrid cols={{ base: 1, sm: columns }} spacing="md">
       {children}
-    </Box>
+    </SimpleGrid>
   );
 }

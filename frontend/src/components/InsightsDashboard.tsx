@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import {
-  Paper,
   Stack,
   Group,
   Text,
@@ -10,7 +9,6 @@ import {
   SimpleGrid,
   rem,
   Divider,
-  Tooltip,
   Alert,
 } from '@mantine/core';
 import {
@@ -32,7 +30,7 @@ import {
 import {
   BatchComparisonResult,
   BatchComparisonResultItem,
-  EnhancedComparisonScenario,
+  ComparisonScenarioType,
 } from '../api/types';
 import { money, moneyCompact, percent, formatMonthsYears } from '../utils/format';
 
@@ -63,28 +61,27 @@ const INSIGHT_COLORS: Record<InsightType, string> = {
   opportunity: 'violet',
 };
 
-const INSIGHT_ICONS: Record<InsightType, React.ReactNode> = {
-  success: <IconTrendingUp size={16} />,
-  warning: <IconAlertTriangle size={16} />,
-  info: <IconInfoCircle size={16} />,
-  opportunity: <IconBulb size={16} />,
+const SCENARIO_LABELS: Record<ComparisonScenarioType, string> = {
+  buy: 'Comprar',
+  rent_invest: 'Alugar e investir',
+  invest_buy: 'Investir para comprar',
 };
 
 function InsightCard({ insight }: { insight: Insight }) {
   const color = INSIGHT_COLORS[insight.type];
+  const titleId = useId();
   
   return (
     <Box
+      component="article"
+      aria-labelledby={titleId}
       p="md"
       style={{
-        background: `light-dark(
-          linear-gradient(145deg, var(--mantine-color-${color}-0) 0%, rgba(255, 255, 255, 0.85) 100%),
-          linear-gradient(145deg, var(--mantine-color-${color}-9) 0%, rgba(30, 41, 59, 0.9) 100%)
-        )`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        boxShadow: `var(--glass-shadow), 0 0 0 1px var(--mantine-color-${color}-2) inset`,
-        borderRadius: rem(14),
+        background: 'var(--farol-surface-raised)',
+        border: '1px solid var(--farol-border)',
+        borderInlineStart: `3px solid var(--mantine-color-${color}-5)`,
+        borderRadius: rem(12),
+        height: '100%',
       }}
     >
       <Group gap="md" wrap="nowrap" align="flex-start">
@@ -97,8 +94,8 @@ function InsightCard({ insight }: { insight: Insight }) {
           {insight.icon}
         </ThemeIcon>
         <Box style={{ flex: 1, minWidth: 0 }}>
-          <Group gap="xs" mb={4}>
-            <Text fw={600} size="sm">
+          <Group gap="xs" mb={4} wrap="wrap">
+            <Text id={titleId} component="h3" fw={650} size="sm">
               {insight.title}
             </Text>
             {insight.value && (
@@ -122,10 +119,15 @@ function calculateWealthSpread(results: BatchComparisonResultItem[]): {
   worst: number;
   spread: number;
   spreadPercentage: number;
-} {
+} | null {
   const wealthValues = results.flatMap((r) =>
-    r.result.scenarios.map((s) => s.final_wealth ?? s.final_equity)
+    r.result.comparison_status === 'comparable'
+      ? r.result.scenarios
+          .filter((s) => s.is_feasible !== false)
+          .map((s) => s.final_wealth ?? s.final_equity)
+      : []
   );
+  if (wealthValues.length === 0) return null;
   const best = Math.max(...wealthValues);
   const worst = Math.min(...wealthValues);
   const spread = best - worst;
@@ -134,59 +136,28 @@ function calculateWealthSpread(results: BatchComparisonResultItem[]): {
   return { best, worst, spread, spreadPercentage };
 }
 
-function findBestAndWorstScenarios(results: BatchComparisonResultItem[]): {
-  bestPreset: string;
-  bestScenario: string;
-  bestWealth: number;
-  worstPreset: string;
-  worstScenario: string;
-  worstWealth: number;
-} {
-  let bestPreset = '';
-  let bestScenario = '';
-  let bestWealth = -Infinity;
-  let worstPreset = '';
-  let worstScenario = '';
-  let worstWealth = Infinity;
-  
-  for (const item of results) {
-    for (const scenario of item.result.scenarios) {
-      const wealth = scenario.final_wealth ?? scenario.final_equity;
-      if (wealth > bestWealth) {
-        bestWealth = wealth;
-        bestPreset = item.preset_name;
-        bestScenario = scenario.name;
-      }
-      if (wealth < worstWealth) {
-        worstWealth = wealth;
-        worstPreset = item.preset_name;
-        worstScenario = scenario.name;
-      }
-    }
-  }
-  
-  return { bestPreset, bestScenario, bestWealth, worstPreset, worstScenario, worstWealth };
-}
-
 function analyzeScenarioConsistency(results: BatchComparisonResultItem[]): {
   dominantScenario: string | null;
   dominantCount: number;
   total: number;
 } {
   const winCounts: Record<string, number> = {};
+  let comparableTotal = 0;
   
   for (const item of results) {
-    const winner = item.result.best_scenario;
+    const winner = item.result.best_scenario_type;
+    if (winner == null || item.result.comparison_status !== 'comparable') continue;
+    comparableTotal += 1;
     winCounts[winner] = (winCounts[winner] || 0) + 1;
   }
   
   const entries = Object.entries(winCounts);
-  if (entries.length === 0) return { dominantScenario: null, dominantCount: 0, total: results.length };
+  if (entries.length === 0) return { dominantScenario: null, dominantCount: 0, total: 0 };
   
   const sorted = entries.sort((a, b) => b[1] - a[1]);
   const [dominantScenario, dominantCount] = sorted[0];
   
-  return { dominantScenario, dominantCount, total: results.length };
+  return { dominantScenario, dominantCount, total: comparableTotal };
 }
 
 function analyzeROI(results: BatchComparisonResultItem[]): {
@@ -195,18 +166,22 @@ function analyzeROI(results: BatchComparisonResultItem[]): {
   worstROI: number;
   bestROIPreset: string;
   bestROIScenario: string;
-} {
+} | null {
   const roiValues: { value: number; preset: string; scenario: string }[] = [];
   
   for (const item of results) {
+    if (item.result.comparison_status !== 'comparable') continue;
     for (const scenario of item.result.scenarios) {
+      const value = scenario.metrics.roi_percentage;
+      if (scenario.is_feasible === false || value == null || !Number.isFinite(value)) continue;
       roiValues.push({
-        value: scenario.metrics.roi_percentage,
+        value,
         preset: item.preset_name,
         scenario: scenario.name,
       });
     }
   }
+  if (roiValues.length === 0) return null;
   
   const avgROI = roiValues.reduce((sum, r) => sum + r.value, 0) / roiValues.length;
   const sorted = [...roiValues].sort((a, b) => b.value - a.value);
@@ -222,35 +197,53 @@ function analyzeROI(results: BatchComparisonResultItem[]): {
   };
 }
 
-function analyzeInterestRates(results: BatchComparisonResultItem[]): {
-  hasVariation: boolean;
-  impactDescription: string | null;
-} {
-  // This would need access to the input data, simplified for now
-  return { hasVariation: false, impactDescription: null };
-}
-
 function generateInsights(result: BatchComparisonResult): Insight[] {
   const insights: Insight[] = [];
-  const { results, global_best, ranking } = result;
+  const { results, global_best } = result;
   
   if (results.length === 0) return insights;
+
+  if (global_best == null) {
+    insights.push({
+      id: 'no-comparable-ranking',
+      type: 'warning',
+      category: 'risk',
+      title: 'Sem ranking comparável',
+      description: 'Os presets usam bases de recursos diferentes ou não possuem fluxo viável. Os gráficos podem ser explorados, mas não sustentam um campeão global nem recomendações de parâmetros.',
+      icon: <IconScale size={16} />,
+      priority: 10,
+    });
+    return insights;
+  }
   
   // 1. Best Wealth Insight
   insights.push({
     id: 'best-wealth',
     type: 'success',
     category: 'wealth',
-    title: 'Melhor Resultado',
-    description: `O cenário "${global_best.scenario_name}" do preset "${global_best.preset_name}" gera o maior patrimônio final entre todas as combinações analisadas.`,
+    title: 'Maior patrimônio comparável',
+    description: `O cenário "${global_best.scenario_name}" do preset "${global_best.preset_name}" termina com o maior patrimônio entre as combinações comparáveis e viáveis analisadas.`,
     value: money(global_best.final_wealth),
     icon: <IconCoin size={16} />,
     priority: 10,
   });
+
+  if (result.comparison_status === 'partial') {
+    insights.push({
+      id: 'partial-ranking',
+      type: 'warning',
+      category: 'risk',
+      title: 'Ranking parcial',
+      description: 'O destaque acima considera apenas presets e cenários comparáveis. Resultados exploratórios ou inviáveis foram excluídos; por isso não é seguro generalizar os demais insights agregados.',
+      icon: <IconAlertTriangle size={16} />,
+      priority: 9,
+    });
+    return insights;
+  }
   
   // 2. Wealth Spread Analysis
   const wealthSpread = calculateWealthSpread(results);
-  if (wealthSpread.spread > 0) {
+  if (wealthSpread != null && wealthSpread.spread > 0) {
     const significantSpread = wealthSpread.spreadPercentage > 20;
     insights.push({
       id: 'wealth-spread',
@@ -258,8 +251,8 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
       category: 'wealth',
       title: significantSpread ? 'Grande Variação de Resultados' : 'Variação de Patrimônio',
       description: significantSpread
-        ? `A diferença entre o melhor e o pior cenário é de ${money(wealthSpread.spread)} (${percent(wealthSpread.spreadPercentage)}). A escolha dos parâmetros impacta significativamente o resultado final.`
-        : `A diferença entre o melhor e pior cenário é de ${money(wealthSpread.spread)}.`,
+        ? `A amplitude observada entre o maior e o menor patrimônio é de ${money(wealthSpread.spread)} (${percent(wealthSpread.spreadPercentage)}). Como há várias premissas, este dado não identifica qual parâmetro causou a diferença.`
+        : `A amplitude observada entre patrimônios é de ${money(wealthSpread.spread)}; ela não isola o efeito de uma premissa específica.`,
       value: moneyCompact(wealthSpread.spread),
       icon: <IconScale size={16} />,
       priority: significantSpread ? 8 : 5,
@@ -276,7 +269,7 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
         type: 'success',
         category: 'scenario',
         title: 'Cenário Consistente',
-        description: `O cenário "${consistency.dominantScenario}" foi o melhor em ${consistency.dominantCount} de ${consistency.total} presets (${percent(dominanceRatio * 100)}). Esta estratégia tende a ser a mais vantajosa para os parâmetros analisados.`,
+        description: `O cenário "${SCENARIO_LABELS[consistency.dominantScenario as ComparisonScenarioType] ?? consistency.dominantScenario}" foi o vencedor válido em ${consistency.dominantCount} de ${consistency.total} presets (${percent(dominanceRatio * 100)}). Isso descreve somente estas simulações e não demonstra vantagem fora delas.`,
         value: `${consistency.dominantCount}/${consistency.total}`,
         icon: <IconTarget size={16} />,
         priority: 7,
@@ -296,26 +289,26 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
   
   // 4. ROI Analysis
   const roiAnalysis = analyzeROI(results);
-  if (roiAnalysis.bestROI > 0) {
+  if (roiAnalysis != null && roiAnalysis.bestROI > 0) {
     insights.push({
       id: 'best-roi',
       type: 'opportunity',
       category: 'opportunity',
-      title: 'Melhor Retorno sobre Investimento',
-      description: `O cenário "${roiAnalysis.bestROIScenario}" no preset "${roiAnalysis.bestROIPreset}" apresenta o melhor ROI de ${percent(roiAnalysis.bestROI)}.`,
+      title: 'Maior retorno comparável',
+      description: `Entre os cenários em que o retorno comparável é definido, "${roiAnalysis.bestROIScenario}" no preset "${roiAnalysis.bestROIPreset}" apresenta ${percent(roiAnalysis.bestROI)}.`,
       value: percent(roiAnalysis.bestROI),
       icon: <IconPercentage size={16} />,
       priority: 7,
     });
   }
   
-  if (roiAnalysis.worstROI < 0) {
+  if (roiAnalysis != null && roiAnalysis.worstROI < 0) {
     insights.push({
       id: 'negative-roi-warning',
       type: 'warning',
       category: 'risk',
-      title: 'ROI Negativo Detectado',
-      description: `Alguns cenários apresentam ROI negativo (até ${percent(roiAnalysis.worstROI)}), indicando perda de patrimônio em termos reais. Considere ajustar os parâmetros para melhorar o retorno.`,
+      title: 'Retorno comparável negativo',
+      description: `Alguns cenários com retorno definido chegam a ${percent(roiAnalysis.worstROI)}. Revise o patrimônio final e as premissas antes de interpretar esse indicador isoladamente.`,
       value: percent(roiAnalysis.worstROI),
       icon: <IconTrendingDown size={16} />,
       priority: 9,
@@ -324,48 +317,51 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
   
   // 5. Scenario-specific insights
   const scenarioWins: Record<string, number> = {};
+  let comparableResultsCount = 0;
   results.forEach((r) => {
-    const winner = r.result.best_scenario;
+    const winner = r.result.best_scenario_type;
+    if (winner == null || r.result.comparison_status !== 'comparable') return;
+    comparableResultsCount += 1;
     scenarioWins[winner] = (scenarioWins[winner] || 0) + 1;
   });
   
   // Buy scenario wins
-  const buyWins = scenarioWins['Comprar'] || 0;
-  if (buyWins > 0 && buyWins === results.length) {
+  const buyWins = scenarioWins.buy || 0;
+  if (buyWins > 0 && buyWins === comparableResultsCount) {
     insights.push({
       id: 'buy-always-wins',
       type: 'info',
       category: 'scenario',
-      title: 'Comprar é Sempre Melhor',
-      description: 'Em todas as configurações analisadas, comprar o imóvel foi a melhor opção. Isso pode indicar condições favoráveis de financiamento ou valorização do imóvel alta.',
+      title: 'Comprar venceu nestes presets',
+      description: 'Comprar teve o maior patrimônio líquido em todas as configurações comparáveis analisadas. O resultado não isola qual premissa foi responsável.',
       icon: <IconBuildingBank size={16} />,
       priority: 6,
     });
   }
   
   // Invest scenario wins
-  const rentWins = scenarioWins['Alugar e Investir'] || 0;
-  if (rentWins > 0 && rentWins === results.length) {
+  const rentWins = scenarioWins.rent_invest || 0;
+  if (rentWins > 0 && rentWins === comparableResultsCount) {
     insights.push({
       id: 'rent-always-wins',
       type: 'info',
       category: 'scenario',
-      title: 'Alugar e Investir é Sempre Melhor',
-      description: 'Em todas as configurações, alugar e investir o capital foi a melhor opção. Isso pode indicar taxas de juros altas ou retornos de investimento superiores.',
+      title: 'Alugar e investir venceu nestes presets',
+      description: 'Alugar e investir teve o maior patrimônio líquido em todas as configurações comparáveis analisadas, sem atribuição causal a uma premissa específica.',
       icon: <IconChartLine size={16} />,
       priority: 6,
     });
   }
   
   // Invest then buy scenario wins
-  const investBuyWins = scenarioWins['Investir e Comprar'] || 0;
-  if (investBuyWins > 0 && investBuyWins === results.length) {
+  const investBuyWins = scenarioWins.invest_buy || 0;
+  if (investBuyWins > 0 && investBuyWins === comparableResultsCount) {
     insights.push({
       id: 'invest-buy-always-wins',
       type: 'info',
       category: 'scenario',
-      title: 'Investir para Comprar é Sempre Melhor',
-      description: 'Em todas as configurações, investir até juntar para comprar à vista foi a melhor estratégia.',
+      title: 'Investir para comprar venceu nestes presets',
+      description: 'Investir para comprar teve o maior patrimônio líquido em todas as configurações comparáveis analisadas; a conclusão vale apenas para essas premissas.',
       icon: <IconPigMoney size={16} />,
       priority: 6,
     });
@@ -373,27 +369,39 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
   
   // 6. Compare presets with best of each
   if (results.length >= 2) {
-    const presetBestScenarios = results.map((r) => ({
-      preset: r.preset_name,
-      best: r.result.best_scenario,
-      wealth: r.result.scenarios.find((s) => s.name === r.result.best_scenario)?.final_wealth ?? 0,
-    }));
+    const presetBestScenarios = results.flatMap((r) => {
+      if (
+        r.result.comparison_status !== 'comparable' ||
+        r.result.best_scenario_type == null
+      ) return [];
+      const winner = r.result.scenarios.find(
+        (scenario) => scenario.scenario_type === r.result.best_scenario_type
+      );
+      if (!winner) return [];
+      return [{
+        preset: r.preset_name,
+        best: winner.scenario_type,
+        wealth: winner.final_wealth ?? winner.final_equity,
+      }];
+    });
     
     const sorted = presetBestScenarios.sort((a, b) => b.wealth - a.wealth);
     const bestPreset = sorted[0];
     const secondBest = sorted[1];
     
-    if (bestPreset.wealth > secondBest.wealth) {
+    if (bestPreset && secondBest && bestPreset.wealth > secondBest.wealth) {
       const diff = bestPreset.wealth - secondBest.wealth;
-      const diffPercent = (diff / secondBest.wealth) * 100;
+      const diffPercent = secondBest.wealth !== 0
+        ? (diff / Math.abs(secondBest.wealth)) * 100
+        : null;
       
-      if (diffPercent > 5) {
+      if (diffPercent != null && diffPercent > 5) {
         insights.push({
           id: 'preset-comparison',
           type: 'opportunity',
           category: 'opportunity',
           title: 'Diferença entre Presets',
-          description: `O preset "${bestPreset.preset}" gera ${money(diff)} a mais que "${secondBest.preset}" (${percent(diffPercent)} de diferença). Os parâmetros deste preset são mais favoráveis.`,
+          description: `O preset "${bestPreset.preset}" terminou com ${money(diff)} a mais que "${secondBest.preset}" (${percent(diffPercent)} de diferença). Como várias premissas podem mudar juntas, a comparação não identifica a causa.`,
           value: moneyCompact(diff),
           icon: <IconArrowRight size={16} />,
           priority: 7,
@@ -404,13 +412,14 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
   
   // 7. Break-even analysis
   const breakEvenMonths = results.flatMap((r) =>
-    r.result.scenarios
+    r.result.comparison_status === 'comparable' ? r.result.scenarios
+      .filter((s) => s.is_feasible !== false)
       .filter((s) => s.metrics.break_even_month != null)
       .map((s) => ({
         preset: r.preset_name,
         scenario: s.name,
         month: s.metrics.break_even_month!,
-      }))
+      })) : []
   );
   
   if (breakEvenMonths.length > 0) {
@@ -436,27 +445,31 @@ function generateInsights(result: BatchComparisonResult): Insight[] {
 
 export default function InsightsDashboard({ result }: InsightsDashboardProps) {
   const insights = useMemo(() => generateInsights(result), [result]);
+  const titleId = useId();
   
   if (insights.length === 0) {
     return (
       <Alert color="blue" variant="light" icon={<IconInfoCircle size={16} />}>
-        Não foi possível gerar insights para esta comparação. Tente adicionar mais presets ou variar os parâmetros.
+        Não há dados comparáveis suficientes para sintetizar estes resultados.
       </Alert>
     );
   }
   
-  // Separate insights by importance
-  const primaryInsights = insights.filter((i) => i.priority >= 7);
+  const criticalInsights = insights.filter((i) => i.type === 'warning' && i.priority >= 8);
+  const primaryInsights = insights.filter(
+    (i) => i.priority >= 7 && !criticalInsights.some((critical) => critical.id === i.id)
+  );
   const secondaryInsights = insights.filter((i) => i.priority < 7);
   
   return (
     <Box
+      component="section"
+      aria-labelledby={titleId}
       p="lg"
       style={{
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
+        background: 'var(--farol-surface-raised)',
+        border: '1px solid var(--farol-border)',
+        boxShadow: 'none',
         borderRadius: 'var(--mantine-radius-lg)',
       }}
     >
@@ -464,22 +477,33 @@ export default function InsightsDashboard({ result }: InsightsDashboardProps) {
         <ThemeIcon
           size="lg"
           radius="md"
-          variant="gradient"
-          gradient={{ from: 'grape.5', to: 'grape.7', deg: 135 }}
+          variant="light"
+          color="violet"
         >
           <IconBulb size={20} />
         </ThemeIcon>
         <Box>
-          <Text fw={600} size="lg">
-            Insights Automáticos
+          <Text id={titleId} component="h2" fw={600} size="lg">
+            Leitura dos resultados
           </Text>
           <Text size="xs" c="dimmed">
-            Análise inteligente dos resultados da comparação
+            Síntese descritiva, sem atribuir causalidade ou criar recomendações.
           </Text>
         </Box>
       </Group>
       
       <Stack gap="md">
+        {criticalInsights.length > 0 && (
+          <Stack gap="sm">
+            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+              Pontos de atenção
+            </Text>
+            {criticalInsights.map((insight) => (
+              <InsightCard key={insight.id} insight={insight} />
+            ))}
+          </Stack>
+        )}
+
         {/* Primary insights in a grid */}
         {primaryInsights.length > 0 && (
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
@@ -492,7 +516,7 @@ export default function InsightsDashboard({ result }: InsightsDashboardProps) {
         {/* Secondary insights */}
         {secondaryInsights.length > 0 && (
           <>
-            {primaryInsights.length > 0 && (
+            {(primaryInsights.length > 0 || criticalInsights.length > 0) && (
               <Divider
                 label={
                   <Text size="xs" c="dimmed" fw={500}>

@@ -190,7 +190,19 @@ class FGTSManager:
         Returns:
             Amount actually withdrawn.
         """
-        if not self.use_at_purchase:
+        # A disabled/empty/capped source is not a failed withdrawal attempt. In
+        # particular, the frontend may send an explicit zeroed FGTS object; do
+        # not turn that into a fictitious blocked R$ property-price request or
+        # seed the amortization cooldown.
+        if (
+            not self.use_at_purchase
+            or max_needed <= 0
+            or self._balance <= 0
+            or (
+                self.max_withdrawal_at_purchase is not None
+                and self.max_withdrawal_at_purchase <= 0
+            )
+        ):
             return 0.0
 
         result = self.withdraw(

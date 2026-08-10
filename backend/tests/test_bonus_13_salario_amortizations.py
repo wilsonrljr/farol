@@ -116,9 +116,9 @@ class TestBonusAnd13SalarioAmortizations:
                 (m for m in result.monthly_data if m.month == target_month), None
             )
             assert month_data is not None, f"Month {target_month} not found"
-            assert (
-                month_data.extra_amortization_bonus == 5000
-            ), f"Expected 5000 bonus at month {target_month}"
+            assert month_data.extra_amortization_bonus == 5000, (
+                f"Expected 5000 bonus at month {target_month}"
+            )
 
     def test_mixed_funding_sources(self):
         """Multiple funding sources should be tracked independently."""
@@ -187,3 +187,62 @@ class TestBonusAnd13SalarioAmortizations:
             month_7_with_bonus.outstanding_balance
             < month_7_no_amort.outstanding_balance
         )
+
+    def test_capped_bonus_reports_only_the_amount_actually_applied(self):
+        """A bonus request larger than the debt must not erase the base payment."""
+
+        result = BuyScenarioSimulator(
+            property_value=1_200,
+            down_payment=0,
+            loan_term_years=1,
+            monthly_interest_rate=0,
+            loan_type="SAC",
+            amortizations=[
+                MockAmortization(month=1, value=10_000, funding_source="bonus"),
+            ],
+        ).simulate_domain()
+
+        month_1 = result.monthly_data[0]
+        assert month_1.installment == pytest.approx(1_200)
+        assert month_1.extra_amortization == pytest.approx(1_100)
+        assert month_1.extra_amortization_bonus == pytest.approx(1_100)
+        assert month_1.installment_base == pytest.approx(100)
+        assert month_1.principal_base == pytest.approx(100)
+        assert month_1.housing_due == pytest.approx(100)
+
+    def test_capped_percentage_sources_are_allocated_without_double_counting(self):
+        """Percentage schedules retain their sources when their sum is capped."""
+
+        result = BuyScenarioSimulator(
+            property_value=1_200,
+            down_payment=0,
+            loan_term_years=1,
+            monthly_interest_rate=0,
+            loan_type="SAC",
+            amortizations=[
+                MockAmortization(
+                    month=1,
+                    value=50,
+                    value_type="percentage",
+                    funding_source="bonus",
+                ),
+                MockAmortization(
+                    month=1,
+                    value=50,
+                    value_type="percentage",
+                    funding_source="13_salario",
+                ),
+            ],
+        ).simulate_domain()
+
+        month_1 = result.monthly_data[0]
+        assert month_1.extra_amortization == pytest.approx(1_100)
+        assert month_1.extra_amortization_bonus == pytest.approx(550)
+        assert month_1.extra_amortization_13_salario == pytest.approx(550)
+        assert month_1.extra_amortization_cash == pytest.approx(0)
+        assert month_1.installment_base == pytest.approx(100)
+        assert (
+            (month_1.extra_amortization_cash or 0)
+            + (month_1.extra_amortization_bonus or 0)
+            + (month_1.extra_amortization_13_salario or 0)
+        ) == pytest.approx(month_1.extra_amortization)

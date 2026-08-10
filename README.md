@@ -39,6 +39,8 @@ Para conversar: abra uma discussão, issue ou mande um PR. Ideias e feedback sã
 - Múltiplas faixas de retorno de investimento (variação temporal).
 - Considera inflação, valorização do imóvel, custos adicionais (ITBI, escritura, condomínio, IPTU).
 - Resultados detalhados: fluxo de caixa mensal, patrimônio, saldo investido, equity, valor do imóvel.
+- Comparação com ledger comum de caixa e passivos, validação de viabilidade e status explícito de comparabilidade.
+- Planejamento FIRE em valores reais (dinheiro de hoje), além de reserva de emergência, estresse e veículos.
 - Interface web responsiva (React + Mantine).
 
 ## Tecnologias
@@ -51,14 +53,18 @@ Você pode usar `uv` (recomendado) ou `pip`.
 Backend com `uv`:
 ```bash
 uv sync --extra dev
-uv run pytest        # opcional
+uv run ruff check backend
+uv run ruff format --check backend
+uv run pytest --cov=backend --cov-report=term-missing -q
 uv run uvicorn backend.app.main:app --reload
 ```
 
 Backend com `pip`:
 ```bash
 pip install -e .[dev]
-pytest -q            # opcional
+ruff check backend
+ruff format --check backend
+pytest --cov=backend --cov-report=term-missing -q
 uvicorn backend.app.main:app --reload
 ```
 
@@ -70,155 +76,21 @@ uv lock
 Frontend (em outro terminal):
 ```bash
 cd frontend
-npm install
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
 npm run dev
 ```
 
 Frontend: http://localhost:5173
 
-## Tutorial para quem não sabe programação
+## Executar com Docker
 
-Se você só quer USAR o Farol no seu computador (sem aprender programação), siga um dos passo a passo abaixo. Eles usam o Docker para evitar instalações complicadas.
+Para Windows, macOS ou Linux, instale o Docker Desktop (ou Docker Engine com o plugin Compose), clone o repositório e execute um dos modos abaixo. O Compose mantém frontend e backend na mesma rede e aplica a configuração correta de comunicação entre eles.
 
-O que você vai fazer? (1) Instalar Docker Desktop, (2) rodar o “cérebro” (backend), (3) rodar a interface (frontend) e (4) abrir o navegador.
-
-<details open>
-<summary><strong>Windows (passo a passo)</strong></summary>
-
-&nbsp;
-
-1. (Só uma vez) Ativar o WSL
-  - Abra o menu Iniciar, digite: powershell
-  - Clique com botão direito: “Executar como administrador”.
-  - Digite o comando abaixo e aperte Enter:
-    ```bash
-    wsl --install
-    ```
-  - Reinicie o computador se aparecer uma mensagem dizendo que deve reiniciar. Se não aparecer nada, pode fechar.
-
-2. Instalar o Docker Desktop
-  - Baixe em: https://www.docker.com/products/docker-desktop/
-  - Instale aceitando as opções padrão. Se não quiser cadastrar uma conta, pode clicar na opção "skip" que fica no canto superior direito na tela de cadastro.
-  - Abra o Docker Desktop e espere o ícone na barra de tarefas ficar estável (rodando).
-
-3. Abrir um PowerShell normal (não precisa ser admin)
-  - Dica: você pode copiar e colar os comandos abaixo.
-
-4. Rodar o backend (cérebro da simulação)
-  ```bash
-  docker run -d --name farol-backend -p 8000:8000 "wilsonrljr/farol-backend:0.1.0"
-  ```
-
-5. Testar se o backend respondeu
-  - Abra: http://localhost:8000/docs — se abrir a página interativa, está ok.
-
-6. Rodar o frontend (interface web)
-  ```bash
-  docker run -d --name farol-frontend -p 8080:80 ^
-    -e VITE_API_BASE=http://localhost:8000 ^
-    "wilsonrljr/farol-frontend:0.1.1"
-  ```
-  (No PowerShell o `^` quebra linha. Se preferir, pode colocar tudo em uma linha.)
-
-7. Usar o Farol
-  - Acesse: http://localhost:8080
-
-8. Encerrar quando não estiver usando
-  ```bash
-  docker stop farol-frontend farol-backend
-  ```
-
-9. Atualizar para nova versão (quando anunciado)
-  Substitua as tags e force baixar de novo:
-  ```bash
-  docker pull wilsonrljr/farol-backend:0.1.2
-  docker pull wilsonrljr/farol-frontend:0.1.2
-  docker stop farol-frontend farol-backend 2>$null
-  docker rm farol-frontend farol-backend 2>$null
-  ```
-  Depois repita os passos 4 e 6 com as novas tags.
-
-10. Problemas comuns
-
-| Problema | O que significa | Como resolver |
-|----------|-----------------|----------------|
-| Página não abre | Frontend ainda iniciando | Aguarde 5–10s e recarregue |
-| http://localhost:8000/docs não abre | Backend não subiu | Veja se o Docker Desktop está aberto / tente `docker logs farol-backend` |
-| Porta em uso | Já tem algo nas portas 8000/8080 | Troque mapeamento: `-p 8001:8000` e `-p 8081:80` (e use a nova URL) |
-| Versão antiga | Imagem cache local | Rode `docker pull ...` das duas imagens e reinicie |
-| Erro de rede na simulação | Frontend não acha backend | Confirme a variável `VITE_API_BASE` |
-| Mensagem sobre CORS | Navegador bloqueou origem | Abra issue (backend libera origens) |
-
-Pronto: esses são os passos mínimos no Windows.
-
-</details>
-
-<details>
-<summary><strong>macOS (passo a passo)</strong></summary>
-
-&nbsp;
-
-Funciona em Intel e Apple Silicon (M1/M2/M3). Versões exemplo:
-
-1. Instalar Docker Desktop
-  - Baixe: https://www.docker.com/products/docker-desktop/
-  - Arraste para Aplicativos e abra. Conceda permissões se solicitar.
-
-2. Confirmar que o Docker está rodando
-  - Ícone da baleia deve aparecer na barra de menus (topo). Espere “Docker is running”.
-
-3. Abrir o Terminal (Spotlight: ⌘ + Espaço → “Terminal”)
-
-4. Rodar backend
-  ```bash
-  docker run -d --name farol-backend -p 8000:8000 wilsonrljr/farol-backend:0.1.0
-  ```
-
-5. Testar backend: abra http://localhost:8000/docs
-
-6. Rodar frontend
-  ```bash
-  docker run -d --name farol-frontend -p 8080:80 \
-    -e VITE_API_BASE=http://localhost:8000 \
-    wilsonrljr/farol-frontend:0.1.1
-  ```
-
-7. Usar: http://localhost:8080
-
-8. Parar quando terminar
-  ```bash
-  docker stop farol-frontend farol-backend
-  ```
-
-9. Atualizar versões
-  ```bash
-  docker pull wilsonrljr/farol-backend:0.1.2
-  docker pull wilsonrljr/farol-frontend:0.1.2
-  docker stop farol-frontend farol-backend 2>/dev/null || true
-  docker rm farol-frontend farol-backend 2>/dev/null || true
-  ```
-  Refaça os passos 4 e 6 com as novas tags.
-
-10. Problemas comuns
-
-| Problema | Significado | Ação |
-|----------|-------------|------|
-| Página vazia | Frontend iniciando | Aguarde e recarregue |
-| Não abre /docs | Backend não subiu | `docker ps` / `docker logs farol-backend` |
-| Porta já usada | Outra app usa 8000/8080 | Troque para 8001 / 8081 |
-| Versão antiga | Cache local | `docker pull` das imagens |
-| Erro rede simulação | Variável API errada | Confirme `VITE_API_BASE` |
-
-Pronto: usando o Farol no macOS.
-
-</details>
-
----
-
----
-
-### (Opcional) Uso com Docker Compose
-Se preferir orquestrar tudo com Compose (dev com hot reload ou modo produção), as seções abaixo permanecem disponíveis.
+> A variável `VITE_API_BASE` é incorporada pelo Vite ao iniciar o ambiente de desenvolvimento ou durante o build. Passá-la com `docker run -e` para uma imagem já construída não altera o frontend.
 
 ### Ambiente de Desenvolvimento (hot reload)
 Requisitos: Docker >= 24, Docker Compose Plugin.
@@ -243,6 +115,9 @@ docker compose -f docker-compose.prod.yml up --build -d
 Endpoints:
 - App: http://localhost:8080
 - Backend (rede interna): http://backend:8000
+- API para o navegador: `http://localhost:8080/api/*` (proxy same-origin do Nginx)
+- Liveness: http://localhost:8080/healthz
+- Readiness: http://localhost:8080/readyz
 
 Logs:
 ```bash
@@ -255,13 +130,19 @@ docker compose -f docker-compose.prod.yml down
 ```
 
 ### Variáveis de Ambiente do Frontend
-Use `VITE_API_BASE` para apontar para a API.
+`VITE_API_BASE` é uma variável de **build do Vite**, não uma configuração de runtime do Nginx. No Compose de produção ela fica vazia: o navegador chama `/api` no mesmo domínio e o Nginx encaminha a requisição ao backend. Isso evita publicar nomes internos como `backend:8000` no JavaScript entregue ao usuário.
 
-Exemplos:
+Só defina outra origem quando o frontend e a API forem realmente publicados em domínios diferentes; nesse caso, faça um novo build e configure a allowlist CORS do backend:
 ```bash
-# Build produção apontando para backend remoto
 docker build -t farol-frontend --build-arg VITE_API_BASE=https://api.exemplo.com -f frontend/Dockerfile .
 ```
+
+Passar `VITE_API_BASE` com `docker run -e` para uma imagem pronta não funciona, pois os assets já foram compilados.
+
+O backend e o Nginx recusam corpos acima de 4 MiB antes de processar o JSON. Se
+`MAX_REQUEST_BODY_BYTES` for alterado em uma implantação sem o Nginx fornecido,
+mantenha o limite equivalente no proxy de borda; no Compose oficial ambos usam
+4 MiB.
 
 ### Makefile (atalhos)
 Se disponível:
@@ -281,13 +162,24 @@ docker compose build --no-cache
 ```
 
 ## Uso
-1. Acesse `http://localhost:5173`.
+1. Acesse `http://localhost:5173` em desenvolvimento ou `http://localhost:8080` no Compose de produção.
 2. Explore:
   - Início: visão geral.
     - Comprar vs Alugar.
   - Sobre: conceitos e metodologia.
     - Docs: documentação detalhada (Quickstart, Cálculos, Glossário).
 
+
+## Contrato da comparação
+
+- Informe exatamente uma taxa do financiamento: `annual_interest_rate` **ou** `monthly_interest_rate`.
+- Informe exatamente uma forma de aluguel: `rent_value` **ou** `rent_percentage`. O percentual é **mensal (% a.m.)**; por exemplo, `0,5` sobre R$ 500.000 resulta em R$ 2.500 no primeiro mês.
+- `total_savings` representa o caixa inicial total e precisa cobrir entrada mais custos upfront. Para um ranking autoritativo também é necessária `monthly_net_income`.
+- A renda alimenta um ledger comum: custos e aportes consomem recursos; sobra vira `residual_cash_balance` sem rendimento; falta vira `total_unfunded_amount`/`final_liabilities`. Um déficit não é convertido em patrimônio.
+- No cenário `invest_buy`, a sobra de orçamento também participa da compra: o alvo considera investimento líquido + caixa acumulado + FGTS elegível, e `cash_reserve_used_for_purchase` registra quanto do caixa foi convertido no imóvel.
+- O campo `comparison_status` informa se é válido eleger um vencedor: `comparable`, `exploratory`, `incomparable` ou `no_feasible_scenario`. `best_scenario` e `best_scenario_type` ficam nulos fora de `comparable`.
+- `roi_percentage` e `roi_including_withdrawals_percentage` são atualmente nulos (`N.D.` na interface). Um ROI agregado só será publicado quando houver série de fluxos suficiente para TWR/XIRR.
+- Use `scenario_type` (`buy`, `rent_invest`, `invest_buy`) como identificador estável; os nomes visíveis podem ser traduzidos.
 
 ## Exportação de Resultados
 É possível exportar dados das simulações e comparações em CSV ou XLSX.
@@ -298,7 +190,7 @@ Rotas no frontend em `/docs/*`:
 | Página | URL | Conteúdo |
 |--------|-----|----------|
 | Quickstart | `/docs/quickstart` | Passo a passo mínimo de uso e leitura rápida das métricas. |
-| Cálculos | `/docs/calculos` | Fórmulas e decisões de modelagem (PRICE/SAC, inflação, ROI, sustentabilidade). |
+| Cálculos | `/docs/calculos` | Fórmulas e decisões de modelagem (PRICE/SAC, inflação, ledger e sustentabilidade). |
 | Glossário | `/docs/glossario` | Definições de campos de entrada, saídas mensais e métricas agregadas. |
 
 Arquivos fonte correspondentes em `docs/quickstart.md`, `docs/calculations.md`, `docs/glossary.md`.

@@ -9,16 +9,22 @@ __pycache__
 *.pyo
 *.pyd
 *.pytest_cache
+.coverage
+coverage.xml
+htmlcov
 .cache
 .mypy_cache
+.ruff_cache
 
 # Node artifacts
 frontend/node_modules
 frontend/dist
+frontend/coverage
 
 # Python virtual envs
 .venv
 venv
+*.egg-info
 
 # Misc
 .DS_Store

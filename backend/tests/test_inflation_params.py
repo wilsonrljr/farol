@@ -33,6 +33,9 @@ def test_property_appreciation_non_decreasing():
         if scenario["monthly_data"]:
             first = scenario["monthly_data"][0]
             last = scenario["monthly_data"][-1]
-            if "property_value" in last and "property_value" in first:
-                if first.get("property_value"):
-                    assert last["property_value"] >= first["property_value"]
+            if (
+                "property_value" in last
+                and "property_value" in first
+                and first.get("property_value")
+            ):
+                assert last["property_value"] >= first["property_value"]

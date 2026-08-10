@@ -28,9 +28,12 @@ def test_metrics_summary_basic():
     assert r.status_code == 200, r.text
     data = r.json()
     assert "metrics" in data
-    assert "best_scenario" in data
+    assert data.get("best_scenario") is None
+    assert data["comparison_status"] == "exploratory"
+    assert data["warnings"]
     rent_entry = next(m for m in data["metrics"] if m["name"] == "Alugar e investir")
-    assert rent_entry["roi_percentage"] is not None
+    assert rent_entry["scenario_type"] == "rent_invest"
+    assert rent_entry.get("roi_percentage") is None
 
 
 def test_metrics_summary_no_income():
@@ -41,5 +44,6 @@ def test_metrics_summary_no_income():
     assert r.status_code == 200, r.text
     data = r.json()
     rent_entry = next(m for m in data["metrics"] if m["name"] == "Alugar e investir")
-    # Should still have ROI calculated
-    assert rent_entry["roi_percentage"] is not None
+    # External payment flows are not dated yet, so an aggregate ROI would be
+    # misleading even in legacy/exploratory mode.
+    assert rent_entry.get("roi_percentage") is None

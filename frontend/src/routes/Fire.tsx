@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  Alert,
   Badge,
   Box,
   Button,
-  Container,
   Group,
   NumberInput,
   Paper,
@@ -11,21 +12,34 @@ import {
   RingProgress,
   SegmentedControl,
   SimpleGrid,
-  Stack,
   Text,
-  TextInput,
-  Title,
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { LineChart } from '@mantine/charts';
-import { IconFlame, IconInfoCircle, IconLeaf, IconRocket, IconTarget } from '@tabler/icons-react';
+import {
+  IconAdjustments,
+  IconFlame,
+  IconInfoCircle,
+  IconLeaf,
+  IconRocket,
+} from '@tabler/icons-react';
 import { planFire } from '../api/toolsApi';
-import type { FIREPlanInput, FIREPlanResult, FIREMode } from '../api/types';
+import type { FIREPlanInput, FIREMode } from '../api/types';
 import { money, moneyCompact, percent } from '../utils/format';
-import { loadPresets, newPresetId, savePresets, type Preset } from '../utils/presets';
+import { toApiError } from '../api/client';
+import { usePresets } from '../hooks/usePresets';
+import { useToolSimulation } from '../hooks/useToolSimulation';
+import { firstInputError, isFireInput, validateFireInput } from '../utils/toolInputs';
+import { MAX_PRESET_NAME_LENGTH } from '../utils/presets';
+import {
+  ToolMetricCard,
+  ToolPageShell,
+  ToolPanel,
+  ToolPresetsPanel,
+  ToolResults,
+} from '../components/ToolPageShell';
 
-type FIREPreset = Preset<FIREPlanInput>;
 const PRESETS_STORAGE_KEY = 'farol.tools.fire.presets.v1';
 
 function formatYearsMonths(months: number): string {
@@ -36,50 +50,55 @@ function formatYearsMonths(months: number): string {
   return `${years} anos e ${remainingMonths} meses`;
 }
 
+function shareOfPortfolio(value: number, portfolio: number): string {
+  if (!Number.isFinite(value) || !Number.isFinite(portfolio) || portfolio <= 0) return '0,0%';
+  return `${((value / portfolio) * 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
 export default function Fire() {
-  // Core inputs
   const [monthlyExpenses, setMonthlyExpenses] = useState<number>(5000);
   const [currentPortfolio, setCurrentPortfolio] = useState<number>(100000);
   const [monthlyContribution, setMonthlyContribution] = useState<number>(3000);
   const [horizonMonths, setHorizonMonths] = useState<number>(360);
 
-  // Rates
   const [annualReturn, setAnnualReturn] = useState<number>(8);
   const [annualInflation, setAnnualInflation] = useState<number | undefined>(4);
   const [safeWithdrawalRate, setSafeWithdrawalRate] = useState<number>(4);
 
-  // FIRE mode
   const [fireMode, setFireMode] = useState<FIREMode>('traditional');
   const [currentAge, setCurrentAge] = useState<number | undefined>(30);
   const [targetRetirementAge, setTargetRetirementAge] = useState<number | undefined>(65);
   const [coastFireAge, setCoastFireAge] = useState<number | undefined>(45);
   const [baristaIncome, setBaristaIncome] = useState<number | undefined>(2000);
 
-  // State
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<FIREPlanResult | null>(null);
-
-  // Presets
   const [presetName, setPresetName] = useState('');
-  const [presets, setPresets] = useState<FIREPreset[]>(() => loadPresets(PRESETS_STORAGE_KEY));
+  const presetsManager = usePresets<FIREPlanInput>({
+    storageKey: PRESETS_STORAGE_KEY,
+    validateInput: isFireInput,
+  });
+  const currentInputValue = currentInput();
+  const { result, loading, simulate } = useToolSimulation(currentInputValue, planFire);
+
+  useEffect(() => {
+    if (!presetsManager.storageError) return;
+    notifications.show({
+      color: 'red',
+      title: 'Presets não puderam ser persistidos',
+      message: presetsManager.storageError,
+    });
+  }, [presetsManager.storageError]);
 
   const chartData = useMemo(() => {
     if (!result) return [];
-    return result.monthly_data.map((m) => ({
-      month: m.month,
-      portfolio: m.portfolio_balance,
-      fireNumber: m.fire_number,
+    return result.monthly_data.map((month) => ({
+      month: month.month,
+      portfolio: month.portfolio_balance,
+      fireNumber: month.fire_number,
+      coastFireNumber: month.coast_fire_number ?? null,
     }));
-  }, [result]);
-
-  const progressChartData = useMemo(() => {
-    if (!result) return [];
-    return result.monthly_data
-      .filter((_, i) => i % 12 === 0 || i === result.monthly_data.length - 1)
-      .map((m) => ({
-        month: m.month,
-        progress: Math.min(m.progress_percent, 100),
-      }));
   }, [result]);
 
   function currentInput(): FIREPlanInput {
@@ -100,14 +119,16 @@ export default function Fire() {
   }
 
   async function onSimulate() {
-    setLoading(true);
+    const validationError = firstInputError(validateFireInput(currentInputValue));
+    if (validationError) {
+      notifications.show({ color: 'red', title: 'Revise os dados', message: validationError });
+      return;
+    }
     try {
-      const data = await planFire(currentInput());
-      setResult(data);
-    } catch (e: unknown) {
-      notifications.show({ color: 'red', title: 'Erro ao calcular', message: String(e) });
-    } finally {
-      setLoading(false);
+      await simulate();
+    } catch (caught: unknown) {
+      const error = await toApiError(caught);
+      notifications.show({ color: 'red', title: 'Erro ao calcular', message: error.message });
     }
   }
 
@@ -118,110 +139,98 @@ export default function Fire() {
       return;
     }
 
-    const next: FIREPreset[] = [
-      { id: newPresetId(), name, createdAt: Date.now(), input: currentInput() },
-      ...presets,
-    ];
-    setPresets(next);
-    savePresets(PRESETS_STORAGE_KEY, next);
+    const validationError = firstInputError(validateFireInput(currentInputValue));
+    if (validationError) {
+      notifications.show({ color: 'red', title: 'Preset inválido', message: validationError });
+      return;
+    }
+    if (!presetsManager.addPreset(name, currentInputValue)) return;
     setPresetName('');
-    notifications.show({ color: 'green', title: 'Preset salvo', message: `"${name}"` });
+    notifications.show({ color: 'green', title: 'Preset salvo', message: `“${name}”` });
   }
 
-  function onLoadPreset(p: FIREPreset) {
-    const i = p.input;
-    setMonthlyExpenses(i.monthly_expenses);
-    setCurrentPortfolio(i.current_portfolio);
-    setMonthlyContribution(i.monthly_contribution ?? 0);
-    setHorizonMonths(i.horizon_months ?? 360);
-    setAnnualReturn(i.annual_return_rate ?? 8);
-    setAnnualInflation(i.annual_inflation_rate == null ? undefined : i.annual_inflation_rate);
-    setSafeWithdrawalRate(i.safe_withdrawal_rate ?? 4);
-    setFireMode(i.fire_mode ?? 'traditional');
-    setCurrentAge(i.current_age == null ? undefined : i.current_age);
-    setTargetRetirementAge(i.target_retirement_age == null ? undefined : i.target_retirement_age);
-    setCoastFireAge(i.coast_fire_age == null ? undefined : i.coast_fire_age);
-    setBaristaIncome(i.barista_monthly_income == null ? undefined : i.barista_monthly_income);
-    notifications.show({ color: 'blue', title: 'Preset carregado', message: p.name });
+  function onLoadPreset(preset: (typeof presetsManager.presets)[number]) {
+    const input = preset.input;
+    setMonthlyExpenses(input.monthly_expenses);
+    setCurrentPortfolio(input.current_portfolio);
+    setMonthlyContribution(input.monthly_contribution ?? 0);
+    setHorizonMonths(input.horizon_months ?? 360);
+    setAnnualReturn(input.annual_return_rate ?? 8);
+    setAnnualInflation(input.annual_inflation_rate == null ? undefined : input.annual_inflation_rate);
+    setSafeWithdrawalRate(input.safe_withdrawal_rate ?? 4);
+    setFireMode(input.fire_mode ?? 'traditional');
+    setCurrentAge(input.current_age == null ? undefined : input.current_age);
+    setTargetRetirementAge(input.target_retirement_age == null ? undefined : input.target_retirement_age);
+    setCoastFireAge(input.coast_fire_age == null ? undefined : input.coast_fire_age);
+    setBaristaIncome(input.barista_monthly_income == null ? undefined : input.barista_monthly_income);
+    notifications.show({ color: 'blue', title: 'Preset carregado', message: preset.name });
   }
 
   function onDeletePreset(id: string) {
-    const next = presets.filter((p) => p.id !== id);
-    setPresets(next);
-    savePresets(PRESETS_STORAGE_KEY, next);
+    presetsManager.removePreset(id);
   }
 
   function onClearPresets() {
-    setPresets([]);
-    savePresets(PRESETS_STORAGE_KEY, []);
+    if (!presetsManager.clearAllPresets()) return;
     notifications.show({ color: 'green', title: 'Presets removidos', message: 'Todos os presets foram apagados.' });
   }
 
-  // Quick calculation for preview
-  const previewFireNumber = (monthlyExpenses * 12) / (safeWithdrawalRate / 100);
+  const previewRequiredExpenses =
+    fireMode === 'barista'
+      ? Math.max(0, monthlyExpenses - (baristaIncome ?? 0))
+      : monthlyExpenses;
+  const previewFireNumber = (previewRequiredExpenses * 12) / (safeWithdrawalRate / 100);
   const previewProgress = previewFireNumber > 0 ? (currentPortfolio / previewFireNumber) * 100 : 0;
 
   return (
-    <Container size="lg" py="xl">
-      <Box mb="lg">
-        <Group gap="sm" mb={6}>
-          <IconFlame size={28} style={{ color: 'var(--mantine-color-orange-6)' }} />
-          <Title order={2} fw={700}>
-            Independência Financeira (FIRE)
-          </Title>
-        </Group>
-        <Text c="dimmed">
-          Calcule quando você pode atingir a independência financeira usando a regra dos 4% (ou taxa personalizada).
-          O FIRE Number é o patrimônio necessário para viver apenas dos rendimentos.
-        </Text>
-      </Box>
-
-      <Box
-        p="xl"
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-          borderRadius: 'var(--mantine-radius-xl)',
-        }}
+    <ToolPageShell
+      title="Independência financeira (FIRE)"
+      description="Projete quando seu patrimônio pode sustentar seus gastos em valores reais de hoje. Compare o plano tradicional com Coast FIRE e Barista FIRE."
+      icon={<IconFlame size={24} />}
+    >
+      <ToolPanel
+        title="Construa seu plano de independência"
+        description="Escolha a estratégia, informe sua realidade atual e refine as premissas somente se precisar."
       >
-        {/* FIRE Mode Selector */}
-        <Box mb="lg">
-          <Text fw={600} mb="xs">Modo FIRE</Text>
-          <SegmentedControl
-            value={fireMode}
-            onChange={(v) => setFireMode(v as FIREMode)}
-            data={[
-              { label: 'Tradicional', value: 'traditional' },
-              { label: 'Coast FIRE', value: 'coast' },
-              { label: 'Barista FIRE', value: 'barista' },
-            ]}
-            fullWidth
-          />
-          <Text size="xs" c="dimmed" mt="xs">
-            {fireMode === 'traditional' && 'Acumule patrimônio suficiente para viver 100% dos rendimentos.'}
-            {fireMode === 'coast' && 'Pare de aportar em certa idade e deixe os juros compostos trabalharem até a aposentadoria.'}
-            {fireMode === 'barista' && 'Trabalhe meio período cobrindo parte dos gastos, reduzindo o patrimônio necessário.'}
-          </Text>
-        </Box>
+        <Text fw={650} mb="xs">Estratégia</Text>
+        <SegmentedControl
+          value={fireMode}
+          onChange={(value) => setFireMode(value as FIREMode)}
+          data={[
+            { label: 'Tradicional', value: 'traditional' },
+            { label: 'Coast FIRE', value: 'coast' },
+            { label: 'Barista FIRE', value: 'barista' },
+          ]}
+          fullWidth
+          size="md"
+          aria-label="Estratégia FIRE"
+        />
+        <Text size="sm" c="dimmed" mt="xs" mb="xl">
+          {fireMode === 'traditional' &&
+            'Acumule patrimônio para cobrir integralmente seus gastos com retiradas da carteira.'}
+          {fireMode === 'coast' &&
+            'Descubra quando o patrimônio pode crescer sozinho até a aposentadoria, sem novos aportes.'}
+          {fireMode === 'barista' &&
+            'Considere uma renda parcial futura para reduzir a parcela dos gastos coberta pela carteira.'}
+        </Text>
 
-        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
+        <Text fw={650} mb="sm">Sua realidade hoje</Text>
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
           <NumberInput
             label="Gastos mensais"
-            description="Quanto você gasta por mês"
+            description="Custo de vida que deseja sustentar"
             value={monthlyExpenses}
-            onChange={(v) => setMonthlyExpenses(Number(v) || 0)}
+            onChange={(value) => setMonthlyExpenses(Number(value) || 0)}
             min={0}
             thousandSeparator="."
             decimalSeparator=","
             prefix="R$ "
           />
           <NumberInput
-            label="Patrimônio atual"
-            description="Valor investido hoje"
+            label="Patrimônio investido"
+            description="Carteira disponível hoje"
             value={currentPortfolio}
-            onChange={(v) => setCurrentPortfolio(Number(v) || 0)}
+            onChange={(value) => setCurrentPortfolio(Number(value) || 0)}
             min={0}
             thousandSeparator="."
             decimalSeparator=","
@@ -229,141 +238,88 @@ export default function Fire() {
           />
           <NumberInput
             label="Aporte mensal"
-            description="Quanto investe por mês"
+            description="Valor investido todos os meses"
             value={monthlyContribution}
-            onChange={(v) => setMonthlyContribution(Number(v) || 0)}
+            onChange={(value) => setMonthlyContribution(Number(value) || 0)}
             min={0}
             thousandSeparator="."
             decimalSeparator=","
             prefix="R$ "
           />
-
-          <NumberInput
-            label={
-              <Group gap={4}>
-                <span>Retorno real anual</span>
-                <Tooltip label="Retorno já descontada a inflação. Ex: 12% nominal - 4% inflação = 8% real">
-                  <IconInfoCircle size={14} style={{ opacity: 0.6 }} />
-                </Tooltip>
-              </Group>
-            }
-            description="Rendimento acima da inflação"
-            value={annualReturn}
-            onChange={(v) => setAnnualReturn(Number(v) || 0)}
-            step={0.5}
-            suffix="% a.a."
-          />
-          <NumberInput
-            label="Inflação anual"
-            description="Para ajustar gastos futuros"
-            value={annualInflation}
-            onChange={(v) => setAnnualInflation(v === '' || v == null ? undefined : Number(v))}
-            step={0.5}
-            suffix="% a.a."
-          />
-          <NumberInput
-            label={
-              <Group gap={4}>
-                <span>Taxa de retirada segura</span>
-                <Tooltip label="Regra dos 4%: retire 4% ao ano sem esgotar o patrimônio em 30+ anos">
-                  <IconInfoCircle size={14} style={{ opacity: 0.6 }} />
-                </Tooltip>
-              </Group>
-            }
-            description="Tradicional: 4%"
-            value={safeWithdrawalRate}
-            onChange={(v) => setSafeWithdrawalRate(Number(v) || 4)}
-            min={1}
-            max={10}
-            step={0.5}
-            suffix="%"
-          />
-
-          <NumberInput
-            label="Sua idade atual"
-            description="Para calcular idade na IF"
-            value={currentAge}
-            onChange={(v) => setCurrentAge(v === '' || v == null ? undefined : Number(v))}
-            min={18}
-            max={100}
-            suffix=" anos"
-          />
-          <NumberInput
-            label="Horizonte (meses)"
-            description="Período de simulação"
-            value={horizonMonths}
-            onChange={(v) => setHorizonMonths(Number(v) || 360)}
-            min={12}
-            max={600}
-            step={12}
-          />
-          {fireMode === 'traditional' && (
-            <NumberInput
-              label="Idade-alvo aposentadoria"
-              description="Referência (opcional)"
-              value={targetRetirementAge}
-              onChange={(v) => setTargetRetirementAge(v === '' || v == null ? undefined : Number(v))}
-              min={18}
-              max={100}
-              suffix=" anos"
-            />
-          )}
-          {fireMode === 'coast' && (
-            <>
-              <NumberInput
-                label="Idade para Coast"
-                description="Idade para parar de aportar"
-                value={coastFireAge}
-                onChange={(v) => setCoastFireAge(v === '' || v == null ? undefined : Number(v))}
-                min={18}
-                max={100}
-                suffix=" anos"
-              />
-              <NumberInput
-                label="Idade-alvo aposentadoria"
-                description="Quando pretende se aposentar"
-                value={targetRetirementAge}
-                onChange={(v) => setTargetRetirementAge(v === '' || v == null ? undefined : Number(v))}
-                min={18}
-                max={100}
-                suffix=" anos"
-              />
-            </>
-          )}
-          {fireMode === 'barista' && (
-            <NumberInput
-              label="Renda parcial (Barista)"
-              description="Renda de trabalho parcial"
-              value={baristaIncome}
-              onChange={(v) => setBaristaIncome(v === '' || v == null ? undefined : Number(v))}
-              min={0}
-              thousandSeparator="."
-              decimalSeparator=","
-              prefix="R$ "
-            />
-          )}
         </SimpleGrid>
 
-        {/* Preview Card */}
-        <Box
-          p="md"
-          mt="lg"
-          style={{
-            background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-            borderRadius: 'var(--mantine-radius-lg)',
-          }}
-        >
-          <Group justify="space-between" align="center">
+        {fireMode !== 'traditional' && (
+          <Paper withBorder radius="lg" p="md" mt="lg">
+            <Text fw={650} mb="sm">
+              Dados da estratégia {fireMode === 'coast' ? 'Coast FIRE' : 'Barista FIRE'}
+            </Text>
+            <SimpleGrid cols={{ base: 1, sm: fireMode === 'coast' ? 3 : 2 }} spacing="lg">
+              <NumberInput
+                label="Sua idade atual"
+                description="Usada para localizar os marcos do plano"
+                value={currentAge}
+                onChange={(value) => setCurrentAge(value === '' || value == null ? undefined : Number(value))}
+                min={18}
+                max={100}
+                suffix=" anos"
+              />
+              {fireMode === 'coast' ? (
+                <>
+                  <NumberInput
+                    label="Idade para parar de aportar"
+                    description="Início da fase Coast"
+                    value={coastFireAge}
+                    onChange={(value) => setCoastFireAge(value === '' || value == null ? undefined : Number(value))}
+                    min={18}
+                    max={100}
+                    suffix=" anos"
+                  />
+                  <NumberInput
+                    label="Idade-alvo de aposentadoria"
+                    description="Quando a carteira deve cobrir os gastos"
+                    value={targetRetirementAge}
+                    onChange={(value) => setTargetRetirementAge(value === '' || value == null ? undefined : Number(value))}
+                    min={18}
+                    max={100}
+                    suffix=" anos"
+                  />
+                </>
+              ) : (
+                <NumberInput
+                  label="Renda parcial futura"
+                  description="Parcela mensal coberta por trabalho"
+                  value={baristaIncome}
+                  onChange={(value) => setBaristaIncome(value === '' || value == null ? undefined : Number(value))}
+                  min={0}
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  prefix="R$ "
+                />
+              )}
+            </SimpleGrid>
+          </Paper>
+        )}
+
+        <Paper withBorder radius="lg" p={{ base: 'md', sm: 'lg' }} mt="lg">
+          <Group justify="space-between" align="center" wrap="wrap" gap="lg">
             <Box>
-              <Text size="sm" c="dimmed">FIRE Number (meta)</Text>
-              <Text fw={700} size="xl">{money(previewFireNumber)}</Text>
-              <Text size="xs" c="dimmed">= {monthlyExpenses * 12 > 0 ? (100 / safeWithdrawalRate).toFixed(0) : 25}× gastos anuais</Text>
+              <Text size="sm" c="dimmed">Meta estimada com os dados atuais</Text>
+              <Text fw={720} size="xl">{money(previewFireNumber)}</Text>
+              <Text size="xs" c="dimmed" mt={4}>
+                {previewRequiredExpenses * 12 > 0 ? (100 / safeWithdrawalRate).toFixed(0) : 25}× os
+                gastos anuais que a carteira precisará cobrir.
+              </Text>
             </Box>
             <RingProgress
-              size={100}
-              thickness={10}
+              size={96}
+              thickness={9}
               roundCaps
-              sections={[{ value: Math.min(previewProgress, 100), color: previewProgress >= 100 ? 'green' : 'ocean' }]}
+              sections={[
+                {
+                  value: Math.min(previewProgress, 100),
+                  color: previewProgress >= 100 ? 'teal' : 'ocean',
+                },
+              ]}
               label={
                 <Text ta="center" fw={700} size="sm">
                   {percent(Math.min(previewProgress, 999))}
@@ -371,281 +327,247 @@ export default function Fire() {
               }
             />
           </Group>
-        </Box>
+        </Paper>
 
-        <Group justify="flex-end" mt="lg">
-          <Button color="ocean" radius="xl" loading={loading} onClick={onSimulate} leftSection={<IconRocket size={18} />}>
-            Calcular
+        <Accordion variant="separated" radius="lg" mt="lg">
+          <Accordion.Item value="advanced">
+            <Accordion.Control icon={<IconAdjustments size={18} />}>
+              <Text fw={650}>Premissas e prazo</Text>
+              <Text size="sm" c="dimmed">
+                Retorno real, retirada segura, idade e horizonte da projeção
+              </Text>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="lg">
+                <NumberInput
+                  label={
+                    <Group gap={4}>
+                      <span>Retorno real anual</span>
+                      <Tooltip label="Retorno acima da inflação, não a taxa nominal do investimento.">
+                        <IconInfoCircle size={14} />
+                      </Tooltip>
+                    </Group>
+                  }
+                  description="Rendimento já descontado da inflação"
+                  value={annualReturn}
+                  onChange={(value) => setAnnualReturn(Number(value) || 0)}
+                  min={-50}
+                  max={100}
+                  step={0.5}
+                  suffix="% a.a."
+                />
+                <NumberInput
+                  label="Taxa de retirada segura"
+                  description="Percentual anual usado para calcular a meta"
+                  value={safeWithdrawalRate}
+                  onChange={(value) => setSafeWithdrawalRate(Number(value) || 4)}
+                  min={1}
+                  max={20}
+                  step={0.5}
+                  suffix="%"
+                />
+                <NumberInput
+                  label="Horizonte"
+                  description="Período máximo simulado"
+                  value={horizonMonths}
+                  onChange={(value) => setHorizonMonths(Number(value) || 360)}
+                  min={12}
+                  max={600}
+                  step={12}
+                  suffix=" meses"
+                />
+                <NumberInput
+                  label="Inflação anual de referência"
+                  description="Informativa: a projeção usa valores reais"
+                  value={annualInflation}
+                  onChange={(value) => setAnnualInflation(value === '' || value == null ? undefined : Number(value))}
+                  min={-100}
+                  max={1000}
+                  step={0.5}
+                  suffix="% a.a."
+                />
+                {fireMode === 'traditional' && (
+                  <>
+                    <NumberInput
+                      label="Sua idade atual"
+                      description="Permite mostrar sua idade na IF"
+                      value={currentAge}
+                      onChange={(value) => setCurrentAge(value === '' || value == null ? undefined : Number(value))}
+                      min={18}
+                      max={100}
+                      suffix=" anos"
+                    />
+                    <NumberInput
+                      label="Idade-alvo de aposentadoria"
+                      description="Referência opcional"
+                      value={targetRetirementAge}
+                      onChange={(value) => setTargetRetirementAge(value === '' || value == null ? undefined : Number(value))}
+                      min={18}
+                      max={100}
+                      suffix=" anos"
+                    />
+                  </>
+                )}
+              </SimpleGrid>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+
+        <Group justify="flex-end" mt="xl">
+          <Button
+            color="ocean"
+            size="md"
+            mih={44}
+            w={{ base: '100%', sm: 'auto' }}
+            loading={loading}
+            onClick={onSimulate}
+            leftSection={<IconRocket size={18} />}
+          >
+            Projetar independência
           </Button>
         </Group>
+      </ToolPanel>
 
-        {/* Presets */}
-        <Box mt="lg">
-          <Text fw={600} mb="xs">Presets</Text>
-          <Group align="flex-end" wrap="wrap">
-            <TextInput
-              label="Nome do preset"
-              placeholder="Ex.: Plano conservador 4%"
-              value={presetName}
-              onChange={(e) => setPresetName(e.currentTarget.value)}
-              style={{ flex: 1, minWidth: 260 }}
-            />
-            <Button variant="light" color="ocean" radius="xl" onClick={onSavePreset}>
-              Salvar preset
-            </Button>
-            <Button
-              variant="subtle"
-              color="red"
-              radius="xl"
-              disabled={presets.length === 0}
-              onClick={onClearPresets}
-            >
-              Limpar todos
-            </Button>
-          </Group>
+      <ToolPresetsPanel
+        presets={presetsManager.presets}
+        name={presetName}
+        onNameChange={setPresetName}
+        onSave={onSavePreset}
+        onLoad={onLoadPreset}
+        onDelete={onDeletePreset}
+        onClear={onClearPresets}
+        placeholder="Ex.: Plano conservador de 4%"
+        maxNameLength={MAX_PRESET_NAME_LENGTH}
+        renderSummary={(preset) => (
+          <>
+            Gastos: {money(preset.input.monthly_expenses)} · Patrimônio:{' '}
+            {money(preset.input.current_portfolio)} · Aporte:{' '}
+            {money(preset.input.monthly_contribution ?? 0)}
+          </>
+        )}
+      />
 
-          {presets.length > 0 && (
-            <Stack gap="xs" mt="sm">
-              {presets.map((p) => (
-                <Box
-                  key={p.id}
-                  p="sm"
-                  style={{
-                    background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-                    borderRadius: 'var(--mantine-radius-lg)',
-                    boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-                  }}
-                >
-                  <Group justify="space-between" wrap="wrap">
-                    <Box>
-                      <Text fw={600}>{p.name}</Text>
-                      <Text size="xs" c="dimmed">
-                        Gastos: {money(p.input.monthly_expenses)} · Patrimônio: {money(p.input.current_portfolio)} · Aporte: {money(p.input.monthly_contribution ?? 0)}
-                      </Text>
-                    </Box>
-                    <Group gap="xs">
-                      <Button size="xs" radius="xl" variant="light" color="ocean" onClick={() => onLoadPreset(p)}>
-                        Carregar
-                      </Button>
-                      <Button size="xs" radius="xl" variant="subtle" color="red" onClick={() => onDeletePreset(p.id)}>
-                        Excluir
-                      </Button>
-                    </Group>
-                  </Group>
-                </Box>
-              ))}
-            </Stack>
-          )}
-        </Box>
-      </Box>
-
-      {/* Results */}
       {result && (
-        <Box mt="xl">
-          {/* Summary Cards */}
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg" mb="lg">
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Group gap="xs" mb="xs">
-                <IconTarget size={20} style={{ color: 'var(--mantine-color-ocean-6)' }} />
-                <Text size="sm" c="dimmed">Status</Text>
-              </Group>
-              {result.fi_achieved ? (
-                <Badge color="green" size="lg" variant="light">
-                  IF Atingida! 🎉
-                </Badge>
-              ) : (
-                <Badge color="orange" size="lg" variant="light">
-                  Em progresso
-                </Badge>
-              )}
-            </Box>
+        <ToolResults
+          title="Interprete seu caminho até a IF"
+          description="A meta é expressa em dinheiro de hoje. O prazo considera os aportes e o retorno real informados."
+        >
+          <Alert color={result.fi_achieved ? 'teal' : 'blue'} variant="light">
+            {result.fi_achieved
+              ? `A projeção atinge a independência financeira${result.fi_age != null ? ` aos ${result.fi_age} anos` : ''}.`
+              : 'A meta não é atingida dentro do horizonte informado. Ajuste prazo, aporte, gastos ou premissas para explorar alternativas.'}
+          </Alert>
 
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Tempo até IF</Text>
-              <Text fw={700} size="xl">
-                {result.months_to_fi != null ? formatYearsMonths(result.months_to_fi) : '—'}
-              </Text>
-              {result.fi_age != null && (
-                <Text size="xs" c="dimmed">aos {result.fi_age} anos</Text>
-              )}
-            </Box>
-
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">FIRE Number</Text>
-              <Text fw={700} size="xl">{money(result.fire_number)}</Text>
-            </Box>
-
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Renda passiva (se aposentar hoje)</Text>
-              <Text fw={700} size="xl">{money(result.monthly_data[0]?.monthly_passive_income ?? 0)}/mês</Text>
-            </Box>
+          <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
+            <ToolMetricCard
+              label="Status"
+              value={result.fi_achieved ? 'IF atingida' : 'Em progresso'}
+              tone={result.fi_achieved ? 'positive' : 'accent'}
+              detail="Indica se a carteira cruza a meta durante a projeção."
+            />
+            <ToolMetricCard
+              label="Tempo até a IF"
+              value={result.months_to_fi != null ? formatYearsMonths(result.months_to_fi) : 'Fora do horizonte'}
+              tone={result.months_to_fi != null ? 'positive' : 'warning'}
+              detail={result.fi_age != null ? `Idade projetada: ${result.fi_age} anos.` : 'Amplie o horizonte para testar um prazo maior.'}
+            />
+            <ToolMetricCard
+              label="Patrimônio necessário"
+              value={money(result.fire_number)}
+              detail="FIRE Number em poder de compra de hoje."
+            />
+            <ToolMetricCard
+              label="Renda passiva hoje"
+              value={`${money(result.monthly_data[0]?.monthly_passive_income ?? 0)}/mês`}
+              detail="Estimativa pela taxa de retirada informada."
+            />
           </SimpleGrid>
 
-          {/* Additional metrics */}
-          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg" mb="lg">
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Patrimônio final</Text>
-              <Text fw={700} size="xl">{money(result.final_portfolio)}</Text>
-              <Progress
-                value={Math.min((result.final_portfolio / result.fire_number) * 100, 100)}
-                color="ocean"
-                size="sm"
-                mt="xs"
+          <Paper withBorder radius="xl" p={{ base: 'md', sm: 'xl' }}>
+            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+              <Box>
+                <Text size="sm" c="dimmed">Patrimônio no fim do horizonte</Text>
+                <Text fw={700} size="lg" mt={4}>{money(result.final_portfolio)}</Text>
+                <Progress
+                  value={result.fire_number > 0 ? Math.min((result.final_portfolio / result.fire_number) * 100, 100) : 0}
+                  color="ocean"
+                  size="sm"
+                  mt="xs"
+                />
+              </Box>
+              <Box>
+                <Text size="sm" c="dimmed">Total aportado</Text>
+                <Text fw={700} size="lg" mt={4}>{money(result.total_contributions)}</Text>
+                <Text size="xs" c="dimmed" mt={4}>
+                  {shareOfPortfolio(result.total_contributions, result.final_portfolio)} do patrimônio final
+                </Text>
+              </Box>
+              <Box>
+                <Text size="sm" c="dimmed">Rendimentos acumulados</Text>
+                <Text fw={700} size="lg" mt={4}>{money(result.total_investment_returns)}</Text>
+                <Text size="xs" c="dimmed" mt={4}>
+                  {shareOfPortfolio(result.total_investment_returns, result.final_portfolio)} do patrimônio final
+                </Text>
+              </Box>
+            </SimpleGrid>
+          </Paper>
+
+          {result.coast_fire_number != null && (
+            <Paper withBorder radius="xl" p={{ base: 'md', sm: 'xl' }}>
+              <Group gap="xs" mb="md">
+                <IconLeaf size={20} color="var(--mantine-color-teal-6)" />
+                <Text fw={650}>Marco Coast FIRE</Text>
+                <Badge color={result.coast_fire_achieved ? 'teal' : 'gray'} variant="light">
+                  {result.coast_fire_achieved ? 'Atingido' : 'Ainda não atingido'}
+                </Badge>
+              </Group>
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <Box>
+                  <Text size="sm" c="dimmed">Valor necessário hoje</Text>
+                  <Text fw={700} size="lg">{money(result.coast_fire_number)}</Text>
+                </Box>
+                <Text size="sm" c="dimmed" lh={1.55}>
+                  A curva recalcula o patrimônio necessário conforme a aposentadoria se aproxima; não é uma meta fixa ao longo do tempo.
+                </Text>
+              </SimpleGrid>
+            </Paper>
+          )}
+
+          <Paper withBorder radius="xl" p={{ base: 'md', sm: 'xl' }}>
+            <Text fw={650} size="lg">Patrimônio versus meta</Text>
+            <Text size="sm" c="dimmed" mt={4} mb="lg">
+              O cruzamento das linhas marca o primeiro mês de independência financeira na projeção.
+            </Text>
+            <Box role="img" aria-label="Gráfico da evolução do patrimônio e do FIRE Number">
+              <LineChart
+                h={350}
+                data={chartData}
+                dataKey="month"
+                series={[
+                  { name: 'portfolio', color: 'ocean.6', label: 'Patrimônio' },
+                  { name: 'fireNumber', color: 'amber.5', label: 'FIRE Number' },
+                  ...(fireMode === 'coast'
+                    ? [{ name: 'coastFireNumber', color: 'teal.5', label: 'Coast FIRE dinâmico' }]
+                    : []),
+                ]}
+                curveType="monotone"
+                gridAxis="xy"
+                withLegend
+                valueFormatter={(value) => money(value)}
+                xAxisProps={{
+                  tickMargin: 10,
+                  tickFormatter: (value) => `${Math.floor(Number(value) / 12)}a`,
+                }}
+                yAxisProps={{ tickMargin: 10, tickFormatter: (value) => moneyCompact(value as number) }}
+                tooltipAnimationDuration={150}
+                referenceLines={
+                  result.fi_month
+                    ? [{ x: result.fi_month, label: 'IF', color: 'emerald.6' }]
+                    : undefined
+                }
               />
             </Box>
-
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Total de aportes</Text>
-              <Text fw={700} size="xl">{money(result.total_contributions)}</Text>
-              <Text size="xs" c="dimmed">
-                {((result.total_contributions / result.final_portfolio) * 100).toFixed(1)}% do patrimônio final
-              </Text>
-            </Box>
-
-            <Box
-              p="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Text size="sm" c="dimmed">Total de rendimentos</Text>
-              <Text fw={700} size="xl">{money(result.total_investment_returns)}</Text>
-              <Text size="xs" c="dimmed">
-                {((result.total_investment_returns / result.final_portfolio) * 100).toFixed(1)}% do patrimônio final
-              </Text>
-            </Box>
-          </SimpleGrid>
-
-          {/* Coast FIRE specific */}
-          {result.coast_fire_number != null && (
-            <Box
-              p="lg"
-              mb="lg"
-              style={{
-                background: 'var(--glass-bg)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                borderRadius: 'var(--mantine-radius-xl)',
-              }}
-            >
-              <Group gap="xs" mb="xs">
-                <IconLeaf size={20} style={{ color: 'var(--mantine-color-teal-6)' }} />
-                <Text fw={600}>Coast FIRE</Text>
-              </Group>
-              <SimpleGrid cols={{ base: 1, md: 2 }}>
-                <Box>
-                  <Text size="sm" c="dimmed">Coast FIRE Number</Text>
-                  <Text fw={700} size="lg">{money(result.coast_fire_number)}</Text>
-                  <Text size="xs" c="dimmed">Patrimônio para parar de aportar e ainda atingir IF na idade-alvo</Text>
-                </Box>
-                <Box>
-                  <Text size="sm" c="dimmed">Status Coast FIRE</Text>
-                  {result.coast_fire_achieved ? (
-                    <Badge color="teal" size="lg" variant="light">Já pode "coastear"! 🏖️</Badge>
-                  ) : (
-                    <Badge color="gray" size="lg" variant="light">Ainda não atingido</Badge>
-                  )}
-                </Box>
-              </SimpleGrid>
-            </Box>
-          )}
-
-          {/* Chart */}
-          <Box
-            p="xl"
-            style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-              borderRadius: 'var(--mantine-radius-xl)',
-            }}
-          >
-            <Text fw={600} size="lg" mb="sm">Evolução do patrimônio vs FIRE Number</Text>
-            <LineChart
-              h={350}
-              data={chartData}
-              dataKey="month"
-              series={[
-                { name: 'portfolio', color: 'ocean.6', label: 'Patrimônio' },
-                { name: 'fireNumber', color: 'amber.5', label: 'FIRE Number' },
-              ]}
-              curveType="monotone"
-              gridAxis="xy"
-              withLegend
-              valueFormatter={(value) => money(value)}
-              xAxisProps={{
-                tickMargin: 10,
-                tickFormatter: (v) => `${Math.floor(Number(v) / 12)}a`,
-              }}
-              yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
-              tooltipAnimationDuration={150}
-              referenceLines={
-                result.fi_month
-                  ? [{ x: result.fi_month, label: 'IF', color: 'emerald.6' }]
-                  : undefined
-              }
-            />
-            <Group justify="space-between" mt="md" gap="xs">
+            <Group justify="space-between" mt="md" gap="xs" wrap="wrap">
               <Text size="sm" c="dimmed">
                 Renda passiva final:{' '}
                 <Text component="span" fw={600} c="bright">
@@ -654,13 +576,13 @@ export default function Fire() {
               </Text>
               {result.fi_month && (
                 <Text size="sm" c="dimmed">
-                  IF no mês {result.fi_month} ({formatYearsMonths(result.fi_month - 1)})
+                  IF no mês {result.fi_month} ({formatYearsMonths(result.fi_month)})
                 </Text>
               )}
             </Group>
-          </Box>
-        </Box>
+          </Paper>
+        </ToolResults>
       )}
-    </Container>
+    </ToolPageShell>
   );
 }

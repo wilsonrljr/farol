@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 from backend.app.models import AdditionalCostsInput, FGTSInput, InvestmentReturnInput
+from backend.app.scenarios.invest_then_buy import InvestThenBuyScenarioSimulator
 
 
 def test_immediate_purchase_when_sufficient_capital():

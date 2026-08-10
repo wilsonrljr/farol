@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   ActionIcon,
   Box,
@@ -21,6 +22,10 @@ import {
 } from '@mantine/core';
 import { IconCalendar, IconCoin, IconEye, IconInfoCircle, IconPlus, IconTrash, IconChevronDown, IconChevronRight, IconCheck } from '@tabler/icons-react';
 import type { AmortizationInput } from '../api/types';
+import {
+  MAX_EXPANDED_SCHEDULE_EVENTS,
+  MAX_SCHEDULE_OCCURRENCES,
+} from '../constants/limits';
 
 interface UIText {
   configuredTitle: string;
@@ -43,6 +48,12 @@ interface Props<T extends AmortizationInput = AmortizationInput> {
   showFundingSource?: boolean;
   showScenarioSelector?: boolean;
   scenarioOptions?: { value: string; label: string }[];
+  errors?: Record<string, ReactNode>;
+  fieldPath?: 'amortizations' | 'contributions';
+}
+
+function newUiId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 }
 
 export default function AmortizationsFieldArray({
@@ -54,6 +65,8 @@ export default function AmortizationsFieldArray({
   showFundingSource = true,
   showScenarioSelector = false,
   scenarioOptions = [],
+  errors = {},
+  fieldPath = 'amortizations',
 }: Props) {
   const ui: UIText = {
     configuredTitle: 'Amortizações Configuradas',
@@ -69,23 +82,51 @@ export default function AmortizationsFieldArray({
   };
 
   const [showPreview, setShowPreview] = useState(false);
-  const [collapsedItems, setCollapsedItems] = useState<Set<number>>(new Set());
+  const [itemIds, setItemIds] = useState(() => value.map(() => newUiId()));
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
 
-  const toggleItemCollapse = (idx: number) => {
+  useEffect(() => {
+    setItemIds((current) => {
+      if (current.length === value.length) return current;
+      if (current.length > value.length) return current.slice(0, value.length);
+      return [
+        ...current,
+        ...Array.from({ length: value.length - current.length }, () => newUiId()),
+      ];
+    });
+  }, [value.length]);
+
+  useEffect(() => {
+    const indexesWithErrors = new Set(
+      Object.keys(errors).flatMap((path) => {
+        const match = new RegExp(`^${fieldPath}\\.(\\d+)`).exec(path);
+        return match ? [Number(match[1])] : [];
+      })
+    );
+    if (indexesWithErrors.size === 0) return;
+    setCollapsedItems((current) => {
+      const next = new Set(current);
+      indexesWithErrors.forEach((index) => {
+        const itemId = itemIds[index];
+        if (itemId) next.delete(itemId);
+      });
+      return next.size === current.size ? current : next;
+    });
+  }, [errors, fieldPath, itemIds]);
+
+  const toggleItemCollapse = (id: string) => {
     setCollapsedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) {
-        next.delete(idx);
+      if (next.has(id)) {
+        next.delete(id);
       } else {
-        next.add(idx);
+        next.add(id);
       }
       return next;
     });
   };
 
-  const collapseAll = () => {
-    setCollapsedItems(new Set((value || []).map((_, i) => i)));
-  };
+  const collapseAll = () => setCollapsedItems(new Set(itemIds));
 
   const expandAll = () => {
     setCollapsedItems(new Set());
@@ -96,22 +137,54 @@ export default function AmortizationsFieldArray({
     const map = new Map<number, { fixed: number; pct: number; fixedInflated: number }>();
     const monthlyInfl = inflationRate ? Math.pow(1 + inflationRate / 100, 1 / 12) - 1 : 0;
 
+    const validTermMonths = Number.isInteger(termMonths) && termMonths >= 1 ? termMonths : 0;
+    let generatedEvents = 0;
+
     (value || []).forEach((a) => {
+      if (generatedEvents >= MAX_EXPANDED_SCHEDULE_EVENTS) return;
       let months: number[] = [];
-      if (a.interval_months && a.interval_months > 0) {
-        const start = a.month || 1;
-        if (a.occurrences) {
-          months = Array.from({ length: a.occurrences }, (_, i) => start + i * a.interval_months!);
+      const interval = Number(a.interval_months);
+      const startValue = Number(a.month ?? 1);
+      const start = Number.isInteger(startValue) && startValue >= 1 ? startValue : 1;
+      if (Number.isInteger(interval) && interval >= 1 && validTermMonths > 0) {
+        if (a.occurrences != null) {
+          const occurrences = Number(a.occurrences);
+          if (!Number.isInteger(occurrences) || occurrences < 1) return;
+          const relevantToHorizon =
+            start <= validTermMonths
+              ? Math.floor((validTermMonths - start) / interval) + 1
+              : 0;
+          const count = Math.min(
+            occurrences,
+            relevantToHorizon,
+            MAX_SCHEDULE_OCCURRENCES,
+            MAX_EXPANDED_SCHEDULE_EVENTS - generatedEvents
+          );
+          months = Array.from(
+            { length: count },
+            (_, i) => start + i * interval
+          );
         } else {
-          const end = a.end_month || termMonths;
-          for (let m = start; m <= Math.min(end, termMonths); m += a.interval_months) months.push(m);
+          const endValue = Number(a.end_month ?? validTermMonths);
+          const end = Number.isInteger(endValue) ? endValue : validTermMonths;
+          const relevantToHorizon =
+            start <= Math.min(end, validTermMonths)
+              ? Math.floor((Math.min(end, validTermMonths) - start) / interval) + 1
+              : 0;
+          const count = Math.min(
+            relevantToHorizon,
+            MAX_SCHEDULE_OCCURRENCES,
+            MAX_EXPANDED_SCHEDULE_EVENTS - generatedEvents
+          );
+          months = Array.from({ length: count }, (_, index) => start + index * interval);
         }
-      } else if (a.month) {
-        months = [a.month];
+      } else if (Number.isInteger(startValue) && startValue >= 1 && startValue <= validTermMonths) {
+        months = [startValue];
       }
+      generatedEvents += months.length;
       const base = months[0] || 1;
       months.forEach((m) => {
-        if (m < 1 || m > termMonths) return;
+        if (m < 1 || m > validTermMonths) return;
         const entry = map.get(m) || { fixed: 0, pct: 0, fixedInflated: 0 };
         if (a.value_type === 'percentage') {
           entry.pct += a.value;
@@ -147,31 +220,46 @@ export default function AmortizationsFieldArray({
       // Default to all scenarios (matches backend behavior when applies_to is omitted).
       baseItem.applies_to = scenarioOptions.map((o) => o.value);
     }
+    setItemIds((current) => [...current, newUiId()]);
     onChange([...(value || []), baseItem]);
+  };
+
+  const removeItem = (index: number, id: string) => {
+    setItemIds((current) => current.filter((itemId) => itemId !== id));
+    setCollapsedItems((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    onChange(value.filter((_, itemIndex) => itemIndex !== index));
   };
 
   return (
     <Stack gap="md">
       {/* Header */}
-      <Group justify="space-between">
-        <Group gap="xs">
-          <Text fw={600} c="ocean.8">
-            {ui.configuredTitle}
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Box>
+          <Group gap="xs">
+            <Text fw={650}>{ui.configuredTitle}</Text>
+            <Badge size="sm" variant="light" color="ocean" radius="sm">
+              {(value || []).length}
+            </Badge>
+          </Group>
+          <Text size="sm" c="dimmed" mt={3}>
+            Configure eventos únicos ou recorrentes e confira os meses gerados.
           </Text>
-          <Badge size="sm" variant="light" color="ocean" radius="sm">
-            {(value || []).length}
-          </Badge>
-        </Group>
-        <Group gap="xs">
+        </Box>
+        <Group gap="xs" wrap="wrap">
           {(value || []).length > 1 && (
             <>
               <Tooltip label="Minimizar todos">
                 <ActionIcon
                   variant="subtle"
                   color="ocean"
-                  size="md"
+                  size={44}
                   radius="lg"
                   onClick={collapseAll}
+                  aria-label={`Minimizar ${ui.configuredTitle.toLocaleLowerCase('pt-BR')}`}
                 >
                   <IconChevronRight size={16} />
                 </ActionIcon>
@@ -180,9 +268,10 @@ export default function AmortizationsFieldArray({
                 <ActionIcon
                   variant="subtle"
                   color="ocean"
-                  size="md"
+                  size={44}
                   radius="lg"
                   onClick={expandAll}
+                  aria-label={`Expandir ${ui.configuredTitle.toLocaleLowerCase('pt-BR')}`}
                 >
                   <IconChevronDown size={16} />
                 </ActionIcon>
@@ -193,9 +282,11 @@ export default function AmortizationsFieldArray({
             <ActionIcon
               variant={showPreview ? 'filled' : 'light'}
               color="ocean"
-              size="md"
+              size={44}
               radius="lg"
               onClick={() => setShowPreview((s) => !s)}
+              aria-label={showPreview ? 'Ocultar pré-visualização dos meses' : 'Pré-visualizar meses gerados'}
+              aria-pressed={showPreview}
             >
               <IconEye size={16} />
             </ActionIcon>
@@ -207,11 +298,18 @@ export default function AmortizationsFieldArray({
             color="ocean"
             radius="lg"
             onClick={addItem}
+            mih={44}
           >
             {ui.addButtonLabel}
           </Button>
         </Group>
       </Group>
+
+      {errors[fieldPath] && (
+        <Text c="red" size="sm" role="alert">
+          {errors[fieldPath]}
+        </Text>
+      )}
 
       {/* Empty State */}
       {(value || []).length === 0 && (
@@ -242,6 +340,7 @@ export default function AmortizationsFieldArray({
               color="ocean"
               radius="lg"
               onClick={addItem}
+              mih={44}
             >
               {ui.addEmptyButtonLabel}
             </Button>
@@ -251,7 +350,9 @@ export default function AmortizationsFieldArray({
 
       {/* Amortization Items */}
       {(value || []).map((item, idx) => {
-        const isCollapsed = collapsedItems.has(idx);
+        const itemId = itemIds[idx] ?? `${fieldPath}-${idx}`;
+        const panelId = `${fieldPath}-panel-${itemId}`;
+        const isCollapsed = collapsedItems.has(itemId);
         const itemSummary = item.value_type === 'percentage'
           ? `${item.value}% do saldo`
           : `R$ ${item.value?.toLocaleString('pt-BR')}`;
@@ -278,32 +379,25 @@ export default function AmortizationsFieldArray({
           : null;
 
         return (
-          <Box
-            key={idx}
+          <Paper
+            key={itemId}
             p={isCollapsed ? 'sm' : 'md'}
-            style={{
-              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-              borderRadius: 'var(--mantine-radius-lg)',
-              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-              transition: 'all 200ms ease',
-            }}
+            radius="lg"
+            withBorder
           >
             <Stack gap={isCollapsed ? 0 : 'md'}>
               {/* Header - Always visible, clickable to toggle */}
-              <UnstyledButton
-                onClick={() => toggleItemCollapse(idx)}
-                style={{ width: '100%' }}
-              >
-                <Group justify="space-between" wrap="nowrap">
+              <Group justify="space-between" wrap="nowrap">
+                <UnstyledButton
+                  onClick={() => toggleItemCollapse(itemId)}
+                  style={{ flex: 1, minWidth: 0, minHeight: 44 }}
+                  aria-expanded={!isCollapsed}
+                  aria-controls={panelId}
+                >
                   <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                    <ActionIcon
-                      variant="subtle"
-                      color="ocean"
-                      size="sm"
-                      radius="lg"
-                    >
+                    <Box c="ocean.6" style={{ display: 'flex' }} aria-hidden="true">
                       {isCollapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
-                    </ActionIcon>
+                    </Box>
                     <ThemeIcon size={28} radius="lg" variant="light" color="ocean">
                       <IconCalendar size={14} />
                     </ThemeIcon>
@@ -332,23 +426,21 @@ export default function AmortizationsFieldArray({
                       </Group>
                     </Box>
                   </Group>
-                  <ActionIcon
-                    color="danger"
-                    variant="subtle"
-                    size="md"
-                    radius="lg"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onChange(value.filter((_, i) => i !== idx));
-                    }}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
-              </UnstyledButton>
+                </UnstyledButton>
+                <ActionIcon
+                  color="danger"
+                  variant="subtle"
+                  size={44}
+                  radius="lg"
+                  onClick={() => removeItem(idx, itemId)}
+                  aria-label={`Excluir ${ui.itemLabel.toLocaleLowerCase('pt-BR')} ${idx + 1}`}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Group>
 
               {/* Collapsible content */}
-              <Collapse in={!isCollapsed}>
+              <Collapse in={!isCollapsed} id={panelId}>
                 <Stack gap="md" pt="sm">
                   {/* Scenario selector - shown first as a dedicated section when enabled */}
                   {showScenarioSelector && scenarioOptions.length > 0 && (
@@ -366,7 +458,12 @@ export default function AmortizationsFieldArray({
                             Aplicar em quais cenários?
                           </Text>
                           <Tooltip label="Este aporte será considerado apenas nos cenários selecionados">
-                            <ActionIcon variant="subtle" color="ocean" size="sm">
+                            <ActionIcon
+                              variant="subtle"
+                              color="ocean"
+                              size="sm"
+                              aria-label="Explicar seleção de cenários"
+                            >
                               <IconInfoCircle size={14} />
                             </ActionIcon>
                           </Tooltip>
@@ -386,6 +483,7 @@ export default function AmortizationsFieldArray({
                             {scenarioOptions.map((o) => (
                               <Chip
                                 key={o.value}
+                                name={`${fieldPath}.${idx}.applies_to`}
                                 value={o.value}
                                 variant="outline"
                                 color="ocean"
@@ -408,6 +506,7 @@ export default function AmortizationsFieldArray({
 
                   <SimpleGrid cols={{ base: 1, sm: 2, md: showFundingSource ? 4 : 3 }} spacing="md">
               <NumberInput
+                name={`${fieldPath}.${idx}.month`}
                 label="Mês inicial"
                 description="Quando começa"
                 min={1}
@@ -417,8 +516,10 @@ export default function AmortizationsFieldArray({
                   next[idx] = { ...next[idx], month: Number(v) || 1 } as any;
                   onChange(next as any);
                 }}
+                error={errors[`${fieldPath}.${idx}.month`]}
               />
               <Select
+                name={`${fieldPath}.${idx}.interval_months`}
                 label="Recorrência"
                 description="Única ou periódica"
                 value={item.interval_months ? 'rec' : 'one'}
@@ -444,8 +545,10 @@ export default function AmortizationsFieldArray({
                   }
                   onChange(next as any);
                 }}
+                error={errors[`${fieldPath}.${idx}.interval_months`]}
               />
               <Select
+                name={`${fieldPath}.${idx}.value_type`}
                 label="Tipo de valor"
                 description="Fixo ou percentual"
                 value={item.value_type || 'fixed'}
@@ -464,6 +567,7 @@ export default function AmortizationsFieldArray({
               />
               {showFundingSource && (
                 <Select
+                  name={`${fieldPath}.${idx}.funding_source`}
                   label="Fonte do recurso"
                   description="De onde vem o pagamento extra"
                   value={item.funding_source || 'cash'}
@@ -503,6 +607,7 @@ export default function AmortizationsFieldArray({
             {item.interval_months && (
               <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
                 <NumberInput
+                  name={`${fieldPath}.${idx}.interval_months`}
                   label="Intervalo (meses)"
                   description="A cada X meses"
                   min={1}
@@ -512,44 +617,51 @@ export default function AmortizationsFieldArray({
                     next[idx] = { ...next[idx], interval_months: Number(v) || 1 } as any;
                     onChange(next as any);
                   }}
+                  error={errors[`${fieldPath}.${idx}.interval_months`]}
                 />
                 <NumberInput
+                  name={`${fieldPath}.${idx}.occurrences`}
                   label="Ocorrências"
                   description="Quantas vezes (opcional)"
                   min={1}
-                  value={item.occurrences || ''}
+                  max={MAX_SCHEDULE_OCCURRENCES}
+                  value={item.occurrences ?? ''}
                   placeholder="Indefinido"
                   onChange={(v) => {
                     const next = [...(value || [])];
                     next[idx] = {
                       ...next[idx],
-                      occurrences: v ? Number(v) : null,
+                      occurrences: v === '' ? null : Number(v),
                       end_month: null,
                     } as any;
                     onChange(next as any);
                   }}
+                  error={errors[`${fieldPath}.${idx}.occurrences`]}
                 />
                 <NumberInput
+                  name={`${fieldPath}.${idx}.end_month`}
                   label="Mês final"
                   description="Até quando (opcional)"
                   min={item.month || 1}
-                  value={item.end_month || ''}
+                  value={item.end_month ?? ''}
                   placeholder="Indefinido"
                   onChange={(v) => {
                     const next = [...(value || [])];
                     next[idx] = {
                       ...next[idx],
-                      end_month: v ? Number(v) : null,
+                      end_month: v === '' ? null : Number(v),
                       occurrences: null,
                     } as any;
                     onChange(next as any);
                   }}
+                  error={errors[`${fieldPath}.${idx}.end_month`]}
                 />
               </SimpleGrid>
             )}
 
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               <NumberInput
+                name={`${fieldPath}.${idx}.value`}
                 label={item.value_type === 'percentage' ? 'Percentual (%)' : 'Valor (R$)'}
                 description={
                   item.value_type === 'percentage'
@@ -557,12 +669,14 @@ export default function AmortizationsFieldArray({
                     : 'Valor fixo por ocorrência'
                 }
                 min={0}
+                max={item.value_type === 'percentage' ? 100 : undefined}
                 value={item.value}
                 onChange={(v) => {
                   const next = [...(value || [])];
                   next[idx] = { ...next[idx], value: Number(v) || 0 } as any;
                   onChange(next as any);
                 }}
+                error={errors[`${fieldPath}.${idx}.value`]}
                 thousandSeparator={item.value_type !== 'percentage' ? '.' : undefined}
                 decimalSeparator="," 
                 prefix={item.value_type !== 'percentage' ? 'R$ ' : undefined}
@@ -571,6 +685,7 @@ export default function AmortizationsFieldArray({
               {item.value_type !== 'percentage' && (
                 <Box pt={24}>
                   <Switch
+                    name={`${fieldPath}.${idx}.inflation_adjust`}
                     label="Ajustar pela inflação"
                     description="Corrigir valor ao longo do tempo"
                     checked={!!item.inflation_adjust}
@@ -589,19 +704,16 @@ export default function AmortizationsFieldArray({
                 </Stack>
               </Collapse>
             </Stack>
-          </Box>
+          </Paper>
         );
       })}
 
       {/* Preview Panel */}
       <Collapse in={showPreview}>
-        <Box
+        <Paper
           p="md"
-          style={{
-            background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-            borderRadius: 'var(--mantine-radius-lg)',
-            boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-          }}
+          radius="lg"
+          withBorder
         >
           <Text fw={600} size="sm" c="bright" mb="md">
             {ui.previewTitle}
@@ -675,8 +787,9 @@ export default function AmortizationsFieldArray({
               <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>
                 {ui.percentageFootnote}
               </Text>
-            )}n          </Group>
-        </Box>
+            )}
+          </Group>
+        </Paper>
       </Collapse>
     </Stack>
   );

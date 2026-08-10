@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from 'react';
 import type { ReactNode } from '../types/react';
 import {
   Title,
@@ -21,10 +22,16 @@ import {
   rem,
   ThemeIcon,
   Divider,
-  Tooltip,
+  Popover,
   ActionIcon,
 } from '@mantine/core';
-import { EnhancedComparisonResult } from '../api/types';
+import type { PopoverProps } from '@mantine/core';
+import type {
+  ComparisonScenarioType,
+  ComparisonInput,
+  EnhancedComparisonResult,
+  EnhancedComparisonScenario,
+} from '../api/types';
 import {
   money,
   moneyCompact,
@@ -38,7 +45,6 @@ import {
   ratio,
   ratioAsPercent,
 } from '../utils/format';
-import { CHART_COLORS } from '../utils/colors';
 import { AreaChart, LineChart } from '@mantine/charts';
 import {
   IconArrowDownRight,
@@ -63,6 +69,101 @@ interface ColumnGroup {
   label: string;
   color?: string;
   columns: string[];
+}
+
+const RESULT_SURFACE_STYLE = {
+  background: 'var(--farol-surface-raised)',
+  border: '1px solid var(--farol-border)',
+  borderRadius: 'var(--mantine-radius-lg)',
+  boxShadow: 'none',
+} as const;
+
+const RESULT_SUBTLE_SURFACE_STYLE = {
+  background: 'var(--farol-surface-muted)',
+  border: '1px solid var(--farol-border)',
+  borderRadius: 'var(--mantine-radius-md)',
+} as const;
+
+const SCENARIO_CHART_COLORS = [
+  'var(--farol-chart-1)',
+  'var(--farol-chart-2)',
+  'var(--farol-chart-3)',
+] as const;
+
+interface ExplanationTargetProps {
+  role?: string;
+  tabIndex?: number;
+  style?: React.CSSProperties;
+  onKeyDown?: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  'aria-label'?: string;
+}
+
+interface AccessibleExplanationProps {
+  label: ReactNode;
+  children: ReactElement<ExplanationTargetProps>;
+  w?: number | string;
+  maw?: number | string;
+  position?: PopoverProps['position'];
+  withArrow?: boolean;
+  multiline?: boolean;
+}
+
+/**
+ * Drop-in replacement for the former hover-only hints. It is intentionally a
+ * popover: pointer, touch, Enter and Space all expose the same explanation.
+ */
+function ExplanationPopover({
+  label,
+  children,
+  w,
+  maw,
+  position = 'bottom-start',
+  withArrow = true,
+}: AccessibleExplanationProps) {
+  const [opened, setOpened] = useState(false);
+  if (!isValidElement(children)) return null;
+
+  const target = children as ReactElement<ExplanationTargetProps>;
+  const accessibleTarget = cloneElement(target, {
+    role: target.props.role ?? 'button',
+    tabIndex: target.props.tabIndex ?? 0,
+    'aria-label': target.props['aria-label'],
+    style: {
+      minWidth: rem(44),
+      minHeight: rem(44),
+      display: 'inline-flex',
+      alignItems: 'center',
+      cursor: 'pointer',
+      ...target.props.style,
+    },
+    onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {
+      target.props.onKeyDown?.(event);
+      if (event.defaultPrevented) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        setOpened((current) => !current);
+      } else if (event.key === 'Escape' && opened) {
+        event.preventDefault();
+        setOpened(false);
+      }
+    },
+  });
+
+  return (
+    <Popover
+      opened={opened}
+      onChange={setOpened}
+      width={w ?? maw ?? 320}
+      position={position}
+      withArrow={withArrow}
+      shadow="md"
+      withinPortal
+      returnFocus
+    >
+      <Popover.Target>{accessibleTarget}</Popover.Target>
+      <Popover.Dropdown>{label}</Popover.Dropdown>
+    </Popover>
+  );
 }
 
 const getAmortizationParts = (m: any) => {
@@ -101,6 +202,8 @@ const getRegularPrincipal = (m: any) => {
 
 const isFiniteNumber = (v: any): v is number => typeof v === 'number' && Number.isFinite(v);
 const asNumberOrZero = (v: any) => (isFiniteNumber(v) ? v : 0);
+const roi = (value: number | null | undefined) =>
+  value == null || !Number.isFinite(value) ? 'N/D' : percent(value);
 
 /**
  * Canonical housing cost used for affordability (card + table must match).
@@ -162,31 +265,31 @@ const recurringHousingCost = (m: any, includeExtraAmortization = false) => {
 /**
  * Gets the effective surplus (sobra) for a month, using backend-calculated values.
  * This ensures inflation-adjusted income is used in all calculations.
- * 
+ *
  * Priority:
  * 1. Use backend's effective_income if available (inflation-adjusted)
  * 2. Fall back to frontend's static monthlyNetIncome
- * 
+ *
  * Returns: { surplus: number | null, effectiveIncome: number | null }
  */
 const getEffectiveSurplus = (
-  m: any, 
-  housingCost: number, 
+  m: any,
+  housingCost: number,
   monthlyNetIncome: number | null,
   includeExtraAmortization = false
 ): { surplus: number | null; effectiveIncome: number | null } => {
   // If backend provides income_surplus_available, we can derive info
   // But we need the effective_income to know the actual income used
   const effectiveIncome = m?.effective_income ?? monthlyNetIncome;
-  
+
   if (effectiveIncome == null) {
     return { surplus: null, effectiveIncome: null };
   }
-  
+
   // Backend provides income_surplus_available only when surplus > 0
   // We need to calculate the actual surplus including negative values
   const surplus = effectiveIncome - housingCost;
-  
+
   return { surplus, effectiveIncome };
 };
 
@@ -195,14 +298,15 @@ const getEffectiveSurplus = (
  * This helps users understand exactly what is being deducted from their net income.
  * Note: netIncome should be the effective (inflation-adjusted) income for the specific month.
  */
-const SurplusBreakdownTooltip = ({ 
-  netIncome, 
+const SurplusBreakdown = ({
+  netIncome,
   housingCost,
   installment,
   rent,
   monthlyCosts,
   extraAmortCash,
   scenarioType,
+  incomeAdjusted,
 }: {
   netIncome: number;
   housingCost: number;
@@ -211,9 +315,10 @@ const SurplusBreakdownTooltip = ({
   monthlyCosts?: number;
   extraAmortCash?: number;
   scenarioType: 'buy' | 'rent_invest' | 'invest_buy';
+  incomeAdjusted?: boolean;
 }) => {
   const surplus = netIncome - housingCost;
-  
+
   const getScenarioLabel = () => {
     switch (scenarioType) {
       case 'buy': return 'Financiamento';
@@ -223,7 +328,7 @@ const SurplusBreakdownTooltip = ({
   };
 
   const costRows = [];
-  
+
   if (scenarioType === 'buy') {
     if (installment && installment > 0) {
       costRows.push({ label: 'Parcela do financiamento', value: installment });
@@ -250,7 +355,9 @@ const SurplusBreakdownTooltip = ({
       </Text>
       <Divider size="xs" />
       <Group justify="space-between" gap={16}>
-        <Text size="xs" c="ocean.6">Renda líquida (corrigida pela inflação)</Text>
+        <Text size="xs" c="var(--farol-chart-1)">
+          Orçamento mensal disponível{incomeAdjusted ? ' (corrigido pela inflação)' : ''}
+        </Text>
         <Text size="xs" fw={600}>{money(netIncome)}</Text>
       </Group>
       <Text size="xs" fw={600} c="dimmed" mt={4}>Menos custos recorrentes:</Text>
@@ -263,12 +370,13 @@ const SurplusBreakdownTooltip = ({
       <Divider size="xs" my={4} />
       <Group justify="space-between" gap={16}>
         <Text size="xs" fw={700}>= Sobra mensal</Text>
-        <Text size="xs" fw={700} c={surplus >= 0 ? 'ocean.7' : 'danger.6'}>
+        <Text size="xs" fw={700} c={surplus >= 0 ? 'var(--farol-chart-positive)' : 'var(--farol-chart-negative)'}>
           {signedMoney(surplus)}
         </Text>
       </Group>
       <Text size="xs" c="dimmed" mt={6} fs="italic">
-        Nota: A renda e os custos são corrigidos pela inflação ao longo do tempo. 
+        Nota: Os custos são corrigidos pela inflação ao longo do tempo.
+        {incomeAdjusted && ' O orçamento disponível também é corrigido.'}{' '}
         Custos pontuais (ITBI, escritura) e aportes não são incluídos.
         {scenarioType === 'buy' && ' Amortizações de FGTS, Bônus e 13º não são consideradas (fontes externas/extraordinárias).'}
       </Text>
@@ -280,10 +388,10 @@ const SurplusBreakdownTooltip = ({
  * Generates a tooltip explaining the "Saída Total" (total outflow) for invest-buy scenario,
  * with special handling for month 1 where initial allocation appears.
  */
-const InvestBuyOutflowExplanation = ({ 
+const InvestBuyOutflowExplanation = ({
   m
-}: { 
-  m: any; 
+}: {
+  m: any;
 }) => {
   const total = m?.total_monthly_cost ?? 0;
   const rent = m?.rent_due ?? 0;
@@ -291,7 +399,6 @@ const InvestBuyOutflowExplanation = ({
   const initialAllocation = m?.initial_allocation ?? 0;
   const additionalInvestment = m?.additional_investment ?? 0;
   const contributions = m?.extra_contribution_total ?? 0;
-  const externalSurplus = m?.external_surplus_invested ?? 0;
   const upfrontCosts = m?.upfront_additional_costs ?? 0;
   const fgtsUsed = m?.fgts_used ?? 0;
   const isPurchaseMonth = m?.status === 'Imóvel comprado' && m?.phase === 'post_purchase';
@@ -303,7 +410,7 @@ const InvestBuyOutflowExplanation = ({
         Composição da Saída Total (Mês {m?.month})
       </Text>
       <Divider size="xs" />
-      
+
       {/* Housing costs */}
       <Text size="xs" fw={600} c="dimmed">Custos de Moradia:</Text>
       {rent > 0 && (
@@ -318,9 +425,9 @@ const InvestBuyOutflowExplanation = ({
           <Text size="xs">{money(monthlyCosts)}</Text>
         </Group>
       )}
-      
+
       {/* Investments/Allocations */}
-      {(initialAllocation > 0 || additionalInvestment > 0 || contributions > 0 || externalSurplus > 0) && (
+      {(initialAllocation > 0 || additionalInvestment > 0 || contributions > 0) && (
         <>
           <Text size="xs" fw={600} c="dimmed" mt={4}>Alocações em Investimento:</Text>
           {initialAllocation > 0 && (
@@ -341,15 +448,9 @@ const InvestBuyOutflowExplanation = ({
               <Text size="xs">{money(additionalInvestment)}</Text>
             </Group>
           )}
-          {externalSurplus > 0 && (
-            <Group justify="space-between" gap={16}>
-              <Text size="xs" c="dimmed">Sobra externa investida</Text>
-              <Text size="xs">{money(externalSurplus)}</Text>
-            </Group>
-          )}
         </>
       )}
-      
+
       {/* Purchase costs (only on purchase month) */}
       {isPurchaseMonth && upfrontCosts > 0 && (
         <>
@@ -360,20 +461,20 @@ const InvestBuyOutflowExplanation = ({
           </Group>
         </>
       )}
-      
+
       {fgtsUsed > 0 && (
         <Group justify="space-between" gap={16}>
           <Text size="xs" c="dimmed">FGTS utilizado</Text>
           <Text size="xs">{money(fgtsUsed)}</Text>
         </Group>
       )}
-      
+
       <Divider size="xs" my={4} />
       <Group justify="space-between" gap={16}>
         <Text size="xs" fw={700}>Total</Text>
         <Text size="xs" fw={700}>{money(total)}</Text>
       </Group>
-      
+
       {isMonth1 && initialAllocation > 0 && (
         <Text size="xs" c="dimmed" fs="italic" mt={4}>
           O mês 1 inclui a alocação inicial de capital, por isso o valor é maior.
@@ -384,27 +485,38 @@ const InvestBuyOutflowExplanation = ({
 };
 
 interface ScenarioCardNewProps {
-  scenario: any;
+  scenario: EnhancedComparisonScenario;
   isBest: boolean;
-  bestScenario: any;
+  bestScenario: EnhancedComparisonScenario | null;
   index: number;
   monthlyNetIncome?: number | null;
 }
 
 function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetIncome }: ScenarioCardNewProps) {
   const s = scenario;
-  // Use new semantic colors for scenarios
-  const colorMap = ['ocean', 'teal', 'violet'] as const;
-  const color = colorMap[index % colorMap.length];
-  const iconMap = [<IconBuildingBank size={24} />, <IconChartLine size={24} />, <IconPigMoney size={24} />];
-  
+  const titleId = useId();
+  const [showDetails, setShowDetails] = useState(false);
+  const visualByType: Record<ComparisonScenarioType, { color: 'ocean' | 'teal' | 'violet'; icon: ReactNode; subtitle: string }> = {
+    buy: { color: 'ocean', icon: <IconBuildingBank size={24} />, subtitle: 'Financiamento imobiliário' },
+    rent_invest: { color: 'teal', icon: <IconChartLine size={24} />, subtitle: 'Aluguel + investimento' },
+    invest_buy: { color: 'violet', icon: <IconPigMoney size={24} />, subtitle: 'Investir para comprar' },
+  };
+  const visual = visualByType[s.scenario_type] ?? {
+    color: (['ocean', 'teal', 'violet'] as const)[index % 3],
+    icon: <IconChartLine size={24} />,
+    subtitle: 'Estratégia simulada',
+  };
+  const color = visual.color;
+
   // Backend semantics:
   // - final_equity (a.k.a. final_wealth) represents total wealth at the end (imóvel + investimentos + FGTS).
   // - equity (monthly record) represents property equity only (imóvel - saldo devedor).
   const finalWealth = (s.final_wealth ?? s.final_equity) as number;
-  const bestFinalWealth = (bestScenario.final_wealth ?? bestScenario.final_equity) as number;
-  const wealthDelta = finalWealth - bestFinalWealth;
-  const costDelta = s.total_cost - bestScenario.total_cost;
+  const bestFinalWealth = bestScenario == null
+    ? null
+    : (bestScenario.final_wealth ?? bestScenario.final_equity);
+  const wealthDelta = bestFinalWealth == null ? null : finalWealth - bestFinalWealth;
+  const estimatedConsumption = s.total_consumption ?? s.total_cost;
 
   const lastMonth = Array.isArray(s.monthly_data) && s.monthly_data.length > 0
     ? s.monthly_data[s.monthly_data.length - 1]
@@ -478,98 +590,88 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
   })();
 
   const Help = ({ label, help }: { label: string; help: ReactNode }) => (
-    <Tooltip label={help} multiline w={320} withArrow position="top-start">
-      <ActionIcon variant="subtle" color="gray" size="xs" aria-label={`Ajuda: ${label}`}>
+    <ExplanationPopover label={help} multiline maw={320} withArrow position="top-start">
+      <ActionIcon variant="subtle" color="gray" size="sm" aria-label={`Entenda: ${label}`}>
         <IconHelpCircle size={14} />
       </ActionIcon>
-    </Tooltip>
+    </ExplanationPopover>
   );
 
   return (
-    <Box
-      p="xl"
-      className={isBest ? 'card-hover' : ''}
+    <Paper
+      component="article"
+      aria-labelledby={titleId}
+      p={{ base: 'md', sm: 'lg' }}
+      radius="lg"
+      shadow="none"
+      withBorder
       style={{
         background: isBest
-          ? 'light-dark(linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%), linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.08) 100%))'
-          : 'var(--glass-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: isBest
-          ? '0 8px 32px -8px rgba(59, 130, 246, 0.3), var(--glass-shadow-glow)'
-          : 'var(--glass-shadow), var(--glass-shadow-glow)',
-        borderRadius: 'var(--mantine-radius-xl)',
-        position: 'relative',
-        overflow: 'hidden',
+          ? 'var(--farol-surface-accent)'
+          : 'var(--farol-surface-raised)',
+        borderColor: isBest
+          ? 'var(--mantine-color-ocean-4)'
+          : 'var(--mantine-color-default-border)',
+        borderWidth: isBest ? rem(2) : rem(1),
         height: '100%',
       }}
     >
-      {/* Winner badge */}
-      {isBest && (
-        <Badge
-          color="ocean"
-          variant="filled"
-          size="sm"
-          leftSection={<IconCrown size={12} />}
-          style={{
-            position: 'absolute',
-            top: rem(16),
-            right: rem(16),
-          }}
-        >
-          Melhor Opção
-        </Badge>
-      )}
-
-      {/* Header */}
-      <Group gap="md" mb="lg">
-        <ThemeIcon
-          size={52}
-          radius="md"
-          variant={isBest ? 'filled' : 'light'}
-          color={color}
-        >
-          {iconMap[index % 3]}
-        </ThemeIcon>
-        <Box>
-          <Text fw={700} size="xl" c={isBest ? 'bright' : 'bright'}>
-            {s.name}
-          </Text>
-          <Text size="sm" c="dimmed">
-            {index === 0 ? 'Financiamento imobiliário' : index === 1 ? 'Aluguel + investimento' : 'Investir para comprar'}
-          </Text>
-        </Box>
+      <Group justify="space-between" align="flex-start" gap="sm" mb="lg" wrap="wrap">
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+          <ThemeIcon
+            size={44}
+            radius="md"
+            variant={isBest ? 'filled' : 'light'}
+            color={color}
+          >
+            {visual.icon}
+          </ThemeIcon>
+          <Box style={{ minWidth: 0 }}>
+            <Text id={titleId} component="h3" fw={700} size="lg" c="bright" style={{ overflowWrap: 'anywhere' }}>
+              {s.name}
+            </Text>
+            <Text size="sm" c="dimmed">
+              {visual.subtitle}
+            </Text>
+          </Box>
+        </Group>
+        {isBest && (
+          <Badge color="ocean" variant="filled" size="sm" leftSection={<IconCrown size={12} />}>
+            Maior patrimônio
+          </Badge>
+        )}
       </Group>
 
       {/* Main Metric - Patrimônio */}
       <Box
         p="lg"
         mb="lg"
-        style={{
-          backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
-          borderRadius: rem(10),
-        }}
+        style={RESULT_SUBTLE_SURFACE_STYLE}
       >
         <Group gap={6} align="center" wrap="nowrap">
-          <Text size="xs" c="ocean.6" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
-            Patrimônio Final
+          <Text size="xs" c="var(--farol-chart-1)" tt="uppercase" fw={500} style={{ letterSpacing: '0.5px' }}>
+            Patrimônio Líquido Final
           </Text>
           <Help
-            label="Patrimônio Final"
-            help="Total de ativos acumulados no fim do horizonte da simulação (equidade + investimentos + FGTS)."
+            label="Patrimônio Líquido Final"
+            help="Ativos finais (equidade, investimentos, FGTS e caixa residual) menos obrigações não financiadas."
           />
         </Group>
-        <Text fw={700} style={{ fontSize: rem(32), lineHeight: 1.1 }} c="bright">
+        <Text
+          fw={700}
+          style={{ fontSize: rem(30), lineHeight: 1.15, overflowWrap: 'anywhere' }}
+          c="bright"
+        >
           {money(finalWealth)}
         </Text>
-        {!isBest && wealthDelta !== 0 && (
+        {!isBest && wealthDelta != null && wealthDelta !== 0 && (
           <Group gap={4} mt={4}>
             {wealthDelta < 0 ? (
-              <IconArrowDownRight size={14} color="var(--mantine-color-danger-6)" />
+              <IconArrowDownRight size={14} color="var(--farol-chart-negative)" aria-hidden="true" />
             ) : (
-              <IconArrowUpRight size={14} color="var(--mantine-color-ocean-7)" />
+              <IconArrowUpRight size={14} color="var(--farol-chart-positive)" aria-hidden="true" />
             )}
-            <Text size="xs" c={wealthDelta < 0 ? 'danger.6' : 'ocean.7'} fw={500}>
+            <Text size="xs" c={wealthDelta < 0 ? 'var(--farol-chart-negative)' : 'var(--farol-chart-positive)'} fw={500}>
               {wealthDelta > 0 ? '+' : ''}{money(wealthDelta)} vs melhor
             </Text>
           </Group>
@@ -577,31 +679,26 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       </Box>
 
       {/* Metrics Grid */}
-      <SimpleGrid cols={2} spacing="md">
-        <Box>
+      <SimpleGrid cols={{ base: 1, xs: 2, md: 1, xl: 2 }} spacing="sm">
+        <Box p="sm" style={RESULT_SUBTLE_SURFACE_STYLE}>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="ocean.5">
-              Custo Líquido
+            <Text size="xs" c="dimmed">
+              Consumo estimado
             </Text>
             <Help
-              label="Custo Líquido"
-              help="Custo líquido estimado no horizonte: total de saídas/alocações (total_outflows) menos o patrimônio final (final_equity). Observação: o 'melhor cenário' é escolhido por variação de patrimônio (net_worth_change), não por menor custo líquido."
+              label="Consumo estimado"
+              help="Gastos que não viram ativo, como juros, aluguel, condomínio, IPTU e custos de transação. Quando o backend legado não informa essa decomposição, exibimos o custo antigo apenas como aproximação. O ranking não usa este valor isoladamente."
             />
           </Group>
           <Group gap={4} align="center">
-            <Text fw={600} size="md" c="ocean.8">
-              {money(s.total_cost)}
+            <Text fw={600} size="md" c="bright">
+              {money(estimatedConsumption)}
             </Text>
-            {!isBest && costDelta !== 0 && (
-              <Text size="xs" c={costDelta > 0 ? 'danger.6' : 'ocean.7'}>
-                ({costDelta > 0 ? '+' : ''}{money(costDelta)})
-              </Text>
-            )}
           </Group>
         </Box>
-        <Box>
+        <Box p="sm" style={RESULT_SUBTLE_SURFACE_STYLE}>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="ocean.5">
+            <Text size="xs" c="dimmed">
               Equidade
             </Text>
             <Help
@@ -609,27 +706,27 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
               help="Equidade do imóvel (valor do imóvel menos saldo devedor). Não inclui investimentos nem FGTS. Em cenários sem compra, fica 0."
             />
           </Group>
-          <Text fw={600} size="md" c="ocean.8">
+          <Text fw={600} size="md" c="bright">
             {money(propertyEquity)}
           </Text>
         </Box>
-        <Box>
+        <Box p="sm" style={RESULT_SUBTLE_SURFACE_STYLE}>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="ocean.5">
-              ROI
+            <Text size="xs" c="dimmed">
+              Retorno comparável
             </Text>
             <Help
-              label="ROI"
-              help="Retorno percentual estimado. Em geral, compara o que você terminou com o que saiu do seu bolso (varia por cenário e regras)."
+              label="Retorno comparável"
+              help="Só é exibido quando a simulação consegue isolar uma base de capital adequada. Orçamento mensal acumulado e outros fluxos externos não são tratados como retorno; nesses casos, mostramos N/D."
             />
           </Group>
-          <Text fw={600} size="md" c="ocean.8">
-            {percent(s.metrics.roi_percentage)}
+          <Text fw={600} size="md" c="bright">
+            {roi(s.metrics.roi_percentage)}
           </Text>
         </Box>
-        <Box>
+        <Box p="sm" style={RESULT_SUBTLE_SURFACE_STYLE}>
           <Group gap={6} align="center" wrap="nowrap" mb={2}>
-            <Text size="xs" c="ocean.5">
+            <Text size="xs" c="dimmed">
               Saída mensal média
             </Text>
             <Help
@@ -637,70 +734,106 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
               help="Média da saída total mensal ao longo do horizonte (inclui entrada/alocação inicial e aportes quando aplicável). Útil para comparar esforço de caixa entre estratégias."
             />
           </Group>
-          <Text size="xs" c="ocean.5" mb={2}>
+          <Text size="xs" c="dimmed" mb={2}>
             (inclui entrada/aportes)
           </Text>
-          <Text fw={600} size="md" c="ocean.8">
+          <Text fw={600} size="md" c="bright">
             {money(s.metrics.average_monthly_cost)}
           </Text>
         </Box>
         {incomeSurplusMonth1 != null && (
-          <Box>
+          <Box p="sm" style={RESULT_SUBTLE_SURFACE_STYLE}>
             <Group gap={6} align="center" wrap="nowrap" mb={2}>
-              <Text size="xs" c="ocean.5">
+              <Text size="xs" c="dimmed">
                 Sobra mensal (mês 1)
               </Text>
               <Help
                 label="Sobra mensal"
-                help="Renda líquida menos custo de moradia recorrente no mês 1 (parcela/aluguel + custos mensais)."
+                help="Orçamento mensal disponível menos custo de moradia recorrente no mês 1 (parcela/aluguel + custos mensais)."
               />
             </Group>
             <Text
               fw={600}
               size="md"
-              c={incomeSurplusMonth1 >= 0 ? 'ocean.8' : 'danger.6'}
+              c={incomeSurplusMonth1 >= 0 ? 'var(--farol-chart-positive)' : 'var(--farol-chart-negative)'}
             >
               {signedMoney(incomeSurplusMonth1)}
             </Text>
           </Box>
         )}
         {affordabilityMetrics != null && (
-          <Box>
+          <Box p="sm" style={RESULT_SUBTLE_SURFACE_STYLE}>
             <Group gap={6} align="center" wrap="nowrap" mb={2}>
-              <Text size="xs" c="ocean.5">
-                % da renda (mês 1)
+              <Text size="xs" c="dimmed">
+                % do orçamento (mês 1)
               </Text>
               <Help
-                label="% da renda comprometida"
-                help="Percentual da renda líquida comprometido com moradia no mês 1. Valores acima de 30% são considerados altos."
+                label="% do orçamento comprometido"
+                help="Percentual do orçamento mensal disponível comprometido com moradia no mês 1."
               />
             </Group>
             <Text
               fw={600}
               size="md"
-              c={affordabilityMetrics.incomeUsedMonth1 <= 30 ? 'ocean.8' : affordabilityMetrics.incomeUsedMonth1 <= 50 ? 'warning.6' : 'danger.6'}
+              c={affordabilityMetrics.incomeUsedMonth1 <= 30 ? 'var(--farol-chart-positive)' : affordabilityMetrics.incomeUsedMonth1 <= 50 ? 'light-dark(var(--mantine-color-amber-8), var(--mantine-color-amber-3))' : 'var(--farol-chart-negative)'}
             >
               {affordabilityMetrics.incomeUsedMonth1.toFixed(1)}%
             </Text>
           </Box>
         )}
         {affordabilityMetrics != null && affordabilityMetrics.monthsNegative > 0 && (
-          <Box>
+          <Box p="sm" style={RESULT_SUBTLE_SURFACE_STYLE}>
             <Group gap={6} align="center" wrap="nowrap" mb={2}>
-              <Text size="xs" c="ocean.5">
+              <Text size="xs" c="dimmed">
                 Meses no vermelho
               </Text>
               <Help
                 label="Meses no vermelho"
-                help="Quantidade de meses onde o custo de moradia excede sua renda líquida."
+                help="Quantidade de meses em que o custo de moradia excede o orçamento disponível naquele mês."
               />
             </Group>
-            <Text fw={600} size="md" c="danger.6">
+            <Text fw={600} size="md" c="var(--farol-chart-negative)">
               {affordabilityMetrics.monthsNegative} de {affordabilityMetrics.totalMonths}
             </Text>
           </Box>
         )}
       </SimpleGrid>
+
+      <Group gap="xs" mt="md" wrap="wrap">
+        {s.is_feasible === false ? (
+          <Badge color="red" variant="light">Fluxo inviável</Badge>
+        ) : s.is_feasible === true ? (
+          <Badge color="teal" variant="light">Fluxo viável</Badge>
+        ) : (
+          <Badge color="gray" variant="light">Viabilidade não avaliada</Badge>
+        )}
+        {(s.final_liabilities ?? 0) > 0 && (
+          <Badge color="red" variant="outline">
+            Passivos finais: {money(s.final_liabilities ?? 0)}
+          </Badge>
+        )}
+        {(s.residual_cash_balance ?? 0) > 0 && (
+          <Badge color="blue" variant="outline">
+            Caixa residual: {money(s.residual_cash_balance ?? 0)}
+          </Badge>
+        )}
+      </Group>
+
+      {s.is_feasible === false && (
+        <Alert
+          mt="md"
+          color="red"
+          variant="light"
+          icon={<IconAlertCircle size={16} />}
+          title="Recursos insuficientes"
+        >
+          <Text size="xs">
+            Faltaram {money(s.total_unfunded_amount ?? s.final_liabilities ?? 0)} ao longo da simulação
+            {s.first_unfunded_month != null ? `, a partir do mês ${s.first_unfunded_month}` : ''}.
+            Esse valor é tratado como passivo e o cenário não pode ser declarado vencedor.
+          </Text>
+        </Alert>
+      )}
 
       {/* Affordability warning */}
       {affordabilityMetrics != null && affordabilityMetrics.monthsNegative > 0 && (
@@ -711,45 +844,58 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           icon={<IconAlertCircle size={16} />}
           radius="md"
         >
-          <Text size="sm" fw={600} c="danger.7">
-            Atenção: Renda insuficiente em {affordabilityMetrics.monthsNegative} mês(es)
+          <Text size="sm" fw={600} c="var(--farol-chart-negative)">
+            Atenção: orçamento do mês insuficiente em {affordabilityMetrics.monthsNegative} mês(es)
           </Text>
           <Text size="xs" c="dimmed">
-            Em alguns meses, o custo de moradia excede sua renda líquida.
+            Em alguns meses, o custo de moradia excede o orçamento mensal disponível.
             Maior déficit: {money(affordabilityMetrics.maxDeficit)} no mês {affordabilityMetrics.maxHousingMonth}
-            (custo {money(affordabilityMetrics.maxHousingCost)} vs renda {money(affordabilityMetrics.maxDeficitIncome)}).
+            {' '}(custo {money(affordabilityMetrics.maxHousingCost)} vs orçamento {money(affordabilityMetrics.maxDeficitIncome)}).
           </Text>
         </Alert>
       )}
 
+      <Button
+        mt="md"
+        variant="subtle"
+        color="gray"
+        size="sm"
+        fullWidth
+        style={{ minHeight: rem(44) }}
+        onClick={() => setShowDetails((current) => !current)}
+        aria-expanded={showDetails}
+        aria-controls={`scenario-details-${s.scenario_type}`}
+      >
+        {showDetails ? 'Ocultar detalhes' : 'Ver composição e detalhes'}
+      </Button>
+
+      <Collapse in={showDetails}>
+        <Box id={`scenario-details-${s.scenario_type}`}>
       {/* Purchase breakdown (buy scenario) */}
       {s.purchase_breakdown && (
         <Box
           p="md"
           mt="md"
-          style={{
-            backgroundColor: 'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))',
-            borderRadius: rem(10),
-          }}
+          style={RESULT_SUBTLE_SURFACE_STYLE}
         >
           <Text size="xs" c="dimmed" fw={600} mb={6}>
             Composição da compra
           </Text>
-          <SimpleGrid cols={2} spacing="xs">
+          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
             <Group gap={6} align="center">
-              <Text size="sm" c="ocean.7">Entrada em dinheiro</Text>
+              <Text size="sm" c="var(--farol-chart-1)">Entrada em dinheiro</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.cash_down_payment)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="ocean.7">FGTS na entrada</Text>
+              <Text size="sm" c="var(--farol-chart-1)">FGTS na entrada</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.fgts_at_purchase)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="ocean.7">Financiado</Text>
+              <Text size="sm" c="var(--farol-chart-1)">Financiado</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.financed_amount)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="ocean.7">Custos (ITBI+escritura)</Text>
+              <Text size="sm" c="var(--farol-chart-1)">Custos (ITBI+escritura)</Text>
               <Text size="sm" fw={700}>{money(s.purchase_breakdown.upfront_costs)}</Text>
             </Group>
           </SimpleGrid>
@@ -763,7 +909,8 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           mt="md"
           style={{
             backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
-            borderRadius: rem(10),
+            border: '1px solid light-dark(var(--mantine-color-ocean-2), var(--mantine-color-ocean-7))',
+            borderRadius: 'var(--mantine-radius-md)',
           }}
         >
           <Group gap={8} mb={8}>
@@ -775,13 +922,13 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
               <Text size="xs" c="dimmed">Saldo final {money(s.fgts_summary.final_balance)} | Saques {money(s.fgts_summary.total_withdrawn)}</Text>
             </Box>
           </Group>
-          <SimpleGrid cols={2} spacing="xs">
+          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
             <Group gap={6} align="center">
-              <Text size="sm" c="ocean.7">Usado na entrada</Text>
+              <Text size="sm" c="var(--farol-chart-1)">Usado na entrada</Text>
               <Text size="sm" fw={700}>{money(s.fgts_summary.withdrawn_at_purchase)}</Text>
             </Group>
             <Group gap={6} align="center">
-              <Text size="sm" c="ocean.7">Amortizações FGTS</Text>
+              <Text size="sm" c="var(--farol-chart-1)">Amortizações FGTS</Text>
               <Text size="sm" fw={700}>{money(s.fgts_summary.withdrawn_for_amortizations)}</Text>
             </Group>
           </SimpleGrid>
@@ -792,7 +939,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
               variant="light"
               icon={<IconAlertCircle size={14} />}
             >
-              <Text size="xs" fw={600} c="warning.7">
+              <Text size="xs" fw={600} c="light-dark(var(--mantine-color-amber-8), var(--mantine-color-amber-3))">
                 {s.fgts_summary.blocked_count} amortização(ões) FGTS não aplicada(s)
               </Text>
               <Text size="xs" c="dimmed">
@@ -804,7 +951,7 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
       )}
 
       {/* Additional info */}
-      <Divider my="md" color="ocean.2" />
+      <Divider my="md" color="var(--farol-border)" />
       <Group gap="xs" wrap="wrap">
         <Badge variant="light" color="ocean" size="sm">
           {s.monthly_data.length} meses
@@ -818,18 +965,58 @@ function ScenarioCardNew({ scenario, isBest, bestScenario, index, monthlyNetInco
           </Badge>
         )}
       </Group>
-    </Box>
+        </Box>
+      </Collapse>
+    </Paper>
   );
 }
 
-export default function EnhancedComparisonResults({ result, inputPayload }: { result: EnhancedComparisonResult; inputPayload?: any }) {
-  const [chartType, setChartType] = useState<'area' | 'line'>('area');
+export default function EnhancedComparisonResults({
+  result,
+  inputPayload,
+}: {
+  result: EnhancedComparisonResult;
+  inputPayload?: ComparisonInput;
+}) {
+  const [chartType, setChartType] = useState<'area' | 'line'>('line');
   const [overviewMetric, setOverviewMetric] = useState<'wealth' | 'outflow'>('wealth');
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [milestonesOnly, setMilestonesOnly] = useState(false);
   const [tableView, setTableView] = useState<'essential' | 'detailed'>('essential');
   const [showInputDetails, setShowInputDetails] = useState(false);
   const [showInputJson, setShowInputJson] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const downloadControllerRef = useRef<AbortController | null>(null);
+  const resultTitleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    resultTitleRef.current?.focus({ preventScroll: true });
+  }, []);
+  useEffect(
+    () => () => {
+      downloadControllerRef.current?.abort();
+      downloadControllerRef.current = null;
+    },
+    []
+  );
+
+  const handleExport = async (format: 'csv' | 'xlsx') => {
+    if (!inputPayload) return;
+    downloadControllerRef.current?.abort();
+    const controller = new AbortController();
+    downloadControllerRef.current = controller;
+    setDownloadLoading(true);
+    await downloadFile(
+      `/api/compare-scenarios-enhanced/export?format=${format}`,
+      'POST',
+      inputPayload,
+      `scenarios_comparison.${format}`,
+      controller.signal
+    );
+    if (downloadControllerRef.current === controller) {
+      downloadControllerRef.current = null;
+      setDownloadLoading(false);
+    }
+  };
 
   const months = new Set<number>();
   const scenarioByMonth = new Map<string, Map<number, any>>();
@@ -860,13 +1047,12 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     return 0;
   };
 
-  const outflowTooltip = (m: any) => {
+  const outflowBreakdown = (m: any) => {
     const total = monthlyOutflow(m);
     const housing = recurringHousingCost(m);
     const initialAllocation = m?.initial_allocation ?? 0;
     const scheduledContribution = m?.extra_contribution_total ?? 0;
     const additionalInvestment = m?.additional_investment ?? 0;
-    const externalSurplusInvested = m?.external_surplus_invested ?? 0;
     const upfront = m?.upfront_additional_costs ?? 0;
     const fgtsUsed = m?.fgts_used ?? 0;
 
@@ -875,7 +1061,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
       { label: 'Alocação inicial (mês 1)', value: initialAllocation },
       { label: 'Aportes programados', value: scheduledContribution },
       { label: 'Aporte mensal/adicional', value: additionalInvestment },
-      { label: 'Sobra externa investida', value: externalSurplusInvested },
       { label: 'Custos de compra (ITBI/escritura)', value: upfront },
       { label: 'FGTS usado', value: fgtsUsed },
     ].filter((r) => (r.value ?? 0) > 0.005);
@@ -906,7 +1091,12 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
   };
 
   const horizonLabel = (monthsCount: number | null) => formatMonthsYears(monthsCount);
-  const wealthAt = (m: any) => (m?.equity || 0) + (m?.investment_balance || 0) + (m?.fgts_balance || 0);
+  const wealthAt = (m: any) =>
+    (m?.equity || 0) +
+    (m?.investment_balance || 0) +
+    (m?.fgts_balance || 0) +
+    (m?.residual_cash_balance || 0) -
+    (m?.cumulative_unfunded_amount || 0);
 
   const inputSummary = (() => {
     if (!inputPayload) return null;
@@ -983,11 +1173,41 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
     return row;
   });
 
-  // Canonical rule: backend selects `best_scenario` by highest net_worth_change.
-  // Keep UI highlight consistent with `result.best_scenario`.
-  const bestScenario =
-    result.scenarios.find((s) => s.name === result.best_scenario) ??
-    [...result.scenarios].sort((a, b) => (b.net_worth_change ?? -Infinity) - (a.net_worth_change ?? -Infinity))[0];
+  // Only the backend may authorize a winner. Scenario type is the stable identity;
+  // labels are localized presentation and must never be used as a fallback ranking.
+  const hasAuthoritativeWinner =
+    result.comparison_status === 'comparable' && result.best_scenario_type != null;
+  const bestScenario = hasAuthoritativeWinner
+    ? result.scenarios.find((s) => s.scenario_type === result.best_scenario_type) ?? null
+    : null;
+  const bestScenarioWealth = bestScenario == null
+    ? null
+    : bestScenario.final_wealth ?? bestScenario.final_equity;
+
+  const statusCopy = {
+    comparable: {
+      color: 'teal',
+      title: 'Cenários comparáveis',
+      message: 'Os cenários usam a mesma base de recursos. O ranking considera somente os fluxos viáveis; cenários com déficit permanecem visíveis e sinalizados.',
+    },
+    exploratory: {
+      color: 'blue',
+      title: 'Simulação exploratória — sem vencedor',
+      message: 'Faltam recursos compartilhados suficientes para um ranking conclusivo. Use os resultados para explorar trajetórias, não para declarar uma estratégia superior.',
+    },
+    incomparable: {
+      color: 'orange',
+      title: 'Cenários não comparáveis — sem vencedor',
+      message: 'Os cenários receberam recursos diferentes. O patrimônio final pode ser inspecionado, mas não forma um ranking justo.',
+    },
+    no_feasible_scenario: {
+      color: 'red',
+      title: 'Nenhum cenário possui fluxo viável',
+      message: 'O orçamento e os recursos informados não cobrem todas as obrigações. Os déficits foram registrados como passivos; ajuste os parâmetros antes de comparar.',
+    },
+  } as const;
+  const comparisonStatus = result.comparison_status ?? 'exploratory';
+  const currentStatus = statusCopy[comparisonStatus];
 
   const comparativeRowsRaw = Object.values(result.comparative_summary || {}).filter(
     (v: any) => v && typeof v === 'object' && typeof v.month === 'number'
@@ -1008,47 +1228,107 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
 
   return (
     <Stack gap="xl">
-      {/* Header */}
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-        <Box>
-          <Group gap="sm" mb="xs">
-            <ThemeIcon size={40} radius="md" variant="filled" color="ocean">
-              <IconChartLine size={20} />
-            </ThemeIcon>
-            <Title order={2} fw={600} c="ocean.9">
-              Resultados da Análise
-            </Title>
-          </Group>
-          <Text size="md" c="ocean.6">
-            Melhor cenário (critério: maior variação de patrimônio):{' '}
-            <Text component="span" fw={600} c="ocean.8">{result.best_scenario}</Text>
-          </Text>
-          <Text size="xs" c="ocean.6" mt={4}>
-            “Melhor” aqui significa maior variação de patrimônio (não menor desembolso/custo líquido).
-          </Text>
-        </Box>
-        <Menu withinPortal position="bottom-end">
-          <Menu.Target>
-            <Button
-              variant="light"
-              color="ocean"
-              leftSection={<IconDownload size={16} />}
-              radius="lg"
-            >
-              Exportar
-            </Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Label>Formato</Menu.Label>
-            <Menu.Item onClick={() => downloadFile('/api/compare-scenarios-enhanced/export?format=csv', 'POST', inputPayload, 'scenarios_comparison.csv')}>
-              CSV
-            </Menu.Item>
-            <Menu.Item onClick={() => downloadFile('/api/compare-scenarios-enhanced/export?format=xlsx', 'POST', inputPayload, 'scenarios_comparison.xlsx')}>
-              Excel (XLSX)
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
-      </Group>
+      <Paper
+        component="section"
+        aria-labelledby="comparison-result-title"
+        p={{ base: 'md', sm: 'xl' }}
+        radius="lg"
+        shadow="none"
+        withBorder
+        style={{ background: 'var(--farol-surface-raised)' }}
+      >
+        <Group justify="space-between" align="flex-start" wrap="wrap" gap="lg">
+          <Box style={{ flex: 1, minWidth: rem(250) }}>
+            <Group gap="sm" mb="md" wrap="wrap">
+              <ThemeIcon size={40} radius="md" variant="light" color="ocean">
+                <IconChartLine size={20} />
+              </ThemeIcon>
+              <Box>
+                <Title
+                  ref={resultTitleRef}
+                  id="comparison-result-title"
+                  order={2}
+                  fw={650}
+                  c="bright"
+                  tabIndex={-1}
+                >
+                  Resultado da simulação
+                </Title>
+                <Text size="sm" c="dimmed">
+                  Comparação de três estratégias ao longo do mesmo horizonte.
+                </Text>
+              </Box>
+              <Badge color={currentStatus.color} variant="light" size="lg">
+                {currentStatus.title}
+              </Badge>
+            </Group>
+
+            {bestScenario && bestScenarioWealth != null ? (
+              <Box>
+                <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+                  Maior patrimônio líquido final comparável
+                </Text>
+                <Title order={3} fw={700} c="var(--farol-chart-1)" mt={2}>
+                  {money(bestScenarioWealth)}
+                </Title>
+                <Text size="sm" mt={4}>
+                  <Text component="span" fw={650}>{bestScenario.name}</Text>
+                  {' '}nas premissas desta simulação. Isso não constitui recomendação financeira.
+                </Text>
+              </Box>
+            ) : (
+              <Box>
+                <Text fw={650}>Sem vencedor comparável</Text>
+                <Text size="sm" c="dimmed" mt={4} maw={680}>
+                  Os valores continuam úteis para explorar cada trajetória, mas não sustentam um ranking justo.
+                </Text>
+              </Box>
+            )}
+          </Box>
+
+          <Menu withinPortal position="bottom-end">
+            <Menu.Target>
+              <Button
+                variant="light"
+                color="ocean"
+                leftSection={<IconDownload size={16} />}
+                radius="lg"
+                size="md"
+                loading={downloadLoading}
+                disabled={!inputPayload}
+              >
+                Exportar resultados
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Formato</Menu.Label>
+              <Menu.Item disabled={!inputPayload || downloadLoading} onClick={() => void handleExport('csv')}>
+                CSV
+              </Menu.Item>
+              <Menu.Item disabled={!inputPayload || downloadLoading} onClick={() => void handleExport('xlsx')}>
+                Excel (XLSX)
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      </Paper>
+
+      <Alert
+        color={currentStatus.color}
+        variant="light"
+        icon={<IconAlertCircle size={18} />}
+        radius="lg"
+        title={currentStatus.title}
+      >
+        <Text size="sm">{currentStatus.message}</Text>
+        {(result.warnings?.length ?? 0) > 0 && (
+          <Stack gap={4} mt="xs">
+            {result.warnings?.map((warning, warningIndex) => (
+              <Text key={`${warningIndex}-${warning}`} size="xs">• {warning}</Text>
+            ))}
+          </Stack>
+        )}
+      </Alert>
 
       {/* Global affordability alert */}
       {monthlyNetIncome != null && (() => {
@@ -1086,14 +1366,17 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               title="Análise de Capacidade de Pagamento"
             >
               <Text size="sm" c="dimmed" mb="xs">
-                Com base na sua renda líquida de <Text component="span" fw={600}>{money(monthlyNetIncome)}</Text> (ajustada pela inflação ao longo do tempo), identificamos os seguintes pontos de atenção:
+                Com base no orçamento mensal disponível de <Text component="span" fw={600}>{money(monthlyNetIncome)}</Text>
+                {inputPayload?.monthly_net_income_adjust_inflation
+                  ? ' (corrigido pela inflação ao longo do tempo)'
+                  : ''}, identificamos os seguintes pontos de atenção:
               </Text>
               <Stack gap="xs">
                 {affordabilityIssues.map((issue) => (
                   <Group key={issue.name} gap="xs">
                     <Badge color="warning" variant="light" size="sm">{issue.name}</Badge>
                     <Text size="xs" c="dimmed">
-                      {issue.monthsNegative} mês(es) com renda insuficiente (maior déficit: {money(issue.maxDeficit)} no mês {issue.maxDeficitMonth})
+                      {issue.monthsNegative} mês(es) com orçamento mensal insuficiente (maior déficit: {money(issue.maxDeficit)} no mês {issue.maxDeficitMonth})
                     </Text>
                   </Group>
                 ))}
@@ -1107,16 +1390,40 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         return null;
       })()}
 
+      <Box component="section" aria-labelledby="scenario-summary-title">
+        <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm" mb="md">
+          <Box>
+            <Title id="scenario-summary-title" order={3} fw={650}>
+              Resultado por estratégia
+            </Title>
+            <Text size="sm" c="dimmed" mt={2}>
+              Patrimônio, esforço de caixa, retorno comparável e viabilidade em uma única leitura.
+            </Text>
+          </Box>
+          <Badge variant="light" color="gray" size="lg">
+            {result.scenarios.length} cenários
+          </Badge>
+        </Group>
+        <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+          {result.scenarios.map((s, idx) => (
+            <ScenarioCardNew
+              key={s.scenario_type}
+              scenario={s}
+              isBest={bestScenario?.scenario_type === s.scenario_type}
+              bestScenario={bestScenario}
+              index={idx}
+              monthlyNetIncome={monthlyNetIncome}
+            />
+          ))}
+        </SimpleGrid>
+      </Box>
+
       {/* Input payload summary (what was actually simulated) */}
       <Box
+        component="section"
+        aria-labelledby="simulation-input-title"
         p="lg"
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-          borderRadius: 'var(--mantine-radius-xl)',
-        }}
+        style={RESULT_SURFACE_STYLE}
       >
         <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="xs">
           <Group gap="xs">
@@ -1124,7 +1431,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               <IconSettings size={16} />
             </ThemeIcon>
             <Box>
-              <Text fw={700} c="bright">
+              <Text id="simulation-input-title" component="h3" fw={700} c="bright">
                 Parâmetros usados na simulação
               </Text>
               <Text size="xs" c="dimmed">
@@ -1137,8 +1444,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               variant="light"
               color="ocean"
               radius="lg"
-              size="xs"
+              size="sm"
+              style={{ minHeight: rem(44) }}
               onClick={() => setShowInputDetails((v) => !v)}
+              aria-expanded={showInputDetails}
+              aria-controls="simulation-input-details"
             >
               {showInputDetails ? 'Ocultar detalhes' : 'Ver detalhes'}
             </Button>
@@ -1146,12 +1456,15 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               variant="subtle"
               color="ocean"
               radius="lg"
-              size="xs"
+              size="sm"
+              style={{ minHeight: rem(44) }}
               disabled={!inputPayload}
               onClick={() => {
                 setShowInputDetails(true);
                 setShowInputJson((v) => !v);
               }}
+              aria-expanded={showInputJson}
+              aria-controls="simulation-input-json"
             >
               {showInputJson ? 'Ocultar JSON' : 'Ver JSON'}
             </Button>
@@ -1197,31 +1510,33 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
               </Badge>
               {inputSummary?.netIncomeLabel !== '—' && (
                 <Badge variant="light" color="ocean">
-                  Renda líquida: {inputSummary?.netIncomeLabel}
+                  Orçamento mensal disponível: {inputSummary?.netIncomeLabel}
                 </Badge>
               )}
             </Group>
 
             <Collapse in={showInputDetails}>
-              <Divider my="sm" color="ocean.2" />
+              <Box id="simulation-input-details">
+              <Divider my="sm" color="var(--farol-border)" />
               <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="sm">
                 <Box>
-                  <Text size="xs" c="ocean.6">Aluguel</Text>
+                  <Text size="xs" c="var(--farol-chart-1)">Aluguel</Text>
                   <Text fw={600} c="bright">{inputSummary?.rentLabel ?? '—'}</Text>
                 </Box>
                 <Box>
-                  <Text size="xs" c="ocean.6">Renda líquida mensal</Text>
+                  <Text size="xs" c="var(--farol-chart-1)">Orçamento mensal disponível</Text>
                   <Text fw={600} c="bright">{inputSummary?.netIncomeLabel ?? '—'}</Text>
                 </Box>
                 <Box>
-                  <Text size="xs" c="ocean.6">Retornos investimento</Text>
+                  <Text size="xs" c="var(--farol-chart-1)">Retornos investimento</Text>
                   <Text fw={600} c="bright">{inputSummary?.invReturnsLabel ?? '—'}</Text>
                 </Box>
               </SimpleGrid>
 
               <Collapse in={showInputJson}>
-                <Divider my="sm" color="ocean.2" />
-                <ScrollArea h={220} type="hover" scrollbarSize={8} offsetScrollbars>
+                <Box id="simulation-input-json">
+              <Divider my="sm" color="var(--farol-border)" />
+                <ScrollArea h={220} type="auto" scrollbarSize={8} offsetScrollbars>
                   <Text
                     component="pre"
                     fz="xs"
@@ -1235,40 +1550,24 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     {JSON.stringify(inputPayload, null, 2)}
                   </Text>
                 </ScrollArea>
+                </Box>
               </Collapse>
+              </Box>
             </Collapse>
           </>
         )}
       </Box>
 
-      {/* Scenario Cards */}
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="lg">
-        {result.scenarios.map((s, idx) => (
-          <ScenarioCardNew
-            key={`${s.name}-${s.total_cost}-${s.final_equity}`}
-            scenario={s}
-            isBest={s.name === bestScenario.name}
-            bestScenario={bestScenario}
-            index={idx}
-            monthlyNetIncome={monthlyNetIncome}
-          />
-        ))}
-      </SimpleGrid>
-
       {/* Comparative Summary */}
       <Box
+        component="section"
+        aria-labelledby="comparative-summary-title"
         p="xl"
-        style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-          borderRadius: 'var(--mantine-radius-xl)',
-        }}
+        style={RESULT_SURFACE_STYLE}
       >
         <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm" mb="md">
           <Box>
-            <Text fw={600} size="lg" c="bright">
+            <Text id="comparative-summary-title" component="h3" fw={600} size="lg" c="bright">
               Resumo comparativo
             </Text>
             <Text size="sm" c="dimmed">
@@ -1283,8 +1582,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
         </Group>
 
         {comparativeMiniTable.length ? (
-          <ScrollArea type="hover" scrollbarSize={8} offsetScrollbars>
-            <Table striped highlightOnHover>
+          <ScrollArea type="auto" scrollbarSize={8} offsetScrollbars>
+            <Table striped highlightOnHover miw={920} aria-label="Resumo comparativo por período">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Mês</Table.Th>
@@ -1299,7 +1598,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 {comparativeMiniTable.map((r: any) => (
                   <Table.Tr key={r.month}>
                     <Table.Td fw={600}>{formatMonthLabel(r.month)}</Table.Td>
-                    <Table.Td c={r.buy_vs_rent_difference > 0 ? 'danger.6' : r.buy_vs_rent_difference < 0 ? 'success.7' : 'ocean.6'}>
+                    <Table.Td c={r.buy_vs_rent_difference > 0 ? 'var(--farol-chart-negative)' : r.buy_vs_rent_difference < 0 ? 'var(--farol-chart-positive)' : 'dimmed'}>
                       {signedMoney(r.buy_vs_rent_difference)}
                     </Table.Td>
                     <Table.Td
@@ -1307,10 +1606,10 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         r.buy_vs_rent_percentage == null
                           ? 'dimmed'
                           : r.buy_vs_rent_percentage > 0
-                            ? 'danger.6'
+                            ? 'var(--farol-chart-negative)'
                             : r.buy_vs_rent_percentage < 0
-                              ? 'success.7'
-                              : 'ocean.6'
+                              ? 'var(--farol-chart-positive)'
+                              : 'dimmed'
                       }
                     >
                       {r.buy_vs_rent_percentage == null
@@ -1326,44 +1625,48 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
             </Table>
           </ScrollArea>
         ) : (
-          <Text size="sm" c="ocean.6">
+          <Text size="sm" c="dimmed">
             Resumo comparativo indisponível.
           </Text>
         )}
 
-        <Text size="xs" c="ocean.6" mt="sm">
+        <Text size="xs" c="dimmed" mt="sm">
           Interpretação: valores positivos em “Comprar − Alugar” significam que comprar foi mais caro no mês (pior para comprar no curto prazo).
         </Text>
       </Box>
 
       {/* Charts and Tables */}
-      <Tabs value={activeTab} onChange={(v) => setActiveTab(v || 'overview')} variant="pills" radius="lg">
+      <Tabs
+        value={activeTab}
+        onChange={(v) => setActiveTab(v || 'overview')}
+        variant="pills"
+        radius="lg"
+        keepMounted={false}
+        styles={{ tab: { minHeight: rem(44) } }}
+      >
         <Box
           p="md"
           mb="md"
-          style={{
-            background: 'var(--glass-bg)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-            borderRadius: 'var(--mantine-radius-xl)',
-          }}
+          style={RESULT_SURFACE_STYLE}
         >
           <Group justify="space-between" align="center" wrap="wrap" gap="md">
-            <Tabs.List>
-              <Tabs.Tab value="overview" leftSection={<IconChartArea size={16} />}>
-                Evolução do Patrimônio
-              </Tabs.Tab>
-              {result.scenarios.map((s) => (
-                <Tabs.Tab key={s.name} value={s.name} leftSection={<IconTable size={16} />}>
-                  {s.name}
+            <ScrollArea type="auto" scrollbarSize={6} style={{ flex: 1, minWidth: 0 }}>
+              <Tabs.List style={{ flexWrap: 'nowrap', width: 'max-content' }}>
+                <Tabs.Tab value="overview" leftSection={<IconChartArea size={16} />}>
+                  Evolução geral
                 </Tabs.Tab>
-              ))}
-            </Tabs.List>
+                {result.scenarios.map((s) => (
+                  <Tabs.Tab key={s.name} value={s.name} leftSection={<IconTable size={16} />}>
+                    {s.name}
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </ScrollArea>
             {activeTab === 'overview' && (
               <Group gap="xs" wrap="wrap">
                 <SegmentedControl
-                  size="xs"
+                  size="sm"
+                  styles={{ control: { minHeight: rem(44) } }}
                   radius="lg"
                   value={overviewMetric}
                   onChange={(v) => setOverviewMetric(v as any)}
@@ -1373,7 +1676,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   ]}
                 />
                 <SegmentedControl
-                  size="xs"
+                  size="sm"
+                  styles={{ control: { minHeight: rem(44) } }}
                   radius="lg"
                   value={chartType}
                   onChange={(v) => setChartType(v as any)}
@@ -1389,60 +1693,71 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
 
         <Tabs.Panel value="overview">
           <Box
-            p="xl"
-            style={{
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-              borderRadius: 'var(--mantine-radius-xl)',
-            }}
+            component="section"
+            aria-labelledby="overview-chart-title"
+            p={{ base: 'md', sm: 'xl' }}
+            w="100%"
+            miw={0}
+            style={RESULT_SURFACE_STYLE}
           >
-            <Text fw={600} size="lg" mb="lg" c="bright">
+            <Text id="overview-chart-title" component="h3" fw={600} size="lg" mb="lg" c="bright">
               {overviewMetric === 'wealth'
                 ? 'Evolução do Patrimônio ao Longo do Tempo'
                 : 'Saída total mensal (inclui eventos e aportes) ao longo do tempo'}
             </Text>
-            {chartType === 'area' && (
-              <AreaChart
-                h={350}
-                data={overviewMetric === 'wealth' ? wealthData : outflowData}
-                dataKey="month"
-                series={result.scenarios.map((s, i) => ({
-                  name: s.name,
-                  color: [CHART_COLORS.scenarios.buy, CHART_COLORS.scenarios.rent, CHART_COLORS.scenarios.invest][i % 3],
-                }))}
-                curveType="monotone"
-                gridAxis="xy"
-                withLegend
-                legendProps={{ verticalAlign: 'bottom', height: 50 }}
-                valueFormatter={(value) => money(value)}
-                xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
-                yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
-                tooltipAnimationDuration={150}
-              />
-            )}
-            {chartType === 'line' && (
-              <LineChart
-                h={350}
-                data={overviewMetric === 'wealth' ? wealthData : outflowData}
-                dataKey="month"
-                series={result.scenarios.map((s, i) => ({
-                  name: s.name,
-                  color: [CHART_COLORS.scenarios.buy, CHART_COLORS.scenarios.rent, CHART_COLORS.scenarios.invest][i % 3],
-                }))}
-                curveType="monotone"
-                gridAxis="xy"
-                withLegend
-                legendProps={{ verticalAlign: 'bottom', height: 50 }}
-                valueFormatter={(value) => money(value)}
-                xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
-                yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
-                tooltipAnimationDuration={150}
-              />
-            )}
-            <Text size="xs" c="dimmed" mt="sm">
-              Eixo X: meses (marcado por anos). Passe o mouse para valores exatos.
+            <Box
+              h={350}
+              w="100%"
+              miw={0}
+              role="img"
+              aria-labelledby="overview-chart-title"
+              aria-describedby="overview-chart-alternative"
+            >
+              {chartType === 'area' && (
+                  <AreaChart
+                    h={350}
+                    w="100%"
+                    miw={0}
+                    data={overviewMetric === 'wealth' ? wealthData : outflowData}
+                    dataKey="month"
+                    series={result.scenarios.map((s, i) => ({
+                      name: s.name,
+                      color: SCENARIO_CHART_COLORS[i % SCENARIO_CHART_COLORS.length],
+                    }))}
+                    curveType="monotone"
+                    gridAxis="xy"
+                    withLegend
+                    legendProps={{ verticalAlign: 'bottom', height: 50 }}
+                    valueFormatter={(value) => money(value)}
+                    xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
+                    yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
+                    tooltipAnimationDuration={150}
+                  />
+              )}
+              {chartType === 'line' && (
+                  <LineChart
+                    h={350}
+                    w="100%"
+                    miw={0}
+                    data={overviewMetric === 'wealth' ? wealthData : outflowData}
+                    dataKey="month"
+                    series={result.scenarios.map((s, i) => ({
+                      name: s.name,
+                      color: SCENARIO_CHART_COLORS[i % SCENARIO_CHART_COLORS.length],
+                    }))}
+                    curveType="monotone"
+                    gridAxis="xy"
+                    withLegend
+                    legendProps={{ verticalAlign: 'bottom', height: 50 }}
+                    valueFormatter={(value) => money(value)}
+                    xAxisProps={{ tickMargin: 10, tickFormatter: (v) => formatYearTickFromMonth(Number(v)) }}
+                    yAxisProps={{ tickMargin: 10, tickFormatter: (v) => moneyCompact(v as number) }}
+                    tooltipAnimationDuration={150}
+                  />
+              )}
+            </Box>
+            <Text id="overview-chart-alternative" size="xs" c="dimmed" mt="sm">
+              Eixo X: meses (marcado por anos). Para patrimônio, os marcos estão no “Resumo comparativo”; para saídas, os valores mensais estão nas tabelas de cada estratégia. No gráfico, toque ou use o ponteiro para inspecionar pontos intermediários.
             </Text>
             {overviewMetric === 'outflow' && (
               <Text size="xs" c="dimmed" mt={6}>
@@ -1478,19 +1793,15 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
           return (
             <Tabs.Panel key={s.name} value={s.name}>
               <Box
-                p="xl"
-                style={{
-                  background: 'var(--glass-bg)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  boxShadow: 'var(--glass-shadow), var(--glass-shadow-glow)',
-                  borderRadius: 'var(--mantine-radius-xl)',
-                }}
+                component="section"
+                aria-labelledby={`scenario-detail-title-${s.scenario_type}`}
+                p={{ base: 'md', sm: 'xl' }}
+                style={RESULT_SURFACE_STYLE}
               >
                 {/* Scenario header */}
                 <Group justify="space-between" mb="lg" wrap="wrap" gap="md">
                   <Box>
-                    <Text fw={600} size="lg" c="bright">
+                    <Text id={`scenario-detail-title-${s.scenario_type}`} component="h3" fw={600} size="lg" c="bright">
                       Detalhamento: {s.name}
                     </Text>
                     <Text size="sm" c="dimmed">
@@ -1503,7 +1814,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         {purchaseMonth ? `Comprado no mês ${purchaseMonth}` : 'Ainda não comprado'}
                       </Badge>
                       <Switch
-                        size="sm"
+                        size="md"
+                        styles={{ root: { minHeight: rem(44), display: 'flex', alignItems: 'center' } }}
                         checked={milestonesOnly}
                         onChange={(e) => setMilestonesOnly(e.currentTarget.checked)}
                         label="Apenas marcos"
@@ -1515,7 +1827,8 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 {!isBuy && (
                   <Group justify="space-between" align="center" wrap="wrap" gap="sm" mb="md">
                     <SegmentedControl
-                      size="xs"
+                      size="sm"
+                      styles={{ control: { minHeight: rem(44) } }}
                       radius="lg"
                       value={tableView}
                       onChange={(v) => setTableView(v as any)}
@@ -1524,7 +1837,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         { label: 'Detalhada', value: 'detailed' },
                       ]}
                     />
-                    <Text size="xs" c="ocean.6">
+                    <Text size="xs" c="dimmed">
                       Essencial = leitura rápida; Detalhada = mais colunas.
                     </Text>
                   </Group>
@@ -1541,7 +1854,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                 )}
 
                 {/* Table */}
-                <ScrollArea h={400} type="hover" scrollbarSize={8} offsetScrollbars>
+                <ScrollArea h={440} type="auto" scrollbarSize={8} offsetScrollbars>
                   {isBuy ? (() => {
                     const payoffThreshold = 0.01;
                     let payoffMonth: number | null = null;
@@ -1566,26 +1879,33 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             <Badge variant="light" color="ocean">
                               {payoffMonth != null ? `Quitado no mês ${payoffMonth}` : 'Não quitado no horizonte'}
                             </Badge>
-                            <Tooltip
+                            <ExplanationPopover
                               label="Tabela do financiamento: parcela, juros, amortização (inclui extras) e saldo devedor."
                               withArrow
                             >
                               <ActionIcon variant="subtle" color="gray" size="sm" aria-label="Ajuda: Tabela do financiamento">
                                 <IconHelpCircle size={16} />
                               </ActionIcon>
-                            </Tooltip>
+                            </ExplanationPopover>
                           </Group>
                         </Group>
 
-                        <Table fz="sm" striped highlightOnHover stickyHeader>
+                        <Table
+                          fz="sm"
+                          striped
+                          highlightOnHover
+                          stickyHeader
+                          miw={2200}
+                          aria-label={`Fluxo mensal de ${s.name}`}
+                        >
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th>Mês</Table.Th>
                               <Table.Th>Ano</Table.Th>
                               <Table.Th>
-                                <Tooltip label="Parcela base do financiamento (sem amortizações extras). As extras aparecem nas colunas ao lado." withArrow>
+                                <ExplanationPopover label="Parcela base do financiamento (sem amortizações extras). As extras aparecem nas colunas ao lado." withArrow>
                                   <Text component="span" size="sm">Parcela (base)</Text>
-                                </Tooltip>
+                                </ExplanationPopover>
                               </Table.Th>
                               <Table.Th>Juros</Table.Th>
                               <Table.Th>Amortização</Table.Th>
@@ -1597,20 +1917,20 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               <Table.Th>Custos (cond+IPTU)</Table.Th>
                               {monthlyNetIncome != null && (
                                 <Table.Th>
-                                  <Tooltip label="Renda líquida menos custo de moradia mensal (parcela base + custos + amort. cash). Amortizações de FGTS, Bônus e 13º não são consideradas." withArrow>
+                                  <ExplanationPopover label="Orçamento disponível menos custo de moradia mensal (parcela base + custos + amortização em dinheiro). FGTS, bônus e 13º não são considerados." withArrow>
                                     <Text component="span" size="sm">Sobra</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                               )}
                               <Table.Th>
-                                <Tooltip label="Aportes programados (investimentos configurados)" withArrow>
+                                <ExplanationPopover label="Aportes programados (investimentos configurados)" withArrow>
                                   <Text component="span" size="sm">Aportes</Text>
-                                </Tooltip>
+                                </ExplanationPopover>
                               </Table.Th>
                               <Table.Th>
-                                <Tooltip label="Saldo acumulado de investimentos (inclui aportes)" withArrow>
+                                <ExplanationPopover label="Saldo acumulado de investimentos (inclui aportes)" withArrow>
                                   <Text component="span" size="sm">Saldo inv.</Text>
-                                </Tooltip>
+                                </ExplanationPopover>
                               </Table.Th>
                               <Table.Th>Custos compra</Table.Th>
                               <Table.Th>Entrada (cash)</Table.Th>
@@ -1661,15 +1981,16 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   <Table.Td>{moneySafe(monthlyCosts)}</Table.Td>
                                   {surplus != null && (
                                     <Table.Td>
-                                      <Tooltip 
+                                      <ExplanationPopover
                                         label={
-                                          <SurplusBreakdownTooltip
+                                          <SurplusBreakdown
                                             netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                             housingCost={housingCost}
                                             installment={installment}
                                             monthlyCosts={monthlyCosts}
                                             extraAmortCash={extraCash}
                                             scenarioType="buy"
+                                            incomeAdjusted={Boolean(inputPayload?.monthly_net_income_adjust_inflation)}
                                           />
                                         }
                                         multiline
@@ -1677,14 +1998,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                         withArrow
                                         position="left"
                                       >
-                                        <Text 
-                                          c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
+                                        <Text
+                                          c={surplus >= 0 ? 'var(--farol-chart-positive)' : 'var(--farol-chart-negative)'}
                                           fw={500}
-                                          style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                          style={{ textDecoration: 'underline dotted' }}
                                         >
                                           {signedMoney(surplus)}
                                         </Text>
-                                      </Tooltip>
+                                      </ExplanationPopover>
                                     </Table.Td>
                                   )}
                                   <Table.Td>{m.extra_contribution_total > 0 ? moneySafe(m.extra_contribution_total) : '—'}</Table.Td>
@@ -1706,7 +2027,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                     );
                   })() : (
                     isRentInvest ? (
-                      <Table fz="sm" striped highlightOnHover stickyHeader>
+                      <Table
+                        fz="sm"
+                        striped
+                        highlightOnHover
+                        stickyHeader
+                        miw={tableView === 'essential' ? 820 : 1900}
+                        aria-label={`Fluxo mensal de ${s.name}`}
+                      >
                         <Table.Thead>
                           <Table.Tr>
                             <Table.Th>Mês</Table.Th>
@@ -1716,9 +2044,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                 <Table.Th>Moradia (R$)</Table.Th>
                                 {monthlyNetIncome != null && (
                                   <Table.Th>
-                                    <Tooltip label="Renda líquida menos custo de moradia (aluguel + cond/IPTU). Clique no valor para detalhes." withArrow>
+                                    <ExplanationPopover label="Orçamento disponível menos custo de moradia (aluguel + condomínio/IPTU). Ative o valor para abrir a composição." withArrow>
                                       <Text component="span" size="sm">Sobra</Text>
-                                    </Tooltip>
+                                    </ExplanationPopover>
                                   </Table.Th>
                                 )}
                                 <Table.Th>Retorno (líq.)</Table.Th>
@@ -1728,79 +2056,74 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             ) : (
                               <>
                                 {/* Custos de Moradia */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-ocean-3)' }}>
-                                  <Tooltip label="Valor do aluguel no mês" withArrow>
+                                <Table.Th style={{ boxShadow: 'inset 2px 0 0 var(--farol-chart-1)' }}>
+                                  <ExplanationPopover label="Valor do aluguel no mês" withArrow>
                                     <Text component="span" size="sm">Aluguel</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Condomínio + IPTU mensal" withArrow>
+                                  <ExplanationPopover label="Condomínio + IPTU mensal" withArrow>
                                     <Text component="span" size="sm">Cond+IPTU</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Total de moradia devido (aluguel + cond/IPTU)" withArrow>
+                                  <ExplanationPopover label="Total de moradia devido (aluguel + cond/IPTU)" withArrow>
                                     <Text component="span" size="sm">Total devido</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 {monthlyNetIncome != null && (
                                   <Table.Th>
-                                    <Tooltip label="Renda líquida menos custo de moradia. Clique no valor para detalhes." withArrow>
+                                    <ExplanationPopover label="Orçamento disponível menos custo de moradia. Ative o valor para abrir a composição." withArrow>
                                       <Text component="span" size="sm">Sobra</Text>
-                                    </Tooltip>
+                                    </ExplanationPopover>
                                   </Table.Th>
                                 )}
                                 {/* Fluxo de caixa */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-info-3)' }}>
-                                  <Tooltip label="Total efetivamente pago de moradia" withArrow>
+                                <Table.Th style={{ boxShadow: 'inset 2px 0 0 var(--farol-chart-3)' }}>
+                                  <ExplanationPopover label="Total efetivamente pago de moradia" withArrow>
                                     <Text component="span" size="sm">Pago</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Diferença entre devido e pago (falta de caixa)" withArrow>
+                                  <ExplanationPopover label="Diferença entre devido e pago (falta de caixa)" withArrow>
                                     <Text component="span" size="sm">Falta</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Valor sacado do investimento para pagar moradia" withArrow>
+                                  <ExplanationPopover label="Valor sacado do investimento para pagar moradia" withArrow>
                                     <Text component="span" size="sm">Saque</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Cobertura de fonte externa (ex: poupança externa)" withArrow>
+                                  <ExplanationPopover label="Cobertura de fonte externa (ex: poupança externa)" withArrow>
                                     <Text component="span" size="sm">Cob. ext.</Text>
-                                  </Tooltip>
-                                </Table.Th>
-                                <Table.Th>
-                                  <Tooltip label="Sobra externa investida" withArrow>
-                                    <Text component="span" size="sm">Sobra inv.</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 {/* Investimentos */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-teal-3)' }}>
-                                  <Tooltip label="Aportes programados (configurados na entrada)" withArrow>
+                                <Table.Th style={{ boxShadow: 'inset 2px 0 0 var(--farol-chart-2)' }}>
+                                  <ExplanationPopover label="Aportes programados (configurados na entrada)" withArrow>
                                     <Text component="span" size="sm">Aportes</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Retorno líquido do investimento no mês" withArrow>
+                                  <ExplanationPopover label="Retorno líquido do investimento no mês" withArrow>
                                     <Text component="span" size="sm">Retorno</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Saldo acumulado de investimentos" withArrow>
+                                  <ExplanationPopover label="Saldo acumulado de investimentos" withArrow>
                                     <Text component="span" size="sm">Saldo inv.</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Patrimônio total (investimentos + FGTS)" withArrow>
+                                  <ExplanationPopover label="Patrimônio total (investimentos + FGTS)" withArrow>
                                     <Text component="span" size="sm">Patrimônio</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Valor do imóvel de referência (com valorização)" withArrow>
+                                  <ExplanationPopover label="Valor do imóvel de referência (com valorização)" withArrow>
                                     <Text component="span" size="sm">Imóvel ref.</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                               </>
                             )}
@@ -1837,14 +2160,15 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(housingDue)}</Table.Td>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Tooltip 
+                                        <ExplanationPopover
                                           label={
-                                            <SurplusBreakdownTooltip
+                                          <SurplusBreakdown
                                               netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}
                                               scenarioType="rent_invest"
+                                              incomeAdjusted={Boolean(inputPayload?.monthly_net_income_adjust_inflation)}
                                             />
                                           }
                                           multiline
@@ -1852,14 +2176,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           withArrow
                                           position="left"
                                         >
-                                          <Text 
-                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
+                                          <Text
+                                          c={surplus >= 0 ? 'var(--farol-chart-positive)' : 'var(--farol-chart-negative)'}
                                             fw={500}
-                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                            style={{ textDecoration: 'underline dotted' }}
                                           >
                                             {signedMoney(surplus)}
                                           </Text>
-                                        </Tooltip>
+                                        </ExplanationPopover>
                                       </Table.Td>
                                     )}
                                     <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
@@ -1873,14 +2197,15 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(housingDue)}</Table.Td>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Tooltip 
+                                        <ExplanationPopover
                                           label={
-                                            <SurplusBreakdownTooltip
+                                          <SurplusBreakdown
                                               netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}
                                               scenarioType="rent_invest"
+                                              incomeAdjusted={Boolean(inputPayload?.monthly_net_income_adjust_inflation)}
                                             />
                                           }
                                           multiline
@@ -1888,21 +2213,20 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           withArrow
                                           position="left"
                                         >
-                                          <Text 
-                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
+                                          <Text
+                                          c={surplus >= 0 ? 'var(--farol-chart-positive)' : 'var(--farol-chart-negative)'}
                                             fw={500}
-                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                            style={{ textDecoration: 'underline dotted' }}
                                           >
                                             {signedMoney(surplus)}
                                           </Text>
-                                        </Tooltip>
+                                        </ExplanationPopover>
                                       </Table.Td>
                                     )}
                                     <Table.Td>{moneySafe(m.housing_paid)}</Table.Td>
                                     <Table.Td>{moneySafe(m.housing_shortfall)}</Table.Td>
                                     <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>
                                     <Table.Td>{moneySafe(m.external_cover)}</Table.Td>
-                                    <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>
                                     <Table.Td>{m.extra_contribution_total > 0 ? moneySafe(m.extra_contribution_total) : '—'}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
@@ -1916,7 +2240,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                         </Table.Tbody>
                       </Table>
                     ) : (
-                      <Table fz="sm" striped highlightOnHover stickyHeader>
+                      <Table
+                        fz="sm"
+                        striped
+                        highlightOnHover
+                        stickyHeader
+                        miw={1800}
+                        aria-label={`Fluxo mensal de ${s.name}`}
+                      >
                         <Table.Thead>
                           <Table.Tr>
                             <Table.Th>Mês</Table.Th>
@@ -1925,7 +2256,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             <Table.Th>
                               <Group gap={6} wrap="nowrap">
                                 <Text component="span">Saída total</Text>
-                                <Tooltip
+                                <ExplanationPopover
                                   label={
                                     <Stack gap={4}>
                                       <Text size="xs" fw={600}>O que entra em “Saída total”?</Text>
@@ -1943,7 +2274,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   <ActionIcon variant="subtle" color="gray" size="xs" aria-label="Ajuda: Saída total">
                                     <IconHelpCircle size={14} />
                                   </ActionIcon>
-                                </Tooltip>
+                                </ExplanationPopover>
                               </Group>
                             </Table.Th>
                             <Table.Th>Patrimônio</Table.Th>
@@ -1951,9 +2282,9 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                               <>
                                 {monthlyNetIncome != null && (
                                   <Table.Th>
-                                    <Tooltip label="Renda líquida menos custo de moradia mensal" withArrow>
+                                    <ExplanationPopover label="Orçamento disponível menos custo de moradia mensal" withArrow>
                                       <Text component="span" size="sm">Sobra</Text>
-                                    </Tooltip>
+                                    </ExplanationPopover>
                                   </Table.Th>
                                 )}
                                 <Table.Th>Progresso</Table.Th>
@@ -1963,81 +2294,81 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             ) : (
                               <>
                                 {/* Custos de Moradia */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-ocean-3)' }}>
-                                  <Tooltip label="Valor do aluguel no mês" withArrow>
+                                <Table.Th style={{ boxShadow: 'inset 2px 0 0 var(--farol-chart-1)' }}>
+                                  <ExplanationPopover label="Valor do aluguel no mês" withArrow>
                                     <Text component="span" size="sm">Aluguel</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Condomínio + IPTU mensal" withArrow>
+                                  <ExplanationPopover label="Condomínio + IPTU mensal" withArrow>
                                     <Text component="span" size="sm">Cond+IPTU</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 {monthlyNetIncome != null && (
                                   <Table.Th>
-                                    <Tooltip label="Renda líquida menos custo de moradia (aluguel + cond/IPTU). Clique no valor para detalhes." withArrow>
+                                    <ExplanationPopover label="Orçamento disponível menos custo de moradia (aluguel + condomínio/IPTU). Ative o valor para abrir a composição." withArrow>
                                       <Text component="span" size="sm">Sobra</Text>
-                                    </Tooltip>
+                                    </ExplanationPopover>
                                   </Table.Th>
                                 )}
                                 {/* Investimentos */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-info-3)' }}>
-                                  <Tooltip label="Aportes programados (configurados na entrada)" withArrow>
+                                <Table.Th style={{ boxShadow: 'inset 2px 0 0 var(--farol-chart-3)' }}>
+                                  <ExplanationPopover label="Aportes programados (configurados na entrada)" withArrow>
                                     <Text component="span" size="sm">Aportes</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Investimento adicional (diferença financiamento-aluguel, se ativo)" withArrow>
+                                  <ExplanationPopover label="Investimento adicional (diferença financiamento-aluguel, se ativo)" withArrow>
                                     <Text component="span" size="sm">Inv. adic.</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Sobra externa investida (quando configurado)" withArrow>
-                                    <Text component="span" size="sm">Sobra ext.</Text>
-                                  </Tooltip>
-                                </Table.Th>
-                                <Table.Th>
-                                  <Tooltip label="Valor sacado do investimento para pagar aluguel" withArrow>
+                                  <ExplanationPopover label="Valor sacado do investimento para pagar aluguel" withArrow>
                                     <Text component="span" size="sm">Saque</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Retorno líquido do investimento no mês" withArrow>
+                                  <ExplanationPopover label="Retorno líquido do investimento no mês" withArrow>
                                     <Text component="span" size="sm">Retorno</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Saldo acumulado de investimentos" withArrow>
+                                  <ExplanationPopover label="Saldo acumulado de investimentos" withArrow>
                                     <Text component="span" size="sm">Saldo inv.</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 {/* Meta de compra */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-teal-3)' }}>
-                                  <Tooltip label="Valor necessário para comprar (imóvel + custos)" withArrow>
+                                <Table.Th style={{ boxShadow: 'inset 2px 0 0 var(--farol-chart-2)' }}>
+                                  <ExplanationPopover label="Valor necessário para comprar (imóvel + custos)" withArrow>
                                     <Text component="span" size="sm">Alvo</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>Progresso</Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Quanto ainda falta para atingir o alvo" withArrow>
+                                  <ExplanationPopover label="Quanto ainda falta para atingir o alvo" withArrow>
                                     <Text component="span" size="sm">Falta</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="FGTS utilizado neste mês" withArrow>
+                                  <ExplanationPopover label="FGTS utilizado neste mês" withArrow>
                                     <Text component="span" size="sm">FGTS</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
+                                </Table.Th>
+                                <Table.Th>
+                                  <ExplanationPopover label="Reserva de caixa sem rendimento usada na compra à vista" withArrow>
+                                    <Text component="span" size="sm">Caixa compra</Text>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 {/* Patrimônio */}
-                                <Table.Th style={{ borderLeft: '2px solid var(--mantine-color-ocean-3)' }}>
-                                  <Tooltip label="Valor do imóvel (com valorização)" withArrow>
+                                <Table.Th style={{ boxShadow: 'inset 2px 0 0 var(--farol-chart-1)' }}>
+                                  <ExplanationPopover label="Valor do imóvel (com valorização)" withArrow>
                                     <Text component="span" size="sm">Imóvel</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                                 <Table.Th>
-                                  <Tooltip label="Equidade no imóvel (só após compra)" withArrow>
+                                  <ExplanationPopover label="Equidade no imóvel (só após compra)" withArrow>
                                     <Text component="span" size="sm">Equidade</Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Th>
                               </>
                             )}
@@ -2048,7 +2379,7 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                             const isPurchase =
                               purchaseMonth != null ? m.month === purchaseMonth : m.status === 'Imóvel comprado';
                             const isPostPurchase = purchaseMonth != null ? m.month > purchaseMonth : m.phase === 'post_purchase';
-                            
+
                             // Calculate housing cost and surplus for invest-buy scenario
                             const housingDue = (m?.rent_due ?? 0) + (m?.monthly_additional_costs ?? 0);
                             // Use backend's inflation-adjusted income for surplus calculation
@@ -2077,34 +2408,35 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                   </Badge>
                                 </Table.Td>
                                 <Table.Td>
-                                  <Tooltip 
-                                    label={<InvestBuyOutflowExplanation m={m} />} 
-                                    multiline 
-                                    w={400} 
-                                    withArrow 
+                                  <ExplanationPopover
+                                    label={<InvestBuyOutflowExplanation m={m} />}
+                                    multiline
+                                    w={400}
+                                    withArrow
                                     position="top-start"
                                   >
-                                    <Text 
+                                    <Text
                                       component="span"
-                                      style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                      style={{ textDecoration: 'underline dotted' }}
                                     >
                                       {moneySafe(monthlyOutflow(m))}
                                     </Text>
-                                  </Tooltip>
+                                  </ExplanationPopover>
                                 </Table.Td>
                                 <Table.Td>{moneySafe(wealthAt(m))}</Table.Td>
                                 {tableView === 'essential' ? (
                                   <>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Tooltip 
+                                        <ExplanationPopover
                                           label={
-                                            <SurplusBreakdownTooltip
+                                          <SurplusBreakdown
                                               netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}
                                               scenarioType="invest_buy"
+                                              incomeAdjusted={Boolean(inputPayload?.monthly_net_income_adjust_inflation)}
                                             />
                                           }
                                           multiline
@@ -2112,14 +2444,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           withArrow
                                           position="left"
                                         >
-                                          <Text 
-                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
+                                          <Text
+                                          c={surplus >= 0 ? 'var(--farol-chart-positive)' : 'var(--farol-chart-negative)'}
                                             fw={500}
-                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                            style={{ textDecoration: 'underline dotted' }}
                                           >
                                             {signedMoney(surplus)}
                                           </Text>
-                                        </Tooltip>
+                                        </ExplanationPopover>
                                       </Table.Td>
                                     )}
                                     <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>
@@ -2132,14 +2464,15 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{moneySafe(m.monthly_additional_costs)}</Table.Td>
                                     {surplus != null && (
                                       <Table.Td>
-                                        <Tooltip 
+                                        <ExplanationPopover
                                           label={
-                                            <SurplusBreakdownTooltip
+                                          <SurplusBreakdown
                                               netIncome={effectiveIncome ?? monthlyNetIncome ?? 0}
                                               housingCost={housingDue}
                                               rent={m.rent_due}
                                               monthlyCosts={m.monthly_additional_costs}
                                               scenarioType="invest_buy"
+                                              incomeAdjusted={Boolean(inputPayload?.monthly_net_income_adjust_inflation)}
                                             />
                                           }
                                           multiline
@@ -2147,14 +2480,14 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                           withArrow
                                           position="left"
                                         >
-                                          <Text 
-                                            c={surplus >= 0 ? 'ocean.7' : 'danger.6'} 
+                                          <Text
+                                          c={surplus >= 0 ? 'var(--farol-chart-positive)' : 'var(--farol-chart-negative)'}
                                             fw={500}
-                                            style={{ cursor: 'help', textDecoration: 'underline dotted' }}
+                                            style={{ textDecoration: 'underline dotted' }}
                                           >
                                             {signedMoney(surplus)}
                                           </Text>
-                                        </Tooltip>
+                                        </ExplanationPopover>
                                       </Table.Td>
                                     )}
                                     <Table.Td>
@@ -2163,7 +2496,6 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>
                                       {m.additional_investment > 0 ? moneySafe(m.additional_investment) : '—'}
                                     </Table.Td>
-                                    <Table.Td>{moneySafe(m.external_surplus_invested)}</Table.Td>
                                     <Table.Td>{moneySafe(m.rent_withdrawal_from_investment)}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_return_net)}</Table.Td>
                                     <Table.Td>{moneySafe(m.investment_balance)}</Table.Td>
@@ -2171,6 +2503,11 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                                     <Table.Td>{m.progress_percent != null ? `${m.progress_percent.toFixed(1)}%` : '—'}</Table.Td>
                                     <Table.Td>{moneySafe(m.shortfall)}</Table.Td>
                                     <Table.Td>{m.fgts_used > 0 ? moneySafe(m.fgts_used) : '—'}</Table.Td>
+                                    <Table.Td>
+                                      {m.cash_reserve_used_for_purchase > 0
+                                        ? moneySafe(m.cash_reserve_used_for_purchase)
+                                        : '—'}
+                                    </Table.Td>
                                     <Table.Td>{moneySafe(m.property_value)}</Table.Td>
                                     <Table.Td>{m.equity > 0 ? moneySafe(m.equity) : '—'}</Table.Td>
                                   </>
@@ -2190,13 +2527,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   {isBuy && (
                     <>
                       <Group gap={6}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-success-1)' }} />
+                        <Box aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--farol-chart-positive)' }} />
                         <Text size="xs" c="dimmed">Mês de quitação</Text>
                       </Group>
                       {monthlyNetIncome != null && (
                         <Group gap={6}>
-                          <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-danger-1)' }} />
-                          <Text size="xs" c="dimmed">Renda insuficiente</Text>
+                          <Box aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--farol-chart-negative)' }} />
+                          <Text size="xs" c="dimmed">Orçamento insuficiente</Text>
                         </Group>
                       )}
                     </>
@@ -2204,13 +2541,13 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   {isRentInvest && (
                     <>
                       <Group gap={6}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-warning-1)' }} />
+                        <Box aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--farol-chart-4)' }} />
                         <Text size="xs" c="dimmed">Mês de &quot;burn&quot; (saque {'>'} retorno)</Text>
                       </Group>
                       {monthlyNetIncome != null && (
                         <Group gap={6}>
-                          <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-danger-1)' }} />
-                          <Text size="xs" c="dimmed">Renda insuficiente</Text>
+                          <Box aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--farol-chart-negative)' }} />
+                          <Text size="xs" c="dimmed">Orçamento insuficiente</Text>
                         </Group>
                       )}
                     </>
@@ -2218,44 +2555,44 @@ export default function EnhancedComparisonResults({ result, inputPayload }: { re
                   {isInvestBuy && (
                     <>
                       <Group gap={6}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-success-1)' }} />
+                        <Box aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--farol-chart-positive)' }} />
                         <Text size="xs" c="dimmed">Mês da compra</Text>
                       </Group>
                       <Group gap={6}>
-                        <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-ocean-1)' }} />
+                        <Box aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--farol-chart-1)' }} />
                         <Text size="xs" c="dimmed">Pós-compra</Text>
                       </Group>
                       {monthlyNetIncome != null && (
                         <Group gap={6}>
-                          <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--mantine-color-danger-1)' }} />
-                          <Text size="xs" c="dimmed">Renda insuficiente (pré-compra)</Text>
+                          <Box aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'var(--farol-chart-negative)' }} />
+                          <Text size="xs" c="dimmed">Orçamento insuficiente (pré-compra)</Text>
                         </Group>
                       )}
                     </>
                   )}
                 </Group>
 
-                <Divider my="md" color="ocean.2" />
+                <Divider my="md" color="var(--farol-border)" />
                 <SimpleGrid cols={{ base: 1, sm: 4 }} spacing="md">
                   <Box>
-                    <Text size="xs" c="ocean.5">Break-even</Text>
-                    <Text fw={600} c="ocean.8">
+                    <Text size="xs" c="dimmed">Break-even</Text>
+                    <Text fw={600} c="var(--farol-chart-1)">
                       {s.metrics.break_even_month != null ? `Mês ${s.metrics.break_even_month}` : '—'}
                     </Text>
                   </Box>
                   <Box>
-                    <Text size="xs" c="ocean.5">ROI (bruto)</Text>
-                    <Text fw={600} c="ocean.8">{percent(s.metrics.roi_percentage)}</Text>
+                    <Text size="xs" c="dimmed">Retorno comparável</Text>
+                    <Text fw={600} c="var(--farol-chart-1)">{roi(s.metrics.roi_percentage)}</Text>
                   </Box>
                   <Box>
-                    <Text size="xs" c="ocean.5">ROI (incl. saques)</Text>
-                    <Text fw={600} c="ocean.8">
-                      {s.metrics.roi_including_withdrawals_percentage != null ? percent(s.metrics.roi_including_withdrawals_percentage) : '—'}
+                    <Text size="xs" c="dimmed">Retorno incl. saques</Text>
+                    <Text fw={600} c="var(--farol-chart-1)">
+                      {roi(s.metrics.roi_including_withdrawals_percentage)}
                     </Text>
                   </Box>
                   <Box>
-                    <Text size="xs" c="ocean.5">Meses com burn</Text>
-                    <Text fw={600} c="ocean.8">{s.metrics.months_with_burn ?? '—'}</Text>
+                    <Text size="xs" c="dimmed">Meses com burn</Text>
+                    <Text fw={600} c="var(--farol-chart-1)">{s.metrics.months_with_burn ?? '—'}</Text>
                   </Box>
                 </SimpleGrid>
 

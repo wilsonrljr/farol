@@ -31,10 +31,9 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
     Calculates wealth accumulation when renting instead of buying,
     investing the down payment and potentially rental savings.
 
-    When monthly_net_income is provided:
-    - Housing costs (rent + additional costs) are paid from income
-    - Any surplus is automatically invested
-    - Any shortfall is tracked as housing_shortfall
+    When monthly_net_income is provided, housing costs are paid from income,
+    surplus remains in the common non-yielding cash ledger, and any shortfall is
+    exposed explicitly.
     """
 
     rent_value: float = field(default=0.0)
@@ -222,11 +221,12 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
             self.monthly_net_income_adjust_inflation,
         )
 
-        if effective_income is not None and effective_income > 0:
+        if effective_income is not None:
             # Income-based model: pay housing from income
             # Surplus is calculated but NOT automatically invested
-            income_cover = min(housing_due, effective_income)
-            surplus = effective_income - income_cover
+            income = max(0.0, float(effective_income))
+            income_cover = min(housing_due, income)
+            surplus = income - income_cover
 
             if surplus > 0:
                 # Track the available surplus for budget validation
@@ -235,6 +235,7 @@ class RentAndInvestScenarioSimulator(ScenarioSimulator, RentalScenarioMixin):
 
             remaining_before_return = self._account.balance
             actual_housing_paid = income_cover
+            effective_income = income
         else:
             # Legacy model: housing assumed paid externally
             actual_housing_paid = housing_due

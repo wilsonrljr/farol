@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -22,73 +22,178 @@ import {
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react';
+import type { ReactNode } from 'react';
 
-interface Item {
+export interface InvestmentReturnItem {
   start_month: number;
   end_month?: number | null;
   annual_rate: number;
 }
 
 interface Props {
-  value: Item[];
-  onChange: (val: Item[]) => void;
+  value: InvestmentReturnItem[];
+  onChange: (value: InvestmentReturnItem[]) => void;
+  errors?: Record<string, ReactNode>;
 }
 
-export default function InvestmentReturnsFieldArray({ value, onChange }: Props) {
-  const [collapsedItems, setCollapsedItems] = useState<Set<number>>(new Set());
+function newUiId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+}
 
-  const annualToMonthlyPercent = (annualPercent: number) => {
-    const a = Number(annualPercent);
-    if (!Number.isFinite(a)) return 0;
-    return (Math.pow(1 + a / 100, 1 / 12) - 1) * 100;
-  };
+/** Keeps the backend invariant: month 1, no gaps, and only the last range open. */
+export function normalizeInvestmentReturnPeriods(
+  value: readonly InvestmentReturnItem[]
+): InvestmentReturnItem[] {
+  const periods = value.map((item) => ({ ...item }));
+  if (periods.length === 0) return periods;
 
-  const toggleItemCollapse = (idx: number) => {
-    setCollapsedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) {
-        next.delete(idx);
-      } else {
-        next.add(idx);
-      }
+  periods[0].start_month = 1;
+  for (let index = 0; index < periods.length; index += 1) {
+    const period = periods[index];
+    period.start_month = Math.max(1, Math.trunc(Number(period.start_month) || 1));
+
+    if (index === periods.length - 1) {
+      period.end_month = null;
+      continue;
+    }
+
+    const proposedEnd = period.end_month == null ? Number.NaN : Number(period.end_month);
+    period.end_month = Number.isFinite(proposedEnd)
+      ? Math.max(period.start_month, Math.trunc(proposedEnd))
+      : period.start_month + 11;
+    periods[index + 1].start_month = period.end_month + 1;
+  }
+
+  return periods;
+}
+
+function annualToMonthlyPercent(annualPercent: number) {
+  const annual = Number(annualPercent);
+  if (!Number.isFinite(annual) || annual <= -100) return 0;
+  return (Math.pow(1 + annual / 100, 1 / 12) - 1) * 100;
+}
+
+export default function InvestmentReturnsFieldArray({ value, onChange, errors = {} }: Props) {
+  const [itemIds, setItemIds] = useState(() => value.map(() => newUiId()));
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setItemIds((current) => {
+      if (current.length === value.length) return current;
+      if (current.length > value.length) return current.slice(0, value.length);
+      return [
+        ...current,
+        ...Array.from({ length: value.length - current.length }, () => newUiId()),
+      ];
+    });
+  }, [value.length]);
+
+  useEffect(() => {
+    const indexesWithErrors = new Set(
+      Object.keys(errors).flatMap((path) => {
+        const match = /^investment_returns\.(\d+)/.exec(path);
+        return match ? [Number(match[1])] : [];
+      })
+    );
+    if (indexesWithErrors.size === 0) return;
+    setCollapsedItems((current) => {
+      const next = new Set(current);
+      indexesWithErrors.forEach((index) => {
+        const itemId = itemIds[index];
+        if (itemId) next.delete(itemId);
+      });
+      return next.size === current.size ? current : next;
+    });
+  }, [errors, itemIds]);
+
+  const toggleItemCollapse = (id: string) => {
+    setCollapsedItems((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
-  const collapseAll = () => {
-    setCollapsedItems(new Set((value || []).map((_, i) => i)));
-  };
-
-  const expandAll = () => {
-    setCollapsedItems(new Set());
-  };
+  const collapseAll = () => setCollapsedItems(new Set(itemIds));
+  const expandAll = () => setCollapsedItems(new Set());
 
   const addItem = () => {
-    onChange([...(value || []), { start_month: 1, end_month: null, annual_rate: 8 }]);
+    const periods = normalizeInvestmentReturnPeriods(value);
+    const id = newUiId();
+    setItemIds((current) => [...current, id]);
+
+    if (periods.length === 0) {
+      onChange([{ start_month: 1, end_month: null, annual_rate: 8 }]);
+      return;
+    }
+
+    const last = periods[periods.length - 1];
+    const splitEnd = last.start_month + 11;
+    last.end_month = splitEnd;
+    periods.push({
+      start_month: splitEnd + 1,
+      end_month: null,
+      annual_rate: last.annual_rate,
+    });
+    onChange(periods);
+  };
+
+  const removeItem = (index: number, id: string) => {
+    setItemIds((current) => current.filter((itemId) => itemId !== id));
+    setCollapsedItems((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+    onChange(normalizeInvestmentReturnPeriods(value.filter((_, itemIndex) => itemIndex !== index)));
+  };
+
+  const updateEndMonth = (index: number, rawValue: string | number) => {
+    const periods = value.map((item) => ({ ...item }));
+    periods[index].end_month = Math.max(
+      periods[index].start_month,
+      Math.trunc(Number(rawValue) || periods[index].start_month)
+    );
+    onChange(normalizeInvestmentReturnPeriods(periods));
+  };
+
+  const updateAnnualRate = (index: number, rawValue: string | number) => {
+    const annualRate = rawValue === '' ? 0 : Number(rawValue);
+    onChange(
+      value.map((item, itemIndex) =>
+        itemIndex === index
+          ? { ...item, annual_rate: Number.isFinite(annualRate) ? annualRate : 0 }
+          : { ...item }
+      )
+    );
   };
 
   return (
     <Stack gap="md">
-      {/* Header */}
-      <Group justify="space-between">
-        <Group gap="xs">
-          <Text fw={600} c="ocean.8">
-            Retorno do investimento
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Box>
+          <Group gap="xs">
+            <Text fw={650}>Retorno do investimento</Text>
+            <Badge size="sm" variant="light" color="ocean" radius="sm">
+              {value.length}
+            </Badge>
+          </Group>
+          <Text size="sm" c="dimmed" mt={3}>
+            Use períodos apenas quando a taxa mudar ao longo da projeção.
           </Text>
-          <Badge size="sm" variant="light" color="ocean" radius="sm">
-            {(value || []).length}
-          </Badge>
-        </Group>
-        <Group gap="xs">
-          {(value || []).length > 1 && (
+        </Box>
+        <Group gap="xs" wrap="wrap">
+          {value.length > 1 && (
             <>
               <Tooltip label="Minimizar todos">
                 <ActionIcon
                   variant="subtle"
                   color="ocean"
-                  size="md"
+                  size={44}
                   radius="lg"
                   onClick={collapseAll}
+                  aria-label="Minimizar todos os retornos"
                 >
                   <IconChevronRight size={16} />
                 </ActionIcon>
@@ -97,9 +202,10 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
                 <ActionIcon
                   variant="subtle"
                   color="ocean"
-                  size="md"
+                  size={44}
                   radius="lg"
                   onClick={expandAll}
+                  aria-label="Expandir todos os retornos"
                 >
                   <IconChevronDown size={16} />
                 </ActionIcon>
@@ -113,21 +219,28 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
             color="ocean"
             radius="lg"
             onClick={addItem}
+            mih={44}
           >
             Adicionar
           </Button>
         </Group>
       </Group>
 
-      {/* Empty State */}
-      {(value || []).length === 0 && (
+      {errors.investment_returns && (
+        <Text c="red" size="sm" role="alert">
+          {errors.investment_returns}
+        </Text>
+      )}
+
+      {value.length === 0 && (
         <Paper
           p="lg"
           radius="lg"
           ta="center"
           style={{
             border: '2px dashed var(--mantine-color-default-border)',
-            backgroundColor: 'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
+            backgroundColor:
+              'light-dark(var(--mantine-color-ocean-0), var(--mantine-color-dark-7))',
           }}
         >
           <Stack gap="sm" align="center">
@@ -135,7 +248,10 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
               <IconChartLine size={24} />
             </ThemeIcon>
             <div>
-              <Text fw={500} c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
+              <Text
+                fw={500}
+                c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))"
+              >
                 Nenhum retorno configurado
               </Text>
               <Text size="sm" c="dimmed">
@@ -148,6 +264,7 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
               color="ocean"
               radius="lg"
               onClick={addItem}
+              mih={44}
             >
               Adicionar Retorno
             </Button>
@@ -155,120 +272,116 @@ export default function InvestmentReturnsFieldArray({ value, onChange }: Props) 
         </Paper>
       )}
 
-      {/* Return Items */}
-      {(value || []).map((item, idx) => {
-        const isCollapsed = collapsedItems.has(idx);
-        const canDelete = (value || []).length > 1;
+      {value.map((item, index) => {
+        const itemId = itemIds[index] ?? `return-${index}`;
+        const panelId = `investment-return-panel-${itemId}`;
+        const isCollapsed = collapsedItems.has(itemId);
+        const canDelete = value.length > 1;
+        const isLast = index === value.length - 1;
         const periodLabel = item.end_month
           ? `Mês ${item.start_month} a ${item.end_month}`
           : `Mês ${item.start_month} em diante`;
         const monthlyEquivalent = annualToMonthlyPercent(item.annual_rate);
 
         return (
-          <Box
-            key={idx}
+          <Paper
+            key={itemId}
             p={isCollapsed ? 'sm' : 'md'}
-            style={{
-              background: 'light-dark(rgba(255, 255, 255, 0.5), rgba(15, 23, 42, 0.5))',
-              borderRadius: 'var(--mantine-radius-lg)',
-              boxShadow: '0 2px 8px -2px rgba(0, 0, 0, 0.08)',
-              transition: 'all 200ms ease',
-            }}
+            radius="lg"
+            withBorder
           >
             <Stack gap={isCollapsed ? 0 : 'md'}>
-              {/* Header - Always visible, clickable to toggle */}
-              <UnstyledButton
-                onClick={() => toggleItemCollapse(idx)}
-                style={{ width: '100%' }}
-              >
-                <Group justify="space-between" wrap="nowrap">
-                  <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                    <ActionIcon
-                      variant="subtle"
-                      color="ocean"
-                      size="sm"
-                      radius="lg"
-                    >
-                      {isCollapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
-                    </ActionIcon>
+              <Group justify="space-between" wrap="nowrap">
+                <UnstyledButton
+                  onClick={() => toggleItemCollapse(itemId)}
+                  style={{ flex: 1, minWidth: 0, minHeight: 44 }}
+                  aria-expanded={!isCollapsed}
+                  aria-controls={panelId}
+                >
+                  <Group gap="sm" wrap="nowrap">
+                    <Box c="ocean.6" style={{ display: 'flex' }}>
+                      {isCollapsed ? (
+                        <IconChevronRight size={14} />
+                      ) : (
+                        <IconChevronDown size={14} />
+                      )}
+                    </Box>
                     <ThemeIcon size={28} radius="lg" variant="light" color="ocean">
                       <IconChartLine size={14} />
                     </ThemeIcon>
                     <Box style={{ minWidth: 0, flex: 1 }}>
                       <Group gap="xs" wrap="nowrap">
-                        <Text fw={500} size="sm" c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))">
-                          Retorno {idx + 1}
+                        <Text
+                          fw={500}
+                          size="sm"
+                          c="light-dark(var(--mantine-color-ocean-8), var(--mantine-color-text))"
+                        >
+                          Retorno {index + 1}
                         </Text>
                         {isCollapsed && (
                           <Text size="xs" c="dimmed" lineClamp={1}>
-                            — {periodLabel} • {item.annual_rate}% a.a. (~{monthlyEquivalent.toFixed(2)}% a.m.)
+                            — {periodLabel} • {item.annual_rate}% a.a. (~
+                            {monthlyEquivalent.toFixed(2)}% a.m.)
                           </Text>
                         )}
                       </Group>
                     </Box>
                   </Group>
-                  {canDelete && (
-                    <ActionIcon
-                      color="danger"
-                      variant="subtle"
-                      size="md"
-                      radius="lg"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onChange(value.filter((_, i) => i !== idx));
-                      }}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  )}
-                </Group>
-              </UnstyledButton>
+                </UnstyledButton>
+                {canDelete && (
+                  <ActionIcon
+                    color="danger"
+                    variant="subtle"
+                    size={44}
+                    radius="lg"
+                    onClick={() => removeItem(index, itemId)}
+                    aria-label={`Excluir retorno ${index + 1}`}
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                )}
+              </Group>
 
-              {/* Collapsible content */}
-              <Collapse in={!isCollapsed}>
+              <Collapse in={!isCollapsed} id={panelId}>
                 <Stack gap="md" pt="sm">
                   <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
                     <NumberInput
+                      name={`investment_returns.${index}.start_month`}
                       label="Mês inicial"
-                      description="Quando começa este retorno"
+                      description={index === 0 ? 'A série sempre começa no mês 1' : 'Derivado do período anterior'}
                       min={1}
                       value={item.start_month}
-                      onChange={(v) => {
-                        const arr = [...value];
-                        arr[idx].start_month = Number(v) || 1;
-                        onChange(arr);
-                      }}
+                      disabled
+                      error={errors[`investment_returns.${index}.start_month`]}
                     />
                     <NumberInput
+                      name={`investment_returns.${index}.end_month`}
                       label="Mês final"
-                      description="Quando termina (vazio = indefinido)"
-                      min={1}
+                      description={isLast ? 'O último período segue até o fim' : 'Define a próxima mudança de taxa'}
+                      min={item.start_month}
                       value={item.end_month ?? ''}
                       placeholder="Indefinido"
-                      onChange={(v) => {
-                        const arr = [...value];
-                        arr[idx].end_month = v ? Number(v) : null;
-                        onChange(arr);
-                      }}
+                      disabled={isLast}
+                      onChange={(nextValue) => updateEndMonth(index, nextValue)}
+                      error={errors[`investment_returns.${index}.end_month`]}
                     />
                     <NumberInput
+                      name={`investment_returns.${index}.annual_rate`}
                       label="Taxa anual"
                       description={`Retorno anual do investimento (≈ ${monthlyEquivalent.toFixed(2)}% a.m.)`}
-                      min={0}
-                      max={200}
+                      min={-99.99}
+                      max={1000}
+                      decimalScale={2}
                       value={item.annual_rate}
                       suffix="% a.a."
-                      onChange={(v) => {
-                        const arr = [...value];
-                        arr[idx].annual_rate = Number(v) || 0;
-                        onChange(arr);
-                      }}
+                      onChange={(nextValue) => updateAnnualRate(index, nextValue)}
+                      error={errors[`investment_returns.${index}.annual_rate`]}
                     />
                   </SimpleGrid>
                 </Stack>
               </Collapse>
             </Stack>
-          </Box>
+          </Paper>
         );
       })}
     </Stack>

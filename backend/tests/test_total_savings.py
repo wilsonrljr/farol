@@ -145,7 +145,9 @@ def test_comparison_with_no_initial_investment_backward_compatible():
         # No initial_investment parameter
     )
 
-    assert result.best_scenario is not None
+    assert result.best_scenario is None
+    assert result.comparison_status == "exploratory"
+    assert result.warnings
     assert len(result.scenarios) == 3
 
     # Rent scenario should start with just down_payment

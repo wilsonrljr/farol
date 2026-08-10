@@ -6,13 +6,13 @@ emergency fund target expressed as N months of expenses.
 
 from __future__ import annotations
 
-from .inflation import apply_inflation
-from .rates import convert_interest_rate
 from ..models import (
     EmergencyFundPlanInput,
     EmergencyFundPlanMonth,
     EmergencyFundPlanResult,
 )
+from .inflation import apply_inflation
+from .rates import convert_interest_rate
 
 
 def plan_emergency_fund(input_data: EmergencyFundPlanInput) -> EmergencyFundPlanResult:
@@ -22,7 +22,13 @@ def plan_emergency_fund(input_data: EmergencyFundPlanInput) -> EmergencyFundPlan
     monthly_yield_multiplier = 1.0 + (monthly_yield_pct / 100.0)
 
     fund_balance = float(input_data.initial_emergency_fund)
-    achieved_at: int | None = None
+    initial_target = float(input_data.monthly_expenses) * float(
+        input_data.target_months_of_expenses
+    )
+    currently_achieved = fund_balance >= initial_target
+    # achieved_at_month remains a 1-based monthly-series coordinate for API
+    # compatibility; currently_achieved and months_to_goal expose month-zero semantics.
+    achieved_at: int | None = 1 if currently_achieved else None
 
     months: list[EmergencyFundPlanMonth] = []
 
@@ -43,8 +49,12 @@ def plan_emergency_fund(input_data: EmergencyFundPlanInput) -> EmergencyFundPlan
             investment_return = new_balance - fund_balance
             fund_balance = new_balance
 
-        # Add contribution.
-        contribution = float(input_data.monthly_contribution)
+        # Contribute only what is needed to reach or maintain this month's target.
+        # This avoids accumulating an unrelated investment portfolio after the
+        # emergency reserve is complete, while allowing contributions to resume
+        # when inflation or a negative yield lifts the target above the balance.
+        shortfall = max(0.0, target - fund_balance)
+        contribution = min(float(input_data.monthly_contribution), shortfall)
         fund_balance += contribution
 
         progress = 0.0 if target <= 0 else min(100.0, (fund_balance / target) * 100.0)
@@ -67,9 +77,14 @@ def plan_emergency_fund(input_data: EmergencyFundPlanInput) -> EmergencyFundPlan
         )
 
     target_end = months[-1].target_amount if months else 0.0
-    months_to_goal = (achieved_at - 1) if achieved_at is not None else None
+    # Monthly rows are end-of-month snapshots: reaching the target on row 6
+    # takes six months from today, not five. Only a target already satisfied at
+    # month zero has zero remaining months; ``achieved_at_month`` keeps its
+    # historical 1-based series coordinate for API compatibility.
+    months_to_goal = 0 if currently_achieved else achieved_at
 
     return EmergencyFundPlanResult(
+        currently_achieved=currently_achieved,
         achieved_at_month=achieved_at,
         months_to_goal=months_to_goal,
         final_emergency_fund_balance=float(fund_balance),

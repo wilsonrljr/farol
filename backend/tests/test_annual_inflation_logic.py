@@ -45,9 +45,9 @@ class TestApplyInflationAnnual:
 
         for month in range(13, 25):
             result = apply_inflation(base_value, month, 1, annual_rate)
-            assert result == pytest.approx(
-                expected
-            ), f"Month {month} should be {expected}"
+            assert result == pytest.approx(expected), (
+                f"Month {month} should be {expected}"
+            )
 
     def test_inflation_compounds_annually(self):
         """Inflation should compound year over year."""

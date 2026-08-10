@@ -27,6 +27,7 @@ import {
   PresetTag,
   PresetTagType,
   DEFAULT_TAGS,
+  MAX_PRESET_TAG_LABEL_LENGTH,
   createTag,
 } from '../utils/presets';
 
@@ -60,7 +61,7 @@ export function PresetTagBadge({ tag, onRemove, size = 'sm' }: PresetTagBadgePro
       rightSection={
         onRemove && (
           <ActionIcon
-            size={12}
+            size={24}
             radius="xl"
             variant="transparent"
             color={TAG_COLORS[tag.color] || 'gray'}
@@ -68,8 +69,9 @@ export function PresetTagBadge({ tag, onRemove, size = 'sm' }: PresetTagBadgePro
               e.stopPropagation();
               onRemove();
             }}
+            aria-label={`Remover tag ${tag.label}`}
           >
-            <IconX size={10} />
+            <IconX size={13} />
           </ActionIcon>
         )
       }
@@ -135,9 +137,8 @@ export function TagSelector({
   onAddTag,
   onRemoveTag,
   availableTags,
-  compact = false,
 }: TagSelectorProps) {
-  const [opened, { toggle, close }] = useDisclosure(false);
+  const [opened, { toggle, open, close }] = useDisclosure(false);
   const [customLabel, setCustomLabel] = useState('');
 
   const tagOptions = useMemo(() => {
@@ -173,18 +174,19 @@ export function TagSelector({
       
       <Popover
         opened={opened}
-        onChange={toggle}
+        onChange={(nextOpened) => (nextOpened ? open() : close())}
         position="bottom-start"
         withinPortal
         shadow="md"
       >
         <Popover.Target>
           <ActionIcon
-            size={compact ? 'sm' : 'md'}
+            size={44}
             variant="light"
             color="ocean"
             onClick={toggle}
             radius="xl"
+            aria-label="Adicionar tag"
           >
             <IconPlus size={14} />
           </ActionIcon>
@@ -196,6 +198,11 @@ export function TagSelector({
             </Text>
             <ScrollArea.Autosize mah={200}>
               <Stack gap={4}>
+                {tagOptions.length === 0 && (
+                  <Text size="sm" c="dimmed" py="xs">
+                    Todas as tags disponíveis já foram adicionadas.
+                  </Text>
+                )}
                 {tagOptions.map((type) => {
                   const tag = DEFAULT_TAGS[type];
                   return (
@@ -208,9 +215,9 @@ export function TagSelector({
                         gap: rem(8),
                         padding: `${rem(6)} ${rem(8)}`,
                         borderRadius: rem(6),
-                        transition: 'background-color 150ms ease',
+                        minHeight: rem(44),
+                        width: '100%',
                       }}
-                      className="tag-option-hover"
                     >
                       <Badge
                         size="sm"
@@ -236,17 +243,22 @@ export function TagSelector({
                   placeholder="Nome da tag"
                   value={customLabel}
                   onChange={(e) => setCustomLabel(e.target.value)}
+                  maxLength={MAX_PRESET_TAG_LABEL_LENGTH}
                   style={{ flex: 1 }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddCustomTag();
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomTag();
+                    }
                   }}
                 />
                 <ActionIcon
-                  size="sm"
+                  size={44}
                   color="ocean"
                   variant="filled"
                   onClick={handleAddCustomTag}
                   disabled={!customLabel.trim()}
+                  aria-label="Adicionar tag personalizada"
                 >
                   <IconCheck size={12} />
                 </ActionIcon>
@@ -270,7 +282,7 @@ export function TagFilter({
   selectedFilters,
   onFilterChange,
 }: TagFilterProps) {
-  const [opened, { toggle, close }] = useDisclosure(false);
+  const [opened, { toggle, open, close }] = useDisclosure(false);
 
   const toggleFilter = (type: PresetTagType) => {
     if (selectedFilters.includes(type)) {
@@ -290,7 +302,7 @@ export function TagFilter({
   return (
     <Popover
       opened={opened}
-      onChange={toggle}
+      onChange={(nextOpened) => (nextOpened ? open() : close())}
       position="bottom-start"
       withinPortal
       shadow="md"
@@ -309,6 +321,7 @@ export function TagFilter({
             )
           }
           onClick={toggle}
+          mih={44}
         >
           Filtrar
         </Button>
@@ -329,19 +342,23 @@ export function TagFilter({
             {allTags.map((tag) => {
               const isSelected = selectedFilters.includes(tag.type);
               return (
-                <Badge
+                <UnstyledButton
                   key={tag.type}
-                  size="sm"
-                  color={TAG_COLORS[tag.color] || 'gray'}
-                  variant={isSelected ? 'filled' : 'light'}
-                  style={{ cursor: 'pointer' }}
                   onClick={() => toggleFilter(tag.type)}
-                  leftSection={
-                    isSelected && <IconCheck size={10} />
-                  }
+                  aria-pressed={isSelected}
+                  aria-label={`Filtrar por ${tag.label}`}
+                  style={{ minHeight: rem(44), display: 'inline-flex', alignItems: 'center' }}
                 >
-                  {tag.label}
-                </Badge>
+                  <Badge
+                    size="sm"
+                    color={TAG_COLORS[tag.color] || 'gray'}
+                    variant={isSelected ? 'filled' : 'light'}
+                    style={{ cursor: 'pointer' }}
+                    leftSection={isSelected && <IconCheck size={10} />}
+                  >
+                    {tag.label}
+                  </Badge>
+                </UnstyledButton>
               );
             })}
           </Group>
@@ -350,13 +367,3 @@ export function TagFilter({
     </Popover>
   );
 }
-
-// CSS for hover effect (to be added to styles)
-const tagOptionHoverStyles = `
-  .tag-option-hover:hover {
-    background-color: light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6));
-  }
-`;
-
-// Export styles for inclusion
-export { tagOptionHoverStyles };

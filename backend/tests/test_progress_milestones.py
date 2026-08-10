@@ -1,7 +1,7 @@
 import unittest
 
-from app.scenarios.comparison import compare_scenarios
 from app.models import InvestmentReturnInput
+from app.scenarios.comparison import compare_scenarios
 
 
 class TestProgressMilestones(unittest.TestCase):

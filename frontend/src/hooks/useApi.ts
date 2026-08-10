@@ -1,48 +1,86 @@
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ApiError, isRequestCancelled, toApiError } from '../api/client';
 
-export function useApi<TArgs extends any[], TData>(fn: (...args: TArgs) => Promise<TData>) {
+export interface ApiCallContext {
+  signal: AbortSignal;
+  callId: number;
+}
+
+export type ApiCallOutcome<TData> =
+  | { committed: true; cancelled: false; data: TData }
+  | { committed: false; cancelled: boolean; data: null };
+
+/**
+ * Runs one request at a time. Starting a new call aborts the previous one and
+ * stale executors are never allowed to commit data or surface errors.
+ */
+export function useApi<TArgs extends unknown[], TData>(
+  fn: (...args: [...TArgs, ApiCallContext]) => Promise<TData>
+) {
   const [data, setData] = useState<TData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
 
-  // Store fn in a ref so we always call the latest version without re-creating `call`
   const fnRef = useRef(fn);
   fnRef.current = fn;
 
-  // Protect against out-of-order responses when users trigger multiple calls quickly
-  // (e.g. first request slow/cold-start, second request returns first).
   const latestCallId = useRef(0);
+  const controllerRef = useRef<AbortController | null>(null);
 
-  const call = useCallback(async (...args: TArgs) => {
+  const call = useCallback(async (...args: TArgs): Promise<ApiCallOutcome<TData>> => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
     const callId = ++latestCallId.current;
     setLoading(true);
     setError(null);
+    setData(null);
+
     try {
-      const result = await fnRef.current(...args);
-      // Only commit the latest call.
-      if (callId === latestCallId.current) {
-        setData(result);
+      const result = await fnRef.current(...args, { signal: controller.signal, callId });
+      if (callId !== latestCallId.current || controller.signal.aborted) {
+        return { committed: false, cancelled: controller.signal.aborted, data: null };
       }
-      return result;
-    } catch (e: any) {
-      if (callId === latestCallId.current) {
-        setError(e?.toString() || 'Erro');
+
+      setData(result);
+      return { committed: true, cancelled: false, data: result };
+    } catch (caught) {
+      const normalized = await toApiError(caught);
+      const stale = callId !== latestCallId.current;
+      const cancelled = controller.signal.aborted || isRequestCancelled(normalized);
+
+      if (stale || cancelled) {
+        return { committed: false, cancelled, data: null };
       }
-      throw e;
+
+      setError(normalized);
+      throw normalized;
     } finally {
       if (callId === latestCallId.current) {
         setLoading(false);
+        if (controllerRef.current === controller) controllerRef.current = null;
       }
     }
-  }, []); // No dependencies - fnRef.current is always up to date
+  }, []);
 
   const reset = useCallback(() => {
-    // Invalidate any in-flight call and clear state.
     latestCallId.current += 1;
+    controllerRef.current?.abort();
+    controllerRef.current = null;
     setData(null);
     setError(null);
     setLoading(false);
   }, []);
 
-  return { data, loading, error, call, reset };
+  useEffect(
+    () => () => {
+      latestCallId.current += 1;
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+    },
+    []
+  );
+
+  return { data, loading, error, call, reset, cancel: reset };
 }

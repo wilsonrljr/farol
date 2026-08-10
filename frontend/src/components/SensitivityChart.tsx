@@ -23,7 +23,10 @@ import {
   IconChartLine,
   IconPigMoney,
 } from '@tabler/icons-react';
-import { SensitivityAnalysisResult, SensitivityDataPoint } from '../api/types';
+import {
+  ComparisonScenarioType,
+  SensitivityAnalysisResult,
+} from '../api/types';
 import { money, moneyCompact, percent } from '../utils/format';
 
 interface SensitivityChartProps {
@@ -33,34 +36,24 @@ interface SensitivityChartProps {
   formatValue?: (value: number) => string;
 }
 
-const SCENARIO_COLORS: Record<string, string> = {
-  'Comprar': 'var(--mantine-color-ocean-6)',
-  'Alugar e Investir': 'var(--mantine-color-teal-5)',
-  'Investir e Comprar': 'var(--mantine-color-violet-5)',
+const SCENARIO_COLORS: Record<ComparisonScenarioType, string> = {
+  buy: 'var(--mantine-color-ocean-6)',
+  rent_invest: 'var(--mantine-color-teal-5)',
+  invest_buy: 'var(--mantine-color-violet-5)',
 };
 
-const SCENARIO_ICONS: Record<string, React.ReactNode> = {
-  'Comprar': <IconBuildingBank size={14} />,
-  'Alugar e Investir': <IconChartLine size={14} />,
-  'Investir e Comprar': <IconPigMoney size={14} />,
+const SCENARIO_ICONS: Record<ComparisonScenarioType, React.ReactNode> = {
+  buy: <IconBuildingBank size={14} />,
+  rent_invest: <IconChartLine size={14} />,
+  invest_buy: <IconPigMoney size={14} />,
 };
 
-function getScenarioColor(name: string): string {
-  for (const [key, color] of Object.entries(SCENARIO_COLORS)) {
-    if (name.toLowerCase().includes(key.toLowerCase())) {
-      return color;
-    }
-  }
-  return 'var(--mantine-color-gray-6)';
+function getScenarioColor(type: ComparisonScenarioType | null | undefined): string {
+  return type == null ? 'var(--mantine-color-gray-6)' : SCENARIO_COLORS[type];
 }
 
-function getScenarioIcon(name: string): React.ReactNode {
-  for (const [key, icon] of Object.entries(SCENARIO_ICONS)) {
-    if (name.toLowerCase().includes(key.toLowerCase())) {
-      return icon;
-    }
-  }
-  return <IconChartLine size={14} />;
+function getScenarioIcon(type: ComparisonScenarioType | null | undefined): React.ReactNode {
+  return type == null ? <IconChartLine size={14} /> : SCENARIO_ICONS[type];
 }
 
 export default function SensitivityChart({
@@ -87,18 +80,21 @@ export default function SensitivityChart({
   }, [result]);
 
   // Get scenario names for series
-  const scenarioNames = useMemo(() => {
+  const scenarioSeries = useMemo(() => {
     if (!result || result.data_points.length === 0) return [];
-    return Object.keys(result.data_points[0].scenarios);
+    return Object.entries(result.data_points[0].scenarios).map(([name, scenario]) => ({
+      name,
+      type: scenario.scenario_type,
+    }));
   }, [result]);
 
   // Chart series configuration
   const series = useMemo(() => {
-    return scenarioNames.map((name) => ({
+    return scenarioSeries.map(({ name, type }) => ({
       name,
-      color: getScenarioColor(name),
+      color: getScenarioColor(type),
     }));
-  }, [scenarioNames]);
+  }, [scenarioSeries]);
 
   // Value formatter for the parameter
   const paramFormatter = useMemo(() => {
@@ -146,9 +142,38 @@ export default function SensitivityChart({
   }
 
   const hasBreakeven = result.breakeven_points.length > 0;
+  const rankedPoints = result.data_points.filter(
+    (point) =>
+      point.comparison_status === 'comparable' && point.best_scenario_type != null
+  );
+  const dominantScenarioType = rankedPoints[0]?.best_scenario_type ?? null;
+  const isDominant =
+    dominantScenarioType != null &&
+    rankedPoints.length === result.data_points.length &&
+    rankedPoints.every((point) => point.best_scenario_type === dominantScenarioType);
+  const dominantScenarioLabel = dominantScenarioType == null
+    ? null
+    : Object.values(rankedPoints[0]?.scenarios ?? {}).find(
+        (scenario) => scenario.scenario_type === dominantScenarioType
+      )?.name ?? null;
 
   return (
     <Stack gap="md">
+      {(result.best_overall == null ||
+        (result.comparison_status != null && result.comparison_status !== 'ranked')) && (
+        <Alert color="orange" variant="light" icon={<IconAlertCircle size={16} />}>
+          <Text size="sm" fw={600}>Análise sem ranking conclusivo</Text>
+          <Text size="xs">
+            Há pontos exploratórios, incomparáveis ou inviáveis. As curvas mostram as trajetórias, mas não autorizam uma recomendação de parâmetro.
+          </Text>
+          {result.warnings?.slice(0, 3).map((warning, index) => (
+            <Text size="xs" key={`${index}-${warning}`}>• {warning}</Text>
+          ))}
+          {(result.warnings?.length ?? 0) > 3 && (
+            <Text size="xs">• Mais {(result.warnings?.length ?? 0) - 3} aviso(s).</Text>
+          )}
+        </Alert>
+      )}
       {/* Chart */}
       <Paper
         p="md"
@@ -228,7 +253,10 @@ export default function SensitivityChart({
                             }}
                           />
                           <Text size="xs">{entry.name}</Text>
-                          {dataPoint?.best_scenario === entry.name && (
+                          {dataPoint?.comparison_status === 'comparable' &&
+                            dataPoint.best_scenario_type != null &&
+                            dataPoint.scenarios[entry.name]?.scenario_type ===
+                              dataPoint.best_scenario_type && (
                             <IconCrown
                               size={10}
                               color="var(--mantine-color-gold-5)"
@@ -250,26 +278,34 @@ export default function SensitivityChart({
 
       {/* Key insights */}
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-        {/* Best Overall */}
-        <Paper p="sm" radius="md" withBorder>
+        {/* Best Overall (only when the backend produced a comparable ranking) */}
+        {result.best_overall != null && result.best_overall.best_scenario_type != null ? <Paper p="sm" radius="md" withBorder>
           <Group gap="xs" mb={4}>
             <ThemeIcon size="xs" radius="sm" variant="light" color="ocean">
               <IconCrown size={10} />
             </ThemeIcon>
             <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
-              Melhor Configuração
+              Maior ponto comparável
             </Text>
           </Group>
           <Text size="sm" fw={600}>
             {paramFormatter(result.best_overall.parameter_value)}
           </Text>
           <Group gap={4} mt={2}>
-            {getScenarioIcon(result.best_overall.best_scenario)}
+            {getScenarioIcon(result.best_overall.best_scenario_type)}
             <Text size="xs" c="dimmed">
-              {result.best_overall.best_scenario}
+              {Object.values(result.best_overall.scenarios).find(
+                (scenario) => scenario.scenario_type === result.best_overall?.best_scenario_type
+              )?.name ?? 'Sem cenário comparável'}
             </Text>
           </Group>
-        </Paper>
+        </Paper> : (
+          <Paper p="sm" radius="md" withBorder>
+            <Text size="xs" c="dimmed" tt="uppercase" fw={500}>Maior ponto comparável</Text>
+            <Text size="sm" fw={600}>Não determinada</Text>
+            <Text size="xs" c="dimmed">Sem base comparável</Text>
+          </Paper>
+        )}
 
         {/* Current value comparison */}
         <Paper p="sm" radius="md" withBorder>
@@ -281,13 +317,9 @@ export default function SensitivityChart({
           <Text size="sm" fw={600}>
             {paramFormatter(result.base_value)}
           </Text>
-          {result.base_value !== result.best_overall.parameter_value && (
-            <Text size="xs" c="orange" mt={2}>
-              {result.base_value < result.best_overall.parameter_value
-                ? '↑ Aumentar pode melhorar'
-                : '↓ Reduzir pode melhorar'}
-            </Text>
-          )}
+          <Text size="xs" c="dimmed" mt={2}>
+            Referência informada; a análise não prova causalidade.
+          </Text>
         </Paper>
 
         {/* Breakeven points */}
@@ -317,7 +349,7 @@ export default function SensitivityChart({
               {result.breakeven_points[0].to_scenario}
             </Text>
           </Paper>
-        ) : (
+        ) : isDominant ? (
           <Paper p="sm" radius="md" withBorder>
             <Group gap="xs" mb={4}>
               <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
@@ -325,14 +357,20 @@ export default function SensitivityChart({
               </Text>
             </Group>
             <Group gap={4}>
-              {getScenarioIcon(result.data_points[0]?.best_scenario || '')}
+              {getScenarioIcon(dominantScenarioType)}
               <Text size="sm" fw={600}>
-                {result.data_points[0]?.best_scenario || 'N/A'}
+                {dominantScenarioLabel ?? 'Cenário comparável'}
               </Text>
             </Group>
             <Text size="xs" c="ocean" mt={2}>
               Em todo o intervalo analisado
             </Text>
+          </Paper>
+        ) : (
+          <Paper p="sm" radius="md" withBorder>
+            <Text size="xs" c="dimmed" tt="uppercase" fw={500}>Cenário dominante</Text>
+            <Text size="sm" fw={600}>Não determinado</Text>
+            <Text size="xs" c="dimmed" mt={2}>Existem pontos sem ranking comparável.</Text>
           </Paper>
         )}
       </SimpleGrid>

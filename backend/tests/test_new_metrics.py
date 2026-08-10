@@ -1,13 +1,13 @@
 import pytest
 
 from app.core.rates import convert_interest_rate
-from app.scenarios.comparison import compare_scenarios
 from app.models import InvestmentReturnInput
+from app.scenarios.comparison import compare_scenarios
 
 
 def test_inconsistent_interest_rate_validation():
     # annual 12% should correspond to ~0.9489% monthly; provide inconsistent monthly
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="inconsistent"):
         convert_interest_rate(annual_rate=12.0, monthly_rate=2.0)
 
 
@@ -38,6 +38,8 @@ def test_compare_scenarios_new_fields():
             scenario.final_wealth - scenario.initial_wealth
         )
 
-    # best_scenario is defined as the max net_worth_change scenario.
-    best = max(result.scenarios, key=lambda s: s.net_worth_change or -1e18)
-    assert result.best_scenario == best.name
+    # Values remain available for exploration, but missing resource/income
+    # baselines make an authoritative winner misleading.
+    assert result.best_scenario is None
+    assert result.comparison_status == "exploratory"
+    assert result.warnings

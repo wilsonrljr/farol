@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main, master ]
@@ -16,23 +19,28 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-            python-version: '3.13'
+          python-version: '3.13'
 
-      - name: Set up pip cache
+      - name: Cache uv downloads
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
 
-      - name: Install project (editable) + dev extras
+      - name: Install uv and locked dependencies
         run: |
-          pip install --upgrade pip
-          pip install -e .[dev]
+          python -m pip install --disable-pip-version-check uv==0.11.32
+          uv sync --locked --extra dev
 
       - name: Run tests with coverage
-        run: pytest --cov=backend --cov-report=xml --cov-report=term-missing -q
+        run: uv run --locked --no-sync pytest --cov=backend.app --cov-report=xml --cov-report=term-missing -q
+
+      - name: Lint and format check
+        run: |
+          uv run --locked --no-sync ruff check backend
+          uv run --locked --no-sync ruff format --check backend
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
@@ -52,33 +60,24 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
           cache: 'npm'
           # Use o lockfile para chavear cache. Se mover, ajuste.
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install deps
+        run: npm ci
+
+      - name: Lint and typecheck
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci || (echo "npm ci failed, retrying with clean slate" && rm -rf node_modules && npm install)
-          else
-            npm install
-          fi
-          node -e "try{console.log('Rollup version:',require('rollup/package.json').version)}catch(e){console.log('Rollup not resolved yet')}"
+          npm run lint
+          npm run typecheck
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build
-        env:
-          VITE_API_BASE: http://localhost:8000
-          ROLLUP_SKIP_NODE_NATIVE: "1"
-        run: |
-          # Workaround para bug de optional deps do npm com rollup native
-          echo "Rollup version before build:"; node -e "console.log(require('rollup/package.json').version)" || true
-          if ! npm run build; then
-            echo "Primeira tentativa falhou possivelmente por optional deps de rollup. Limpando e reinstalando sem cache...";
-            rm -rf node_modules package-lock.json;
-            npm install --no-audit --no-fund;
-            npm run build;
-          fi
+        run: npm run build
 
   docker-build:
     runs-on: ubuntu-latest
@@ -90,10 +89,37 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image
+      - name: Validate Compose manifests
         run: |
-          docker build -f backend/Dockerfile -t farol-backend:ci .
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.prod.yml config --quiet
 
-      - name: Build frontend image
+      - name: Build production images
+        run: docker compose -f docker-compose.prod.yml build
+
+      - name: Smoke test hardened same-origin runtime
         run: |
-          docker build -f frontend/Dockerfile -t farol-frontend:ci .
+          docker compose -f docker-compose.prod.yml up --detach --wait --wait-timeout 120
+          curl --fail --silent --show-error http://127.0.0.1:8080/ > /dev/null
+          curl --fail --silent --show-error http://127.0.0.1:8080/readyz > /dev/null
+          curl --fail --silent --show-error \
+            --header 'Content-Type: application/json' \
+            --data '{"monthly_expenses":5000,"current_portfolio":100000,"horizon_months":1}' \
+            http://127.0.0.1:8080/api/fire > /dev/null
+          curl --fail --silent --show-error --head http://127.0.0.1:8080/ \
+            | grep --ignore-case --quiet "content-security-policy: default-src 'self'"
+          curl --silent --output /dev/null --write-out '%{http_code}\n' \
+            --header 'Content-Type: application/json' \
+            --header 'Content-Length: 4194305' \
+            --header 'Expect: 100-continue' \
+            --data-binary '{}' \
+            http://127.0.0.1:8080/api/fire \
+            | grep --quiet '^413$'
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml logs --no-color
+
+      - name: Stop smoke-test runtime
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down --volumes --remove-orphans

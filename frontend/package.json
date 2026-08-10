@@ -3,12 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
-    "dev": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite",
-    "build": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 tsc -b && cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite build",
-    "postinstall": "node scripts/patch-rollup.js || echo 'patch-rollup skipped'",
-    "preview": "cross-env ROLLUP_SKIP_NODE_NATIVE=1 vite preview",
-    "lint": "eslint src --ext .ts,.tsx || true"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "lint": "eslint src --ext .ts,.tsx --max-warnings=0",
+    "test": "vitest run"
   },
   "dependencies": {
     "@mantine/charts": "^8.0.0",
@@ -17,26 +21,30 @@
     "@mantine/hooks": "^8.0.0",
     "@mantine/notifications": "^8.0.0",
     "@tabler/icons-react": "^3.20.0",
-    "axios": "^1.7.2",
+    "axios": "^1.19.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^6.23.0",
+    "react-router-dom": "^7.18.2",
+    "recharts": "^3.10.1",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "rollup": "4.21.0",
-    "cross-env": "^7.0.3",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^7.13.1",
     "@typescript-eslint/parser": "^7.13.1",
-    "@vitejs/plugin-react": "^5.0.2",
+    "@vitejs/plugin-react": "^6.0.5",
     "eslint": "^8.57.0",
     "eslint-plugin-react": "^7.34.3",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "jsdom": "^25.0.1",
     "typescript": "^5.5.4",
-    "vite": "^5.4.2"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
   }
 }

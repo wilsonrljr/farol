@@ -48,6 +48,7 @@ def test_appreciation_behaviour_per_scenario():
             # Rent scenario tracks the target property value trajectory for comparison.
             if first_val and last_val:
                 assert last_val >= first_val
-        elif scenario["name"] == "Investir e comprar à vista":
-            if first_val and last_val:
-                assert last_val >= first_val
+        elif (
+            scenario["name"] == "Investir e comprar à vista" and first_val and last_val
+        ):
+            assert last_val >= first_val

@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 
 from backend.app.main import app
 
-
 client = TestClient(app)
 
 
@@ -29,8 +28,6 @@ def test_export_compare_scenarios_enhanced_xlsx_smoke():
         "inflation_rate": 0.0,
         "rent_inflation_rate": 0.0,
         "property_appreciation_rate": 0.0,
-        "rent_reduces_investment": False,
-        "invest_external_surplus": False,
     }
 
     r = client.post(
